@@ -145,7 +145,7 @@ async function add() {
     <div class="card divide-y divide-line">
       <div v-for="h in hours" :key="h" class="flex min-h-[3.25rem]">
         <div class="w-14 shrink-0 px-3 py-2 text-xs text-mute">{{ String(h).padStart(2, '0') }}:00</div>
-        <div class="flex-1 space-y-1 border-l border-line p-1">
+        <div class="min-w-0 flex-1 space-y-1 border-l border-line p-1">
           <template v-for="t in timedOnDay" :key="t.id">
             <div v-if="hourOf(t) === h" class="rounded-xl border-l-4 bg-accent-soft"
               :style="{ borderColor: app.sphereById(t.sphere_id)?.color ?? '#1F6F6B' }">
