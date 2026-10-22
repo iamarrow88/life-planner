@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html, body, #app { height: 100%; }
+body { @apply bg-bg text-ink font-sans antialiased; -webkit-tap-highlight-color: transparent; }
+button { @apply cursor-pointer; }
+
+@layer components {
+  .card { @apply bg-card rounded-2xl border border-line; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50; }
+  .btn-primary { @apply btn bg-accent text-white hover:brightness-110; }
+  .btn-ghost { @apply btn bg-accent-soft text-accent hover:brightness-95; }
+  .input { @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-[15px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/20; }
+  .chip { @apply inline-flex items-center rounded-full border border-line bg-white px-3 py-1 text-xs font-medium text-mute transition; }
+  .chip-on { @apply border-accent bg-accent-soft text-accent; }
+}
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
