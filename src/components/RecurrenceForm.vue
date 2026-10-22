@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useApp } from '../stores/app'
 import type { RecurrenceFreq, RecurrenceMode } from '../types'
 
@@ -11,6 +11,9 @@ const interval = ref(1)
 const weekdays = ref<number[]>([1, 3, 5])
 const mode = ref<RecurrenceMode>('schedule')
 const time = ref('')
+const remind = ref('')
+const remindTouched = ref(false)
+watch(time, (now, before) => { if (now && !before && !remindTouched.value) remind.value = '10' })
 const estimate = ref<number | null>(null)
 const sphereId = ref('')
 const startsOn = ref(app.today)
@@ -32,6 +35,7 @@ async function save() {
     title: title.value.trim(), sphere_id: sphereId.value || null,
     start_time: time.value ? `${time.value}:00` : null,
     estimate_minutes: estimate.value && estimate.value > 0 ? Math.floor(estimate.value) : null,
+    remind_before_minutes: time.value && remind.value !== '' ? Number(remind.value) : null,
     freq: freq.value, interval_n: Math.max(1, Math.floor(interval.value || 1)),
     weekdays: freq.value === 'week' && mode.value === 'schedule' ? [...weekdays.value].sort() : null,
     mode: mode.value, starts_on: startsOn.value,
@@ -72,6 +76,12 @@ async function save() {
     <div class="grid grid-cols-2 gap-2">
       <label class="text-xs text-mute">Начиная с<input v-model="startsOn" type="date" class="input mt-1" required /></label>
       <label class="text-xs text-mute">Время (необязательно)<input v-model="time" type="time" class="input mt-1" /></label>
+      <label class="col-span-2 text-xs text-mute">Напоминание
+        <select v-model="remind" class="input mt-1" :disabled="!time" @change="remindTouched = true">
+          <option value="">Не напоминать</option><option value="0">В момент начала</option><option value="5">За 5 минут</option>
+          <option value="10">За 10 минут</option><option value="15">За 15 минут</option><option value="30">За 30 минут</option><option value="60">За 1 час</option>
+        </select>
+      </label>
       <label class="text-xs text-mute">План, минут<input v-model.number="estimate" type="number" min="1" class="input mt-1" /></label>
       <label class="text-xs text-mute">Сфера
         <select v-model="sphereId" class="input mt-1"><option value="">Без сферы</option><option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option></select>

@@ -28,8 +28,8 @@ function ok<T>(r: { data: T | null; error: { message: string } | null }): T {
 const toUser = (u: { id: string; email?: string | null } | null | undefined): User | null =>
   u ? { id: u.id, email: u.email ?? '' } : null
 
-const TASK_COLS = 'id,title,status,sphere_id,due_date,start_time,estimate_minutes,done_at,recurrence_id'
-const REC_COLS = 'id,title,sphere_id,start_time,estimate_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
+const TASK_COLS = 'id,title,status,sphere_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
+const REC_COLS = 'id,title,sphere_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
 const TE_COLS = 'id,task_id,habit_id,sphere_id,started_at,ended_at,source'
 
 export const supabaseRepo: Repo = {
@@ -71,6 +71,7 @@ export const supabaseRepo: Repo = {
     return ok(await db().from('tasks').insert({
       title: t.title, status: t.status, sphere_id: t.sphere_id ?? null, due_date: t.due_date ?? null,
       start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null,
+      remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null,
     }).select(TASK_COLS).single()) as Task
   },
   async updateTask(id, patch) {
@@ -93,6 +94,7 @@ export const supabaseRepo: Repo = {
   async addRecurrence(r) {
     ok(await db().from('recurrences').insert({
       title: r.title, sphere_id: r.sphere_id, start_time: r.start_time, estimate_minutes: r.estimate_minutes,
+      remind_before_minutes: r.start_time ? (r.remind_before_minutes ?? null) : null,
       freq: r.freq, interval_n: r.interval_n, weekdays: r.freq === 'week' ? r.weekdays : null,
       mode: r.mode, starts_on: r.starts_on,
     }))
@@ -128,6 +130,11 @@ export const supabaseRepo: Repo = {
       ...(snapshot ? { snapshot } : {}), ...(complete ? { completed_at: new Date().toISOString() } : {}),
     }, { onConflict: 'user_id,week_start' }))
   },
+  async savePushSubscription(sub) {
+    // одна подписка на устройство: endpoint уникален. Если запись есть — обновляем ключи.
+    ok(await db().from('push_subscriptions').upsert(sub, { onConflict: 'endpoint' }))
+  },
+  async removePushSubscription(endpoint) { ok(await db().from('push_subscriptions').delete().eq('endpoint', endpoint)) },
   async exportAll() { return ok(await db().rpc('export_all')) as ExportData },
   async bumpHabit(id, delta, day) {
     return ok(await db().rpc('bump_habit', { p_habit: id, p_delta: delta, p_day: day })) as HabitEntry

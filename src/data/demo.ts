@@ -89,7 +89,8 @@ function write(s: Snapshot) { try { localStorage.setItem(KEY, JSON.stringify(s))
 
 function newFromRule(r: Recurrence, due: string): Task {
   return { id: uid(), title: r.title, status: 'planned', sphere_id: r.sphere_id, due_date: due,
-    start_time: r.start_time, estimate_minutes: r.estimate_minutes, done_at: null, recurrence_id: r.id }
+    start_time: r.start_time, estimate_minutes: r.estimate_minutes, remind_before_minutes: r.remind_before_minutes ?? null,
+    done_at: null, recurrence_id: r.id }
 }
 
 /** Создаёт задачи по правилам на 30 дней вперёд (не дублируя уже созданные) */
@@ -114,7 +115,8 @@ export const demoRepo: Repo = {
   async addTask(t) {
     const s = read()
     const task: Task = { id: uid(), title: t.title, status: t.status, sphere_id: t.sphere_id ?? null,
-      due_date: t.due_date ?? null, start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null, done_at: null }
+      due_date: t.due_date ?? null, start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null,
+      remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null, done_at: null }
     s.tasks.unshift(task); write(s); return task
   },
   async updateTask(id, patch) {
@@ -209,6 +211,8 @@ export const demoRepo: Repo = {
     if (complete) r.completed_at = new Date().toISOString()
     write(s)
   },
+  async savePushSubscription() { throw new Error('Уведомления работают после подключения Supabase') },
+  async removePushSubscription() { /* в демо нечего удалять */ },
   async exportAll(): Promise<ExportData> {
     const s = read()
     return {

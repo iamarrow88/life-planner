@@ -11,6 +11,10 @@ const date = ref('')
 const time = ref('')
 const estimate = ref<number | null>(null)
 const sphereId = ref('')
+/** '' — не напоминать, иначе число минут до начала ('0' — в момент начала) */
+const remind = ref('')
+const remindTouched = ref(false)
+const remindOptions = [['', 'Не напоминать'], ['0', 'В момент начала'], ['5', 'За 5 минут'], ['10', 'За 10 минут'], ['15', 'За 15 минут'], ['30', 'За 30 минут'], ['60', 'За 1 час']]
 const busy = ref(false)
 const presets = [15, 30, 45, 60, 90, 120]
 const isRunning = computed(() => !!task.value && app.running?.task_id === task.value.id)
@@ -20,7 +24,12 @@ watch(task, t => {
   if (!t) return
   title.value = t.title; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
   estimate.value = t.estimate_minutes; sphereId.value = t.sphere_id ?? ''
+  remind.value = t.remind_before_minutes == null ? '' : String(t.remind_before_minutes); remindTouched.value = false
 }, { immediate: true })
+// Пользователь впервые поставил время начала задаче без времени — предлагаем напомнить за 10 минут
+function onTimeInput() {
+  if (time.value && !remind.value && !remindTouched.value && !task.value?.start_time) remind.value = '10'
+}
 
 async function save() {
   const t = task.value
@@ -30,6 +39,7 @@ async function save() {
   await app.updateTask(t.id, {
     title: title.value.trim(), due_date: due,
     start_time: due && time.value ? `${time.value}:00` : null, // время без даты не бывает
+    remind_before_minutes: due && time.value && remind.value !== '' ? Number(remind.value) : null, // напоминание — только если есть время
     estimate_minutes: estimate.value, sphere_id: sphereId.value || null,
     status: t.status === 'done' ? 'done' : due ? 'planned' : 'inbox',
   })
@@ -54,8 +64,15 @@ async function remove() {
 
       <div class="grid grid-cols-2 gap-2">
         <label class="text-xs text-mute">Дата<input v-model="date" type="date" class="input mt-1" /></label>
-        <label class="text-xs text-mute">Время начала<input v-model="time" type="time" class="input mt-1" :disabled="!date" /></label>
+        <label class="text-xs text-mute">Время начала<input v-model="time" type="time" class="input mt-1" :disabled="!date" @input="onTimeInput" @change="onTimeInput" /></label>
       </div>
+
+      <label class="text-xs text-mute">Напоминание
+        <select v-model="remind" class="input mt-1" :disabled="!date || !time" @change="remindTouched = true">
+          <option v-for="o in remindOptions" :key="o[0]" :value="o[0]">{{ o[1] }}</option>
+        </select>
+        <span v-if="!date || !time" class="mt-1 block">Чтобы напомнить, задай дату и время начала.</span>
+      </label>
 
       <div>
         <div class="mb-1.5 text-xs text-mute">Сколько времени займёт (необязательно)</div>

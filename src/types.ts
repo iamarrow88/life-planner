@@ -6,12 +6,13 @@ export interface Task {
   id: string; title: string; status: TaskStatus
   sphere_id: string | null; due_date: string | null; start_time: string | null
   estimate_minutes: number | null; done_at: string | null; recurrence_id?: string | null
+  remind_before_minutes?: number | null   // null — не напоминать; 0 — в момент начала
 }
 export type RecurrenceFreq = 'day' | 'week' | 'month' | 'year'
 export type RecurrenceMode = 'schedule' | 'after_completion'
 export interface Recurrence {
   id: string; title: string; sphere_id: string | null; start_time: string | null
-  estimate_minutes: number | null; freq: RecurrenceFreq; interval_n: number
+  estimate_minutes: number | null; remind_before_minutes?: number | null; freq: RecurrenceFreq; interval_n: number
   weekdays: number[] | null; month_day: number | null; mode: RecurrenceMode
   starts_on: string; ends_on: string | null
 }
@@ -47,10 +48,12 @@ export interface Snapshot {
 export interface NewTask {
   title: string; status: TaskStatus; sphere_id?: string | null
   due_date?: string | null; start_time?: string | null; estimate_minutes?: number | null
+  remind_before_minutes?: number | null
 }
 export interface NewHabit { name: string; kind: HabitKind; target_value: number | null; sphere_id: string }
 export interface TimerTarget { task_id?: string; habit_id?: string; sphere_id?: string }
 export interface EditorTarget { task_id?: string; habit_id?: string; sphere_id?: string }
+export interface PushSub { endpoint: string; p256dh: string; auth_key: string; user_agent: string }
 export interface User { id: string; email: string }
 
 export interface Repo {
@@ -78,4 +81,6 @@ export interface Repo {
   setWeekGoal(sphereId: string, weekStart: string, minutes: number, makeDefault: boolean): Promise<void>
   saveReview(weekStart: string, input: ReviewInput, snapshot: WeekData | null, complete: boolean): Promise<void>
   exportAll(): Promise<ExportData>
+  savePushSubscription(sub: PushSub): Promise<void>
+  removePushSubscription(endpoint: string): Promise<void>
 }
