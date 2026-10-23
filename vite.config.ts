@@ -14,8 +14,8 @@ export default defineConfig({
       devOptions: { enabled: true, type: 'module' }, // service worker и в npm run dev, чтобы проверять уведомления
       includeAssets: ['icon.svg'],
       manifest: {
-        name: 'Планировщик',
-        short_name: 'Планировщик',
+        name: 'My life planner',
+        short_name: 'My life planner',
         lang: 'ru',
         display: 'standalone',
         background_color: '#F6F4EF',
@@ -29,4 +29,5 @@ export default defineConfig({
       },
     }),
   ],
+  base: '/life-planner/',
 })
