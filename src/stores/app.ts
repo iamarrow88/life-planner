@@ -111,7 +111,12 @@ export const useApp = defineStore('app', () => {
     try {
       const st = await repo.googleConnect(code, redirectUri); setGoogle(st)
       await load()
-    } catch (e) { googleError.value = (e as Error).message }
+    } catch (e) {
+      googleError.value = (e as Error).message
+      // страницу могли перезагрузить посреди подключения (обновление приложения): код входа одноразовый,
+      // но подключение уже могло сохраниться — тогда ошибку не показываем
+      try { const st = await repo.googleStatus(); if (st.connected) setGoogle(st) } catch { /* оставляем исходную ошибку */ }
+    }
     googleBusy.value = false
   }
   async function disconnectGoogle() {

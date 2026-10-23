@@ -6,8 +6,8 @@ export const googleClientId = ((import.meta.env.VITE_GOOGLE_CLIENT_ID as string 
 const STATE_KEY = 'planner-google-oauth-state'
 const SCOPE = 'openid email https://www.googleapis.com/auth/calendar.events'
 
-/** Адрес возврата: его нужно добавить в «Authorized redirect URIs» в Google Cloud */
-export const googleRedirectUri = () => `${window.location.origin}/more`
+/** Адрес возврата (учитывает папку сайта, например /life-planner/more): его нужно добавить в «Authorized redirect URIs» в Google Cloud */
+export const googleRedirectUri = () => `${window.location.origin}${import.meta.env.BASE_URL}more`
 
 export function startGoogleLogin(): void {
   const state = crypto.randomUUID()

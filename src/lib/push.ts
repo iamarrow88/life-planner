@@ -67,6 +67,6 @@ export async function showTestNotification(): Promise<void> {
   const reg = await navigator.serviceWorker.ready
   await reg.showNotification('My life planner', {
     body: 'Так будут выглядеть напоминания',
-    icon: '/icon-192.png', badge: '/icon-192.png', tag: 'test', data: { url: '/more' },
+    icon: import.meta.env.BASE_URL + 'icon-192.png', badge: import.meta.env.BASE_URL + 'icon-192.png', tag: 'test', data: { url: '/more' },
   })
 }
