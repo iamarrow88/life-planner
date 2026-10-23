@@ -3,7 +3,7 @@
 // SUPABASE_URL и ключ доступа к базе (SUPABASE_SECRET_KEYS / SUPABASE_SERVICE_ROLE_KEY) Supabase подставляет сам.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
-import { resolveAdminKey, run, type Claimed, type Sub } from './handler.ts'
+import { resolveAdminKey, run, type Claimed, type Sub } from './handler'
 
 const env = (k: string) => Deno.env.get(k) ?? ''
 
@@ -16,7 +16,11 @@ function safeEqual(a: string, b: string): boolean {
 
 Deno.serve(async (req: Request) => {
   const secret = env('CRON_SECRET')
-  if (!secret || !safeEqual(req.headers.get('x-cron-secret') ?? '', secret)) {
+  if (!secret) {
+    // секрет не загружен на сервер — подсказываем, что делать (само значение секрета никуда не выводим)
+    return Response.json({ error: 'На сервере не задан секрет CRON_SECRET. Выполни шаг 4.4 из PUSH.md (npx supabase secrets set ...)' }, { status: 500 })
+  }
+  if (!safeEqual((req.headers.get('x-cron-secret') ?? '').trim(), secret.trim())) {
     return new Response('forbidden', { status: 403 })
   }
   const adminKey = resolveAdminKey(Deno.env.get.bind(Deno.env))

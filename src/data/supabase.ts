@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { Repo, Task, Sphere, Habit, HabitEntry, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
+import type { GoogleStatus, Repo, Task, Sphere, Habit, HabitEntry, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
 import { weekStart as weekStartOf } from '../lib/time'
 
 const env = import.meta.env as Record<string, string | undefined>
@@ -27,6 +27,21 @@ function ok<T>(r: { data: T | null; error: { message: string } | null }): T {
 }
 const toUser = (u: { id: string; email?: string | null } | null | undefined): User | null =>
   u ? { id: u.id, email: u.email ?? '' } : null
+
+/** Вызов Edge Function google-sync; понятные тексты вместо технических ошибок */
+async function callGoogle(body: Record<string, unknown>): Promise<GoogleStatus> {
+  const r = await db().functions.invoke('google-sync', { body })
+  if (r.error) {
+    let msg = r.error.message
+    const ctx = (r.error as { context?: Response }).context
+    if (ctx && typeof ctx.json === 'function') {
+      if (ctx.status === 404) msg = 'Функция google-sync не загружена на сервер. Смотри GOOGLE.md, шаг 4.'
+      else try { const j = await ctx.json() as { error?: string; message?: string }; msg = j.error ?? j.message ?? msg } catch { /* оставляем исходный текст */ }
+    } else if (/Failed to send a request/i.test(msg)) msg = 'Не удалось связаться с функцией google-sync. Проверь, что она загружена (GOOGLE.md, шаг 4).'
+    throw new Error(msg)
+  }
+  return r.data as GoogleStatus
+}
 
 const TASK_COLS = 'id,title,status,sphere_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
 const REC_COLS = 'id,title,sphere_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
@@ -135,6 +150,11 @@ export const supabaseRepo: Repo = {
     ok(await db().from('push_subscriptions').upsert(sub, { onConflict: 'endpoint' }))
   },
   async removePushSubscription(endpoint) { ok(await db().from('push_subscriptions').delete().eq('endpoint', endpoint)) },
+  googleStatus: () => callGoogle({ action: 'status' }),
+  googleConnect: (code, redirectUri) => callGoogle({ action: 'connect', code, redirect_uri: redirectUri }),
+  googleDisconnect: () => callGoogle({ action: 'disconnect' }),
+  googleSettings: importEvents => callGoogle({ action: 'settings', import_events: importEvents }),
+  googleSync: () => callGoogle({ action: 'sync' }),
   async exportAll() { return ok(await db().rpc('export_all')) as ExportData },
   async bumpHabit(id, delta, day) {
     return ok(await db().rpc('bump_habit', { p_habit: id, p_delta: delta, p_day: day })) as HabitEntry

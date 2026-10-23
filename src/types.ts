@@ -55,6 +55,15 @@ export interface TimerTarget { task_id?: string; habit_id?: string; sphere_id?: 
 export interface EditorTarget { task_id?: string; habit_id?: string; sphere_id?: string }
 export interface PushSub { endpoint: string; p256dh: string; auth_key: string; user_agent: string }
 export interface User { id: string; email: string }
+export interface GoogleStatus {
+  configured: boolean            // на сервере заданы GOOGLE_CLIENT_ID / SECRET
+  connected: boolean
+  email: string | null
+  import_events: boolean         // создавать задачи из событий Google
+  last_sync_at: string | null
+  last_error: string | null
+  report?: { pulled: number; imported: number; unlinked: number; pushed: number; deleted: number; changed: boolean; errors: string[] } | { busy: true }
+}
 
 export interface Repo {
   mode: 'demo' | 'supabase'
@@ -83,4 +92,9 @@ export interface Repo {
   exportAll(): Promise<ExportData>
   savePushSubscription(sub: PushSub): Promise<void>
   removePushSubscription(endpoint: string): Promise<void>
+  googleStatus(): Promise<GoogleStatus>
+  googleConnect(code: string, redirectUri: string): Promise<GoogleStatus>
+  googleDisconnect(): Promise<GoogleStatus>
+  googleSettings(importEvents: boolean): Promise<GoogleStatus>
+  googleSync(): Promise<GoogleStatus>
 }

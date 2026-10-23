@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitEntry, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, Task, TimeEntry, User } from '../types'
+import type { GoogleStatus, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitEntry, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, Task, TimeEntry, User } from '../types'
+import { googleClientId } from '../lib/google'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
 export const NUDGE_MINUTES = 40
@@ -75,6 +76,68 @@ export const useApp = defineStore('app', () => {
   const currentReview = computed(() => reviewFor(weekStart(today.value)))
   const habitValue = (id: string) => data.value.habitEntries.find(e => e.habit_id === id && e.entry_date === today.value)?.value ?? 0
 
+  // ---------- Google Календарь ----------
+  const google = ref<GoogleStatus | null>(null)
+  const googleBusy = ref(false)
+  const googleError = ref('')
+  let googleTimer: number | undefined
+  let googleLastRun = 0
+  const googleEnabled = () => repo.mode === 'supabase' && !!googleClientId
+  const setGoogle = (st: GoogleStatus) => { google.value = st; googleError.value = '' }
+
+  /** Узнать, подключён ли Google (без шума: ошибки не показываем наверху страницы) */
+  async function refreshGoogle() {
+    if (!googleEnabled()) return
+    try { setGoogle(await repo.googleStatus()) } catch (e) { googleError.value = (e as Error).message }
+  }
+  /** Синхронизация. Фоновые запуски молчат при ошибках; ручной показывает их в блоке «Google Календарь» */
+  async function syncGoogle(manual = false) {
+    if (!googleEnabled() || googleBusy.value || (!manual && !google.value?.connected)) return
+    googleBusy.value = true; googleLastRun = Date.now()
+    try {
+      const st = await repo.googleSync(); setGoogle(st)
+      if (st.report && 'changed' in st.report && st.report.changed) await load()
+    } catch (e) { googleError.value = (e as Error).message }
+    googleBusy.value = false
+  }
+  /** После правки задач отправить изменения в Google (с задержкой, чтобы не слать на каждую букву) */
+  function syncGoogleSoon() {
+    if (!google.value?.connected) return
+    window.clearTimeout(googleTimer)
+    googleTimer = window.setTimeout(() => { if (googleBusy.value) syncGoogleSoon(); else void syncGoogle() }, 4000)
+  }
+  async function connectGoogle(code: string, redirectUri: string) {
+    googleBusy.value = true; googleError.value = ''
+    try {
+      const st = await repo.googleConnect(code, redirectUri); setGoogle(st)
+      await load()
+    } catch (e) { googleError.value = (e as Error).message }
+    googleBusy.value = false
+  }
+  async function disconnectGoogle() {
+    googleBusy.value = true; googleError.value = ''
+    try { setGoogle(await repo.googleDisconnect()) } catch (e) { googleError.value = (e as Error).message }
+    googleBusy.value = false
+  }
+  async function setGoogleImport(on: boolean) {
+    try { setGoogle(await repo.googleSettings(on)) } catch (e) { googleError.value = (e as Error).message }
+  }
+  /** Приложение снова открыли / вернулись на вкладку — подтянуть изменения из Google (не чаще раза в минуту) */
+  function onVisible() {
+    if (document.visibilityState === 'visible' && Date.now() - googleLastRun > 60_000) void syncGoogle()
+  }
+  function startGoogleWatch() {
+    document.removeEventListener('visibilitychange', onVisible)
+    document.addEventListener('visibilitychange', onVisible)
+    window.clearInterval(googleWatchTimer)
+    googleWatchTimer = window.setInterval(() => void syncGoogle(), 5 * 60_000)
+  }
+  let googleWatchTimer: number | undefined
+  function stopGoogleWatch() {
+    document.removeEventListener('visibilitychange', onVisible)
+    window.clearInterval(googleWatchTimer); window.clearTimeout(googleTimer); google.value = null
+  }
+
   function startClock() {
     stopClock()
     tick = window.setInterval(() => {
@@ -91,8 +154,12 @@ export const useApp = defineStore('app', () => {
 
   async function init() {
     user.value = await guard(() => repo.session()) ?? null
-    if (user.value) { await load(); startClock() }
+    if (user.value) { await load(); startClock(); void startGoogle() }
     ready.value = true
+  }
+  async function startGoogle() {
+    await refreshGoogle(); startGoogleWatch()
+    if (google.value?.connected) void syncGoogle()
   }
   async function load() {
     loading.value = true
@@ -101,24 +168,24 @@ export const useApp = defineStore('app', () => {
   }
   async function signIn(email: string, password: string) {
     const u = await guard(() => repo.signIn(email, password))
-    if (u) { user.value = u; await load(); startClock() }
+    if (u) { user.value = u; await load(); startClock(); void startGoogle() }
     return !!u
   }
   async function signUp(email: string, password: string): Promise<'ok' | 'confirm' | 'fail'> {
     let res: 'ok' | 'confirm' | 'fail' = 'fail'
     await guard(async () => {
       const u = await repo.signUp(email, password)
-      if (u) { user.value = u; await load(); startClock(); res = 'ok' } else res = 'confirm'
+      if (u) { user.value = u; await load(); startClock(); void startGoogle(); res = 'ok' } else res = 'confirm'
     })
     return res
   }
   async function signOut() {
-    stopClock(); await guard(() => repo.signOut()); user.value = null
+    stopClock(); stopGoogleWatch(); await guard(() => repo.signOut()); user.value = null
     data.value = { spheres: [], tasks: [], habits: [], recurrences: [], weekGoals: [], reviews: [], habitEntries: [], timeEntries: [] }
   }
 
   async function addTask(t: NewTask) {
-    const task = await guard(() => repo.addTask(t)); if (task) data.value.tasks.unshift(task)
+    const task = await guard(() => repo.addTask(t)); if (task) { data.value.tasks.unshift(task); syncGoogleSoon() }
   }
   async function updateTask(id: string, patch: Partial<NewTask>) {
     const task = await guard(() => repo.updateTask(id, patch))
@@ -127,13 +194,14 @@ export const useApp = defineStore('app', () => {
       if (i >= 0) data.value.tasks[i] = task
       // выполнили повторяющуюся задачу — следующая могла создаться (режим «после выполнения»)
       if (patch.status === 'done' && task.recurrence_id) await load()
+      syncGoogleSoon()
     }
   }
   async function toggleDone(t: Task) {
     await updateTask(t.id, { status: t.status === 'done' ? (t.due_date ? 'planned' : 'inbox') : 'done' })
   }
   async function removeTask(id: string) {
-    await guard(() => repo.removeTask(id)); data.value.tasks = data.value.tasks.filter(t => t.id !== id)
+    await guard(() => repo.removeTask(id)); data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
   }
   async function addSphere(name: string, color: string, goal: number) {
     const s = await guard(() => repo.addSphere(name, color, goal)); if (s) data.value.spheres.push(s as Sphere)
@@ -155,7 +223,7 @@ export const useApp = defineStore('app', () => {
   }
   async function addRecurrence(r: NewRecurrence) {
     const ok = await guard(async () => { await repo.addRecurrence(r); return true })
-    if (ok) await load()
+    if (ok) { await load(); syncGoogleSoon() }
     return !!ok
   }
   async function removeRecurrence(id: string) {
@@ -202,6 +270,7 @@ export const useApp = defineStore('app', () => {
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, habitValue, addDays,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, addHabit,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
+    google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport,
     startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence,
     detailId, openTask, closeTask, editor, openEditor, closeEditor, addEntry, updateEntry, removeEntry, listEntries,
   }

@@ -213,6 +213,11 @@ export const demoRepo: Repo = {
   },
   async savePushSubscription() { throw new Error('Уведомления работают после подключения Supabase') },
   async removePushSubscription() { /* в демо нечего удалять */ },
+  async googleStatus() { return { configured: false, connected: false, email: null, import_events: true, last_sync_at: null, last_error: null } },
+  async googleConnect(): Promise<never> { throw new Error('Синхронизация с Google работает только при подключении Supabase') },
+  async googleDisconnect(): Promise<never> { throw new Error('Синхронизация с Google работает только при подключении Supabase') },
+  async googleSettings(): Promise<never> { throw new Error('Синхронизация с Google работает только при подключении Supabase') },
+  async googleSync(): Promise<never> { throw new Error('Синхронизация с Google работает только при подключении Supabase') },
   async exportAll(): Promise<ExportData> {
     const s = read()
     return {

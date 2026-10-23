@@ -65,7 +65,7 @@ export async function unsubscribePush(): Promise<string | null> {
 /** Локальное тестовое уведомление: проверяет разрешение и service worker (сервер не нужен) */
 export async function showTestNotification(): Promise<void> {
   const reg = await navigator.serviceWorker.ready
-  await reg.showNotification('Планировщик', {
+  await reg.showNotification('My life planner', {
     body: 'Так будут выглядеть напоминания',
     icon: '/icon-192.png', badge: '/icon-192.png', tag: 'test', data: { url: '/more' },
   })
