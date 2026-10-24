@@ -151,7 +151,7 @@ async function logout() { await app.signOut(); router.push('/login') }
   <section class="mb-6">
     <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Google Календарь</h2>
     <div class="card space-y-3 p-4 text-sm">
-      <p class="text-mute">Задачи со временем появляются в твоём Google Календаре, а события из Google — в планировщике. Изменения идут в обе стороны.</p>
+      <p class="text-mute">Задачи со временем появляются в твоём Google Календаре, а события из Google — в My life planner. Изменения идут в обе стороны.</p>
       <p v-if="gStatus === 'demo'" class="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">Синхронизация доступна после подключения Supabase (демо-режим её не поддерживает).</p>
       <p v-else-if="gStatus === 'no-id'" class="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">Не задан <code>VITE_GOOGLE_CLIENT_ID</code> в <code>.env</code>. Как его получить — в файле GOOGLE.md.</p>
       <p v-else-if="gStatus === 'loading'" class="text-mute">Проверяю…</p>

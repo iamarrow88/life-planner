@@ -30,7 +30,7 @@ async function logout() { await app.signOut(); router.push('/login') }
     <!-- Боковое меню на ПК -->
     <aside class="hidden w-60 shrink-0 flex-col border-r border-line bg-white/60 p-4 md:flex">
       <div class="mb-6 flex items-center gap-2 px-2 text-lg font-bold text-accent">
-        <span class="grid h-8 w-8 place-items-center rounded-lg bg-accent text-white">◔</span> Планировщик
+        <span class="grid h-8 w-8 place-items-center rounded-lg bg-accent text-white">◔</span> My life planner
       </div>
       <nav class="flex flex-col gap-1">
         <RouterLink v-for="t in tabs" :key="t.to" :to="t.to"
@@ -74,6 +74,5 @@ async function logout() { await app.signOut(); router.push('/login') }
         <span v-if="t.to === '/inbox' && badge" class="absolute right-[28%] top-1 rounded-full bg-accent px-1.5 text-[10px] font-semibold text-white">{{ badge }}</span>
       </RouterLink>
     </nav>
-    <footer style="display: none"></footer>
   </div>
 </template>
