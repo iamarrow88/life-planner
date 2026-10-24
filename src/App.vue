@@ -74,5 +74,6 @@ async function logout() { await app.signOut(); router.push('/login') }
         <span v-if="t.to === '/inbox' && badge" class="absolute right-[28%] top-1 rounded-full bg-accent px-1.5 text-[10px] font-semibold text-white">{{ badge }}</span>
       </RouterLink>
     </nav>
+    <footer style="display: none"></footer>
   </div>
 </template>
