@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useApp } from '../stores/app'
-import { addDays, longDate, shortDate, hhmm } from '../lib/time'
+import { addDays, dayOf, longDate, shortDate, hhmm } from '../lib/time'
 import TaskRow from '../components/TaskRow.vue'
 import HabitRow from '../components/HabitRow.vue'
 import HabitForm from '../components/HabitForm.vue'
 import RecurrenceForm from '../components/RecurrenceForm.vue'
 import EstimateInput from '../components/EstimateInput.vue'
+import DoneBlock from '../components/DoneBlock.vue'
 import { describe } from '../lib/recurrence'
 import type { Task } from '../types'
 
@@ -27,6 +28,8 @@ const showRecForm = ref(false)
 const showRules = ref(false)
 
 const planned = computed(() => app.data.tasks.filter(t => t.status !== 'inbox'))
+/** Невыполненные: выполненные уезжают в блок «Выполнено» внизу */
+const pending = computed(() => planned.value.filter(t => t.status !== 'done'))
 const sortTasks = (a: Task, b: Task) =>
   Number(a.status === 'done') - Number(b.status === 'done') ||
   (a.due_date ?? '').localeCompare(b.due_date ?? '') ||
@@ -35,18 +38,30 @@ const sortTasks = (a: Task, b: Task) =>
 const list = computed(() => {
   const t = app.today
   const week = addDays(t, 7)
-  return planned.value.filter(x => {
-    if (filter.value === 'today') return x.due_date === t || (x.due_date && x.due_date < t && x.status !== 'done')
+  return pending.value.filter(x => {
+    if (filter.value === 'today') return x.due_date === t || (!!x.due_date && x.due_date < t)
     if (filter.value === 'tomorrow') return x.due_date === addDays(t, 1)
     if (filter.value === 'week') return !!x.due_date && x.due_date >= t && x.due_date <= week
     return !x.due_date
   }).sort(sortTasks)
 })
+/** Выполненные задачи выбранного фильтра («Сегодня» — ещё и просроченные, закрытые сегодня) */
+const doneList = computed(() => {
+  const t = app.today
+  const week = addDays(t, 7)
+  return planned.value.filter(x => {
+    if (x.status !== 'done') return false
+    if (filter.value === 'today') return x.due_date === t || (!!x.due_date && x.due_date < t && !!x.done_at && dayOf(x.done_at) === t)
+    if (filter.value === 'tomorrow') return x.due_date === addDays(t, 1)
+    if (filter.value === 'week') return !!x.due_date && x.due_date >= t && x.due_date <= week
+    return !x.due_date
+  })
+})
 const overdueCount = computed(() => planned.value.filter(x => x.due_date && x.due_date < app.today && x.status !== 'done').length)
 
 const hours = Array.from({ length: 17 }, (_, i) => i + 6) // 6:00 … 22:00
 const timedOnDay = computed(() => planned.value.filter(t => t.due_date === calDay.value && t.start_time).sort(sortTasks))
-const untimedOnDay = computed(() => planned.value.filter(t => t.due_date === calDay.value && !t.start_time))
+const untimedOnDay = computed(() => planned.value.filter(t => t.due_date === calDay.value && !t.start_time).sort(sortTasks))
 /** «08:00–08:45», если задана оценка времени */
 const timeRange = (t: Task) => {
   const start = hhmm(t.start_time)
@@ -121,6 +136,8 @@ async function add() {
     </div>
     <div v-else class="card p-8 text-center text-mute">Здесь пока ничего нет</div>
 
+    <DoneBlock :tasks="doneList" />
+
     <section v-if="app.data.recurrences.length" class="mt-6">
       <button class="text-sm font-semibold text-accent" @click="showRules = !showRules">↻ Повторы ({{ app.data.recurrences.length }}) {{ showRules ? '▴' : '▾' }}</button>
       <ul v-if="showRules" class="card mt-2 divide-y divide-line">
@@ -132,15 +149,18 @@ async function add() {
     </section>
   </template>
 
-  <!-- Календарь дня: только задачи со временем -->
+  <!-- Календарь дня: сверху задачи без времени, ниже сетка часов -->
   <template v-else>
     <div class="mb-3 flex items-center justify-between">
       <button class="btn-ghost !px-3" @click="calDay = addDays(calDay, -1)">‹</button>
       <button class="text-sm font-semibold first-letter:uppercase" @click="calDay = app.today">{{ longDate(calDay) }}</button>
       <button class="btn-ghost !px-3" @click="calDay = addDays(calDay, 1)">›</button>
     </div>
-    <div v-if="untimedOnDay.length" class="mb-3 flex flex-wrap gap-2 text-xs text-mute">
-      <span>Без времени:</span><span v-for="t in untimedOnDay" :key="t.id" class="chip">{{ t.title }}</span>
+    <div v-if="untimedOnDay.length" class="mb-3">
+      <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-mute">Без времени</div>
+      <div class="card divide-y divide-line">
+        <TaskRow v-for="t in untimedOnDay" :key="t.id" :task="t" />
+      </div>
     </div>
     <div class="card divide-y divide-line">
       <div v-for="h in hours" :key="h" class="flex min-h-[3.25rem]">

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useApp } from '../stores/app'
 import { addDays } from '../lib/time'
 import TaskRow from '../components/TaskRow.vue'
 import EstimateInput from '../components/EstimateInput.vue'
+import DoneBlock from '../components/DoneBlock.vue'
 
 const app = useApp()
 const text = ref('')
@@ -17,6 +18,8 @@ async function add() {
   text.value = ''; estimate.value = null
   await app.addTask({ title, status: 'inbox', estimate_minutes: est })
 }
+/** Выполненные задачи «из входящих»: те, которые так и не получили дату */
+const doneUndated = computed(() => app.data.tasks.filter(t => t.status === 'done' && !t.due_date))
 const plan = (id: string, date: string) => { picking.value = null; return app.updateTask(id, { status: 'planned', due_date: date }) }
 const setSphere = (id: string, v: string) => app.updateTask(id, { sphere_id: v || null })
 </script>
@@ -53,4 +56,6 @@ const setSphere = (id: string, v: string) => app.updateTask(id, { sphere_id: v |
       </div>
     </li>
   </ul>
+
+  <DoneBlock :tasks="doneUndated" />
 </template>
