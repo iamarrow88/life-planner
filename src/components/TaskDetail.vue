@@ -31,6 +31,9 @@ function onTimeInput() {
   if (time.value && !remind.value && !remindTouched.value && !task.value?.start_time) remind.value = '10'
 }
 
+/** Убрать дату целиком (вместе со временем и напоминанием): после сохранения задача вернётся во «Входящие» */
+function resetDate() { date.value = ''; time.value = ''; remind.value = ''; remindTouched.value = true }
+
 async function save() {
   const t = task.value
   if (!t || !title.value.trim()) return
@@ -63,7 +66,10 @@ async function remove() {
       <input v-model="title" class="input" placeholder="Название" required />
 
       <div class="grid grid-cols-2 gap-2">
-        <label class="text-xs text-mute">Дата<input v-model="date" type="date" class="input mt-1" /></label>
+        <label class="text-xs text-mute">
+          <span class="flex items-center justify-between">Дата<button v-if="date" type="button" class="font-semibold text-accent" aria-label="Сбросить дату" title="Убрать дату: задача вернётся во «Входящие»" @click="resetDate">сбросить</button></span>
+          <input v-model="date" type="date" class="input mt-1" />
+        </label>
         <label class="text-xs text-mute">Время начала<input v-model="time" type="time" class="input mt-1" :disabled="!date" @input="onTimeInput" @change="onTimeInput" /></label>
       </div>
 

@@ -9,7 +9,6 @@ import DoneBlock from '../components/DoneBlock.vue'
 const app = useApp()
 const text = ref('')
 const estimate = ref<number | null>(null)
-const picking = ref<string | null>(null) // id задачи, у которой открыт выбор даты
 
 async function add() {
   const title = text.value.trim()
@@ -20,7 +19,13 @@ async function add() {
 }
 /** Выполненные задачи «из входящих»: те, которые так и не получили дату */
 const doneUndated = computed(() => app.data.tasks.filter(t => t.status === 'done' && !t.due_date))
-const plan = (id: string, date: string) => { picking.value = null; return app.updateTask(id, { status: 'planned', due_date: date }) }
+const plan = (id: string, date: string) => app.updateTask(id, { status: 'planned', due_date: date })
+/** Календарь выбора даты. Скрытое поле даты само по клику не открывается, поэтому вызываем showPicker() */
+function openPicker(e: MouseEvent) {
+  const input = (e.currentTarget as HTMLElement).parentElement?.querySelector('input')
+  if (!input) return
+  try { input.showPicker() } catch { input.focus(); input.click() }
+}
 const setSphere = (id: string, v: string) => app.updateTask(id, { sphere_id: v || null })
 </script>
 
@@ -43,11 +48,11 @@ const setSphere = (id: string, v: string) => app.updateTask(id, { sphere_id: v |
       <div class="flex flex-wrap items-center gap-2 border-t border-line px-3 py-2">
         <button class="chip hover:chip-on" @click="plan(t.id, app.today)">Сегодня</button>
         <button class="chip hover:chip-on" @click="plan(t.id, addDays(app.today, 1))">Завтра</button>
-        <label class="chip hover:chip-on relative cursor-pointer">
-          {{ picking === t.id ? 'Выбери дату' : 'Дата…' }}
-          <input type="date" class="absolute inset-0 cursor-pointer opacity-0" :min="app.today"
+        <span class="relative inline-flex">
+          <button type="button" class="chip hover:chip-on" @click="openPicker">Дата…</button>
+          <input type="date" tabindex="-1" aria-hidden="true" class="pointer-events-none absolute inset-0 opacity-0" :min="app.today"
             @change="e => (e.target as HTMLInputElement).value && plan(t.id, (e.target as HTMLInputElement).value)" />
-        </label>
+        </span>
         <select class="chip bg-white pr-6" :value="t.sphere_id ?? ''" @change="e => setSphere(t.id, (e.target as HTMLSelectElement).value)">
           <option value="">Без сферы</option>
           <option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option>
