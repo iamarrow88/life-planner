@@ -31,7 +31,8 @@ const sphereColor = (id: string | null) => app.sphereById(id)?.color ?? '#B9B4A8
 async function loadWeek() {
   loading.value = true
   const r = saved.value
-  const snap = r?.completed_at ? (r.snapshot as Partial<WeekData>) : null
+  // Сохранённый снимок цифр показываем только для прошедших недель. Пока неделя идёт, цифры живые: дела, сделанные после «Завершить неделю», тоже считаются
+  const snap = r?.completed_at && !isCurrent.value ? (r.snapshot as Partial<WeekData>) : null
   data.value = snap?.spheres ? (snap as WeekData) : ((await app.weekData(ws.value)) ?? null)
   wentWell.value = r?.went_well ?? ''; gotInWay.value = r?.got_in_way ?? ''; toChange.value = r?.to_change ?? ''
   focus.value = r?.focus_sphere_id ?? ''
@@ -54,7 +55,9 @@ async function complete() {
     const minutes = Math.round((nextGoals.value[s.id] ?? 0) * 60)
     if (minutes !== app.goalFor(s.id, nextWs.value)) await app.setWeekGoal(s.id, nextWs.value, minutes, false)
   }
-  const ok = await app.saveReview(ws.value, input(), data.value, true)
+  // в снимок кладём свежие цифры, а не те, что были на экране при открытии
+  const fresh = (await app.weekData(ws.value)) ?? data.value
+  const ok = await app.saveReview(ws.value, input(), fresh, true)
   busy.value = false
   if (ok) await loadWeek()
 }
@@ -72,7 +75,7 @@ async function complete() {
     </div>
   </div>
 
-  <p v-if="completed" class="mb-4 rounded-xl bg-accent-soft px-3 py-2 text-sm font-medium text-accent">✓ Неделя завершена. Итог сохранён, его можно дополнить.</p>
+  <p v-if="completed" class="mb-4 rounded-xl bg-accent-soft px-3 py-2 text-sm font-medium text-accent">✓ Неделя завершена. Итог сохранён, его можно дополнить.<span v-if="isCurrent" class="block font-normal">Неделя ещё идёт: цифры ниже живые. Чтобы сохранённый итог тоже обновился, нажми «Обновить итог».</span></p>
   <p v-else-if="isCurrent && new Date().getDay() !== 0" class="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">Неделя ещё не закончилась — цифры обновятся, пока ты работаешь. Итог обычно подводят в воскресенье.</p>
 
   <div v-if="loading && !data" class="card p-8 text-center text-mute">Считаю…</div>
