@@ -13,6 +13,7 @@ const date = ref('')
 const time = ref('')
 const estimate = ref<number | null>(null)
 const sphereId = ref('')
+const projectId = ref('')
 /** '' — не напоминать, иначе число минут до начала ('0' — в момент начала) */
 const remind = ref('')
 const remindTouched = ref(false)
@@ -25,7 +26,7 @@ const totals = computed(() => (task.value ? app.taskTotals[task.value.id] : unde
 watch(task, t => {
   if (!t) return
   title.value = t.title; note.value = t.note ?? ''; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
-  estimate.value = t.estimate_minutes; sphereId.value = t.sphere_id ?? ''
+  estimate.value = t.estimate_minutes; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
   remind.value = t.remind_before_minutes == null ? '' : String(t.remind_before_minutes); remindTouched.value = false
 }, { immediate: true })
 // Пользователь впервые поставил время начала задаче без времени — предлагаем напомнить за 10 минут
@@ -45,7 +46,7 @@ async function save() {
     title: title.value.trim(), note: note.value.trim() || null, due_date: due,
     start_time: due && time.value ? `${time.value}:00` : null, // время без даты не бывает
     remind_before_minutes: due && time.value && remind.value !== '' ? Number(remind.value) : null, // напоминание — только если есть время
-    estimate_minutes: estimate.value, sphere_id: sphereId.value || null,
+    estimate_minutes: estimate.value, sphere_id: sphereId.value || null, project_id: sphereId.value && projectId.value ? projectId.value : null,
     status: t.status === 'done' ? 'done' : due ? 'planned' : 'inbox',
   })
   busy.value = false
@@ -95,7 +96,10 @@ async function remove() {
       </div>
 
       <label class="text-xs text-mute">Сфера
-        <select v-model="sphereId" class="input mt-1"><option value="">Без сферы</option><option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option></select>
+        <select v-model="sphereId" class="input mt-1" @change="projectId = ''"><option value="">Без сферы</option><option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option></select>
+      </label>
+      <label v-if="sphereId && app.projectsOf(sphereId).length" class="text-xs text-mute">Проект
+        <select v-model="projectId" class="input mt-1"><option value="">Без проекта</option><option v-for="p in app.projectsOf(sphereId)" :key="p.id" :value="p.id">{{ p.name }}</option></select>
       </label>
 
       <div v-if="task.status !== 'done'" class="flex items-center gap-2">

@@ -8,6 +8,7 @@ import { fmtMinutes } from '../lib/time'
 const props = defineProps<{ task: Task }>()
 const app = useApp()
 const sphere = computed(() => app.sphereById(props.task.sphere_id))
+const project = computed(() => app.projectById(props.task.project_id))
 const isRunning = computed(() => app.running?.task_id === props.task.id)
 const done = computed(() => props.task.status === 'done')
 const totals = computed(() => app.taskTotals[props.task.id] ?? { week: 0, month: 0 })
@@ -28,7 +29,7 @@ const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
         <span v-if="task.note" title="Есть описание" class="font-semibold">≡</span>
         <span v-if="task.start_time" class="font-medium text-ink/70">{{ hhmm(task.start_time) }}<span v-if="task.remind_before_minutes != null" title="Напомнит"> 🔔</span></span>
         <span v-if="sphere" class="inline-flex items-center gap-1">
-          <span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}
+          <span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}<template v-if="project"> › {{ project.name }}</template>
         </span>
         <span v-if="isRunning" class="font-semibold tabular-nums text-accent">⏱ идёт {{ fmtClock(liveSeconds) }}</span>
         <span v-if="task.estimate_minutes">план {{ fmtMinutes(task.estimate_minutes) }}</span>

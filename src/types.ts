@@ -2,9 +2,11 @@ export type TaskStatus = 'inbox' | 'planned' | 'done'
 export type HabitKind = 'timer' | 'plain' | 'counter'
 
 export interface Sphere { id: string; name: string; color: string; weekly_goal_minutes: number }
+/** Проект всегда лежит внутри сферы; задача может быть без проекта */
+export interface Project { id: string; sphere_id: string; name: string }
 export interface Task {
   id: string; title: string; status: TaskStatus
-  sphere_id: string | null; due_date: string | null; start_time: string | null
+  sphere_id: string | null; project_id?: string | null; due_date: string | null; start_time: string | null
   estimate_minutes: number | null; done_at: string | null; recurrence_id?: string | null
   note?: string | null                    // описание задачи
   remind_before_minutes?: number | null   // null — не напоминать; 0 — в момент начала
@@ -41,13 +43,13 @@ export interface WeeklyReview {
 export interface ReviewInput { went_well: string; got_in_way: string; to_change: string; focus_sphere_id: string | null }
 export type ExportData = { version: number; exported_at: string } & Record<string, unknown>
 export interface Snapshot {
-  spheres: Sphere[]; tasks: Task[]; habits: Habit[]; recurrences: Recurrence[]
+  spheres: Sphere[]; projects: Project[]; tasks: Task[]; habits: Habit[]; recurrences: Recurrence[]
   weekGoals: WeekGoal[]; reviews: WeeklyReview[]
   habitEntries: HabitEntry[]   // за сегодня
   timeEntries: TimeEntry[]     // с начала недели + запущенный
 }
 export interface NewTask {
-  title: string; status: TaskStatus; sphere_id?: string | null
+  title: string; status: TaskStatus; sphere_id?: string | null; project_id?: string | null
   due_date?: string | null; start_time?: string | null; estimate_minutes?: number | null
   remind_before_minutes?: number | null
   note?: string | null
@@ -78,6 +80,9 @@ export interface Repo {
   updateTask(id: string, patch: Partial<NewTask>): Promise<Task>
   removeTask(id: string): Promise<void>
   addSphere(name: string, color: string, goalMinutes: number): Promise<Sphere>
+  addProject(sphereId: string, name: string): Promise<Project>
+  renameProject(id: string, name: string): Promise<void>
+  removeProject(id: string): Promise<void>   // задачи проекта остаются в сфере, просто без проекта
   addHabit(h: NewHabit): Promise<Habit>
   startTimer(target: TimerTarget): Promise<TimeEntry>
   stopTimer(): Promise<TimeEntry | null>

@@ -1,4 +1,4 @@
-import type { Repo, Snapshot, Task, Sphere, Habit, HabitEntry, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData } from '../types'
+import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitEntry, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData } from '../types'
 import { addDays, dayOf, entrySeconds, todayStr } from '../lib/time'
 import { matches, nextAfter } from '../lib/recurrence'
 
@@ -33,7 +33,9 @@ function seed(): Snapshot {
       started_at: new Date(end.getTime() - min * 60000).toISOString(), ended_at: end.toISOString(), source: 'manual' }
   }
   const timeEntries = [te(hob, 0, 75), te(zd, 0, 40), te(uch, 1, 50), te(hob, 1, 60)]
-  return { spheres, tasks, habits, recurrences: [], weekGoals: [], reviews: [], habitEntries: [{ habit_id: habits[0].id, entry_date: t, value: 3 }], timeEntries }
+  const pr = (sphere: Sphere, name: string): Project => ({ id: uid(), sphere_id: sphere.id, name })
+  const projects = [pr(hob, 'Вышивка'), pr(uch, 'Курс по Vue')]
+  return { spheres, projects, tasks, habits, recurrences: [], weekGoals: [], reviews: [], habitEntries: [{ habit_id: habits[0].id, entry_date: t, value: 3 }], timeEntries }
 }
 
 /** Итог недели для демо-режима: то же, что week_review_data в базе */
@@ -81,7 +83,7 @@ function matchTarget(e: TimeEntry, t: EditorTarget): boolean {
 function read(): Snapshot {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) { const s = JSON.parse(raw) as Snapshot; s.recurrences ??= []; s.weekGoals ??= []; s.reviews ??= []; return s }
+    if (raw) { const s = JSON.parse(raw) as Snapshot; s.projects ??= []; s.recurrences ??= []; s.weekGoals ??= []; s.reviews ??= []; return s }
   } catch { /* ignore */ }
   const s = seed(); write(s); return s
 }
@@ -114,7 +116,7 @@ export const demoRepo: Repo = {
   async load() { const s = read(); generate(s); write(s); return s },
   async addTask(t) {
     const s = read()
-    const task: Task = { id: uid(), title: t.title, note: t.note ?? null, status: t.status, sphere_id: t.sphere_id ?? null,
+    const task: Task = { id: uid(), title: t.title, note: t.note ?? null, status: t.status, sphere_id: t.sphere_id ?? null, project_id: t.project_id ?? null,
       due_date: t.due_date ?? null, start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null,
       remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null, done_at: null }
     s.tasks.unshift(task); write(s); return task
@@ -124,6 +126,13 @@ export const demoRepo: Repo = {
     if (!t) throw new Error('Задача не найдена')
     const wasDone = t.status === 'done'
     Object.assign(t, patch)
+    // как в базе: сфера задачи с проектом равна сфере проекта; сменили сферу без проекта — проект сбрасывается
+    if (t.project_id) {
+      const pj = s.projects.find(x => x.id === t.project_id)
+      if (!pj) t.project_id = null
+      else if ('project_id' in patch) t.sphere_id = pj.sphere_id
+      else if (pj.sphere_id !== t.sphere_id) t.project_id = null
+    }
     if ('sphere_id' in patch) for (const e of s.timeEntries) if (e.task_id === id) e.sphere_id = t.sphere_id
     t.done_at = t.status === 'done' ? (t.done_at ?? new Date().toISOString()) : null
     // режим «после выполнения»: создаём следующую задачу
@@ -138,6 +147,16 @@ export const demoRepo: Repo = {
   async addSphere(name, color, goal) {
     const s = read(); const sp: Sphere = { id: uid(), name, color, weekly_goal_minutes: goal }
     s.spheres.push(sp); write(s); return sp
+  },
+  async addProject(sphereId, name) {
+    const s = read(); const p: Project = { id: uid(), sphere_id: sphereId, name }
+    s.projects.push(p); write(s); return p
+  },
+  async renameProject(id, name) { const s = read(); const p = s.projects.find(x => x.id === id); if (p) p.name = name; write(s) },
+  async removeProject(id) {
+    const s = read(); s.projects = s.projects.filter(x => x.id !== id)
+    for (const t of s.tasks) if (t.project_id === id) t.project_id = null
+    write(s)
   },
   async addHabit(h) { const s = read(); const x: Habit = { id: uid(), ...h }; s.habits.push(x); write(s); return x },
   async startTimer(target) {
@@ -222,7 +241,7 @@ export const demoRepo: Repo = {
     const s = read()
     return {
       version: 1, exported_at: new Date().toISOString(),
-      spheres: s.spheres, tasks: s.tasks, recurrences: s.recurrences, habits: s.habits,
+      spheres: s.spheres, projects: s.projects, tasks: s.tasks, recurrences: s.recurrences, habits: s.habits,
       habit_entries: s.habitEntries,
       time_entries: s.timeEntries.map(e => ({ ...e, local_date: dayOf(e.started_at), duration_seconds: e.ended_at ? entrySeconds(e) : null })),
       week_goals: s.weekGoals, weekly_reviews: s.reviews,

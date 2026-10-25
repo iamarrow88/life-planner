@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { GoogleStatus, Repo, Task, Sphere, Habit, HabitEntry, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
+import type { GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitEntry, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
 import { weekStart as weekStartOf } from '../lib/time'
 
 const env = import.meta.env as Record<string, string | undefined>
@@ -43,7 +43,7 @@ async function callGoogle(body: Record<string, unknown>): Promise<GoogleStatus> 
   return r.data as GoogleStatus
 }
 
-const TASK_COLS = 'id,title,note,status,sphere_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
+const TASK_COLS = 'id,title,note,status,sphere_id,project_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
 const REC_COLS = 'id,title,sphere_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
 const TE_COLS = 'id,task_id,habit_id,sphere_id,started_at,ended_at,source'
 
@@ -66,8 +66,9 @@ export const supabaseRepo: Repo = {
     const c = db()
     await c.rpc('generate_recurring_tasks') // создаёт задачи по повторам на 30 дней вперёд (безопасно вызывать повторно)
     const ws = weekStartOf(today)
-    const [spheres, tasks, habits, he, te, recs, goals, reviews] = await Promise.all([
+    const [spheres, projects, tasks, habits, he, te, recs, goals, reviews] = await Promise.all([
       c.from('spheres').select('id,name,color,weekly_goal_minutes').is('archived_at', null).order('position').order('created_at'),
+      c.from('projects').select('id,sphere_id,name').neq('status', 'archived').order('position').order('created_at'),
       c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }),
       c.from('habits').select('id,name,kind,target_value,sphere_id').is('archived_at', null).order('position').order('created_at'),
       c.from('habit_entries').select('habit_id,entry_date,value').eq('entry_date', today),
@@ -77,14 +78,14 @@ export const supabaseRepo: Repo = {
       c.from('weekly_reviews').select('week_start,snapshot,went_well,got_in_way,to_change,focus_sphere_id,completed_at').order('week_start', { ascending: false }),
     ])
     return {
-      spheres: ok(spheres) as Sphere[], tasks: ok(tasks) as Task[], habits: ok(habits) as Habit[],
+      spheres: ok(spheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as Task[], habits: ok(habits) as Habit[],
       habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], recurrences: ok(recs) as Recurrence[],
       weekGoals: ok(goals) as WeekGoal[], reviews: ok(reviews) as WeeklyReview[],
     }
   },
   async addTask(t) {
     return ok(await db().from('tasks').insert({
-      title: t.title, note: t.note ?? null, status: t.status, sphere_id: t.sphere_id ?? null, due_date: t.due_date ?? null,
+      title: t.title, note: t.note ?? null, status: t.status, sphere_id: t.sphere_id ?? null, project_id: t.project_id ?? null, due_date: t.due_date ?? null,
       start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null,
       remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null,
     }).select(TASK_COLS).single()) as Task
@@ -97,6 +98,11 @@ export const supabaseRepo: Repo = {
     return ok(await db().from('spheres').insert({ name, color, weekly_goal_minutes: goal })
       .select('id,name,color,weekly_goal_minutes').single()) as Sphere
   },
+  async addProject(sphereId, name) {
+    return ok(await db().from('projects').insert({ sphere_id: sphereId, name }).select('id,sphere_id,name').single()) as Project
+  },
+  async renameProject(id, name) { ok(await db().from('projects').update({ name }).eq('id', id)) },
+  async removeProject(id) { ok(await db().from('projects').delete().eq('id', id)) },
   async addHabit(h) {
     return ok(await db().from('habits').insert(h).select('id,name,kind,target_value,sphere_id').single()) as Habit
   },

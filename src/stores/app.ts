@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { GoogleStatus, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitEntry, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, Task, TimeEntry, User } from '../types'
+import type { GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitEntry, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
@@ -13,7 +13,7 @@ export const useApp = defineStore('app', () => {
   const ready = ref(false)
   const loading = ref(false)
   const error = ref('')
-  const data = ref<Snapshot>({ spheres: [], tasks: [], habits: [], recurrences: [], weekGoals: [], reviews: [], habitEntries: [], timeEntries: [] })
+  const data = ref<Snapshot>({ spheres: [], projects: [], tasks: [], habits: [], recurrences: [], weekGoals: [], reviews: [], habitEntries: [], timeEntries: [] })
   const now = ref(Date.now())
   const today = ref(todayStr())
   let tick: number | undefined
@@ -27,6 +27,9 @@ export const useApp = defineStore('app', () => {
   const spheres = computed(() => data.value.spheres)
   const inbox = computed(() => data.value.tasks.filter(t => t.status === 'inbox'))
   const sphereById = (id: string | null) => data.value.spheres.find(s => s.id === id) ?? null
+  const projectById = (id: string | null | undefined) => data.value.projects.find(p => p.id === id) ?? null
+  /** Проекты сферы */
+  const projectsOf = (sphereId: string | null) => data.value.projects.filter(p => p.sphere_id === sphereId)
   const running = computed<TimeEntry | null>(() => data.value.timeEntries.find(e => !e.ended_at) ?? null)
   const runningSeconds = computed(() => (running.value ? entrySeconds(running.value, now.value) : 0))
   /** раз в 40 минут просим проверить, идёт ли ещё дело; через 3 часа считаем таймер забытым */
@@ -186,7 +189,7 @@ export const useApp = defineStore('app', () => {
   }
   async function signOut() {
     stopClock(); stopGoogleWatch(); await guard(() => repo.signOut()); user.value = null
-    data.value = { spheres: [], tasks: [], habits: [], recurrences: [], weekGoals: [], reviews: [], habitEntries: [], timeEntries: [] }
+    data.value = { spheres: [], projects: [], tasks: [], habits: [], recurrences: [], weekGoals: [], reviews: [], habitEntries: [], timeEntries: [] }
   }
 
   async function addTask(t: NewTask) {
@@ -211,6 +214,25 @@ export const useApp = defineStore('app', () => {
   async function addSphere(name: string, color: string, goal: number) {
     const s = await guard(() => repo.addSphere(name, color, goal)); if (s) data.value.spheres.push(s as Sphere)
   }
+  async function addProject(sphereId: string, name: string) {
+    const p = await guard(() => repo.addProject(sphereId, name)); if (p) data.value.projects.push(p as Project)
+    return !!p
+  }
+  async function renameProject(id: string, name: string) {
+    const ok = await guard(async () => { await repo.renameProject(id, name); return true })
+    if (ok) { const p = data.value.projects.find(x => x.id === id); if (p) p.name = name }
+  }
+  async function removeProject(id: string) {
+    const ok = await guard(async () => { await repo.removeProject(id); return true })
+    if (ok) {
+      data.value.projects = data.value.projects.filter(p => p.id !== id)
+      for (const t of data.value.tasks) if (t.project_id === id) t.project_id = null
+    }
+  }
+  /** Сменить сферу задачи (проект при этом сбрасывается — он принадлежал прежней сфере) */
+  const setTaskSphere = (id: string, sphereId: string | null) => updateTask(id, { sphere_id: sphereId, project_id: null })
+  /** Поставить проект (сфера берётся из проекта); null — оставить в сфере без проекта */
+  const setTaskProject = (id: string, projectId: string | null, sphereId: string | null) => updateTask(id, { project_id: projectId, ...(projectId ? { sphere_id: projectById(projectId)?.sphere_id ?? sphereId } : { sphere_id: sphereId }) })
   async function addHabit(h: NewHabit) {
     const x = await guard(() => repo.addHabit(h)); if (x) data.value.habits.push(x as Habit)
   }
@@ -272,7 +294,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, habitValue, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, projectById, projectsOf, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, addDays,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, addHabit,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport,

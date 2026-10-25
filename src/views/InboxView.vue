@@ -24,7 +24,29 @@ const doneUndated = computed(() => app.data.tasks.filter(t => t.status === 'done
 const TIMES = ['09:00', '14:00', '18:00']
 /** Для какой задачи и на какую дату сейчас выбирается время (всплывающее окно) */
 const choosing = ref<{ id: string; date: string } | null>(null)
-const choose = (id: string, date: string) => { choosing.value = choosing.value?.id === id && choosing.value.date === date ? null : { id, date } }
+const choose = (id: string, date: string) => { menu.value = null; choosing.value = choosing.value?.id === id && choosing.value.date === date ? null : { id, date } }
+/** Окно выбора сферы → проекта этой сферы (шаг 'sphere' или 'project') */
+const menu = ref<{ id: string; step: 'sphere' | 'project'; sphereId?: string } | null>(null)
+const toggleMenu = (id: string) => { choosing.value = null; menu.value = menu.value?.id === id ? null : { id, step: 'sphere' } }
+/** Подпись на кнопке: «Сфера» или «Хобби › Вышивка» */
+function sphereLabel(t: { sphere_id: string | null; project_id?: string | null }): string {
+  const s = app.sphereById(t.sphere_id)
+  if (!s) return 'Сфера'
+  const p = app.projectById(t.project_id)
+  return p ? `${s.name} › ${p.name}` : s.name
+}
+/** Выбрали сферу: если в ней есть проекты — спрашиваем проект, иначе сразу фиксируем */
+async function pickSphere(id: string, sphereId: string | null) {
+  if (sphereId && app.projectsOf(sphereId).length) { menu.value = { id, step: 'project', sphereId }; return }
+  menu.value = null
+  const t = app.data.tasks.find(x => x.id === id)
+  if (t && t.sphere_id === sphereId && !t.project_id) return
+  await app.setTaskSphere(id, sphereId)
+}
+async function pickProject(id: string, sphereId: string, projectId: string | null) {
+  menu.value = null
+  await app.setTaskProject(id, projectId, sphereId)
+}
 const dateLabel = (d: string) => d === app.today ? 'Сегодня' : d === addDays(app.today, 1) ? 'Завтра' : shortDate(d)
 /** Зафиксировать дату и время (null — «без времени»); задача уходит из «Входящих» в план. Для задачи со временем напоминание — за 10 минут */
 async function plan(id: string, date: string, time: string | null) {
@@ -34,11 +56,12 @@ async function plan(id: string, date: string, time: string | null) {
     start_time: time ? `${time}:00` : null, remind_before_minutes: time ? 10 : null,
   })
 }
-const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') choosing.value = null }
+const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { choosing.value = null; menu.value = null } }
 /** Клик куда угодно, кроме самого окна и кнопок планирования, закрывает окно */
 const onDocClick = (e: MouseEvent) => {
-  const el = e.target as HTMLElement | null
-  if (choosing.value && !el?.closest('[role=dialog], [data-quick]')) choosing.value = null
+  // composedPath() запоминает цепочку элементов в момент клика: после перерисовки окна (шаг «сфера» → «проект») сама кнопка уже убрана из страницы
+  const inside = e.composedPath().some(n => n instanceof HTMLElement && n.matches('[role=dialog], [data-quick]'))
+  if ((choosing.value || menu.value) && !inside) { choosing.value = null; menu.value = null }
 }
 onMounted(() => { window.addEventListener('keydown', onKey); document.addEventListener('click', onDocClick) })
 onBeforeUnmount(() => { window.removeEventListener('keydown', onKey); document.removeEventListener('click', onDocClick) })
@@ -53,7 +76,6 @@ function pickedDate(id: string, e: Event) {
   const el = e.target as HTMLInputElement
   if (el.value) { choosing.value = { id, date: el.value }; el.value = '' }
 }
-const setSphere = (id: string, v: string) => app.updateTask(id, { sphere_id: v || null })
 </script>
 
 <template>
@@ -80,10 +102,7 @@ const setSphere = (id: string, v: string) => app.updateTask(id, { sphere_id: v |
           <input type="date" tabindex="-1" aria-hidden="true" class="pointer-events-none absolute inset-0 opacity-0" :min="app.today"
             @change="e => pickedDate(t.id, e)" />
         </span>
-        <select class="chip bg-white pr-6" :value="t.sphere_id ?? ''" @change="e => setSphere(t.id, (e.target as HTMLSelectElement).value)">
-          <option value="">Без сферы</option>
-          <option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option>
-        </select>
+        <button data-quick type="button" class="chip hover:chip-on" :class="(menu?.id === t.id || t.sphere_id) && 'chip-on'" @click="toggleMenu(t.id)">{{ sphereLabel(t) }} ▾</button>
         <button class="ml-auto text-xs text-mute hover:text-red-600" @click="app.removeTask(t.id)">Удалить</button>
       </div>
       <!-- Всплывающее окно: во сколько? -->
@@ -95,12 +114,42 @@ const setSphere = (id: string, v: string) => app.updateTask(id, { sphere_id: v |
               <button type="button" class="text-lg leading-none text-mute" aria-label="Закрыть" @click="choosing = null">×</button>
             </div>
             <div class="grid grid-cols-3 gap-2">
-              <button v-for="tm in TIMES" :key="tm" type="button" class="chip justify-center py-1.5 text-sm hover:chip-on" @click="plan(t.id, choosing.date, tm)">{{ tm }}</button>
+              <button v-for="tm in TIMES" :key="tm" type="button" class="chip justify-center py-1.5 text-sm hover:chip-on" @click="plan(t.id, choosing?.date, tm)">{{ tm }}</button>
             </div>
-            <button type="button" class="chip mt-2 w-full justify-center py-1.5 text-sm hover:chip-on" @click="plan(t.id, choosing.date, null)">Без времени</button>
+            <button type="button" class="chip mt-2 w-full justify-center py-1.5 text-sm hover:chip-on" @click="plan(t.id, choosing?.date, null)">Без времени</button>
           </div>
         </div>
       </template>
+      <!-- Всплывающее окно: сфера, затем проект -->
+      <div v-if="menu?.id === t.id" class="relative">
+        <div role="dialog" :aria-label="menu.step === 'sphere' ? 'Выбери сферу' : 'Выбери проект'" class="absolute left-3 top-1 z-20 w-64 rounded-2xl border border-line bg-white p-3 shadow-lg">
+          <template v-if="menu.step === 'sphere'">
+            <div class="mb-2 flex items-center justify-between text-sm">
+              <span class="font-semibold">Сфера</span>
+              <button type="button" class="text-lg leading-none text-mute" aria-label="Закрыть" @click="menu = null">×</button>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <button v-for="s in app.spheres" :key="s.id" type="button" class="chip w-full justify-start gap-2 py-1.5 text-sm hover:chip-on" :class="t.sphere_id === s.id && 'chip-on'" @click="pickSphere(t.id, s.id)">
+                <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ background: s.color }"></span>{{ s.name }}
+                <span v-if="app.projectsOf(s.id).length" class="ml-auto text-xs text-mute">проектов: {{ app.projectsOf(s.id).length }} ›</span>
+              </button>
+              <button type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" :class="!t.sphere_id && 'chip-on'" @click="pickSphere(t.id, null)">Без сферы</button>
+            </div>
+            <p v-if="!app.spheres.length" class="text-xs text-mute">Сначала создай сферу на вкладке «Сферы».</p>
+          </template>
+          <template v-else-if="menu.sphereId">
+            <div class="mb-2 flex items-center justify-between text-sm">
+              <button type="button" class="text-mute" aria-label="Назад к сферам" @click="menu = { id: t.id, step: 'sphere' }">‹</button>
+              <span class="flex-1 truncate px-2 font-semibold">Проект · {{ app.sphereById(menu?.sphereId)?.name }}</span>
+              <button type="button" class="text-lg leading-none text-mute" aria-label="Закрыть" @click="menu = null">×</button>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <button v-for="p in app.projectsOf(menu?.sphereId)" :key="p.id" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" :class="t.project_id === p.id && 'chip-on'" @click="pickProject(t.id, menu.sphereId!, p.id)">{{ p.name }}</button>
+              <button type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" @click="pickProject(t.id, menu.sphereId!, null)">Без проекта</button>
+            </div>
+          </template>
+        </div>
+      </div>
     </li>
   </ul>
 
