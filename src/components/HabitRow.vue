@@ -37,7 +37,7 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
       :class="done ? 'bg-accent text-white' : 'bg-accent-soft text-accent'">{{ done ? '✓' : habit.kind === 'timer' ? '⏱' : '#' }}</span>
 
     <div class="min-w-0 flex-1">
-      <div class="truncate text-[15px]">{{ habit.name }}</div>
+      <button type="button" class="block max-w-full truncate text-left text-[15px] hover:text-accent" title="Редактировать привычку" :aria-label="'Редактировать привычку: ' + habit.name" @click="app.openHabit(habit.id)">{{ habit.name }}</button>
       <div class="mt-0.5 flex items-center gap-2 text-xs text-mute">
         <span v-if="sphere" class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}</span>
         <span v-if="habit.kind === 'counter'">{{ value }} / {{ target }}</span>

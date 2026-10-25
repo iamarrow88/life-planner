@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitEntry, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
-import { weekStart as weekStartOf } from '../lib/time'
+import { addDays, weekStart as weekStartOf } from '../lib/time'
 
 const env = import.meta.env as Record<string, string | undefined>
 const clean = (v?: string) => v?.trim().replace(/^["']|["']$/g, '') || undefined
@@ -70,7 +70,7 @@ export const supabaseRepo: Repo = {
       c.from('spheres').select('id,name,color,weekly_goal_minutes').is('archived_at', null).order('position').order('created_at'),
       c.from('projects').select('id,sphere_id,name').neq('status', 'archived').order('position').order('created_at'),
       c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }),
-      c.from('habits').select('id,name,kind,target_value,sphere_id').is('archived_at', null).order('position').order('created_at'),
+      c.from('habits').select('id,name,kind,target_value,sphere_id,created_at').is('archived_at', null).order('position').order('created_at'),
       c.from('habit_entries').select('habit_id,entry_date,value').eq('entry_date', today),
       c.from('time_entries').select(TE_COLS).or(`local_date.gte.${since},ended_at.is.null`),
       c.from('recurrences').select(REC_COLS).order('created_at'),
@@ -104,7 +104,20 @@ export const supabaseRepo: Repo = {
   async renameProject(id, name) { ok(await db().from('projects').update({ name }).eq('id', id)) },
   async removeProject(id) { ok(await db().from('projects').delete().eq('id', id)) },
   async addHabit(h) {
-    return ok(await db().from('habits').insert(h).select('id,name,kind,target_value,sphere_id').single()) as Habit
+    return ok(await db().from('habits').insert(h).select('id,name,kind,target_value,sphere_id,created_at').single()) as Habit
+  },
+  async updateHabit(id, patch) {
+    return ok(await db().from('habits').update(patch).eq('id', id).select('id,name,kind,target_value,sphere_id,created_at').single()) as Habit
+  },
+  async archiveHabit(id) { ok(await db().from('habits').update({ archived_at: new Date().toISOString() }).eq('id', id)) },
+  async habitWeek(ws) {
+    const we = addDays(ws, 6)
+    const [he, te] = await Promise.all([
+      db().from('habit_entries').select('habit_id,entry_date,value').gte('entry_date', ws).lte('entry_date', we),
+      // с запасом по краям: границы дня в часовом поясе пользователя считаем на клиенте
+      db().from('time_entries').select(TE_COLS).not('habit_id', 'is', null).gte('started_at', addDays(ws, -1)).lte('started_at', addDays(we, 2)),
+    ])
+    return { entries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[] }
   },
   async startTimer(t) {
     return ok(await db().rpc('start_timer', {

@@ -723,9 +723,10 @@ language sql stable set search_path = public as $$
   with s as (select * from public.week_sphere_summary(p_week_start)),
   prev as (select coalesce(sum(minutes), 0)::int as minutes from public.week_sphere_summary(p_week_start - 7)),
   tk as (
-    select count(*) filter (where status = 'done')::int as done, count(*)::int as total
+    -- «выполнено за неделю» — по дате выполнения (done_at), любые задачи: с датой, без даты, из входящих
+    select count(*) filter (where status = 'done' and (done_at at time zone public.user_tz())::date between p_week_start and p_week_start + 6)::int as done,
+           count(*) filter (where due_date between p_week_start and p_week_start + 6 and status <> 'inbox')::int as total
     from public.tasks
-    where due_date between p_week_start and p_week_start + 6 and status <> 'inbox'
   ),
   hb as (
     select count(*) filter (where done)::int as done_days, count(*)::int as scheduled_days

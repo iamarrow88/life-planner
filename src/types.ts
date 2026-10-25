@@ -21,6 +21,8 @@ export interface Recurrence {
 }
 export type NewRecurrence = Omit<Recurrence, 'id' | 'month_day' | 'ends_on'>
 export interface Habit {
+  /** когда создана: дни до этого в трекере не считаются */
+  created_at?: string
   id: string; name: string; kind: HabitKind; target_value: number | null; sphere_id: string
 }
 export interface HabitEntry { habit_id: string; entry_date: string; value: number }
@@ -54,6 +56,8 @@ export interface NewTask {
   remind_before_minutes?: number | null
   note?: string | null
 }
+/** Отметки привычек и записи таймера за неделю — для трекера в итоге недели */
+export interface HabitWeek { entries: HabitEntry[]; timeEntries: TimeEntry[] }
 export interface NewHabit { name: string; kind: HabitKind; target_value: number | null; sphere_id: string }
 export interface TimerTarget { task_id?: string; habit_id?: string; sphere_id?: string }
 export interface EditorTarget { task_id?: string; habit_id?: string; sphere_id?: string }
@@ -84,6 +88,10 @@ export interface Repo {
   renameProject(id: string, name: string): Promise<void>
   removeProject(id: string): Promise<void>   // задачи проекта остаются в сфере, просто без проекта
   addHabit(h: NewHabit): Promise<Habit>
+  updateHabit(id: string, patch: Partial<NewHabit>): Promise<Habit>
+  /** «Удалить» привычку: уходит из списков, история отметок остаётся в базе */
+  archiveHabit(id: string): Promise<void>
+  habitWeek(weekStart: string): Promise<HabitWeek>
   startTimer(target: TimerTarget): Promise<TimeEntry>
   stopTimer(): Promise<TimeEntry | null>
   bumpHabit(id: string, delta: number, day: string): Promise<HabitEntry>

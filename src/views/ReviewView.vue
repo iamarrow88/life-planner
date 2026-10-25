@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useApp } from '../stores/app'
 import type { WeekData } from '../types'
 import { addDays, fmtMinutes, shortDate, weekStart } from '../lib/time'
+import HabitTracker from '../components/HabitTracker.vue'
 
 const app = useApp()
 const ws = ref(weekStart(app.today))
@@ -87,15 +88,17 @@ async function complete() {
       </div>
       <div class="card p-3">
         <div class="text-xs text-mute">Задачи</div>
-        <div class="mt-1 text-lg font-bold leading-tight" data-test="tasks">{{ data.tasks_done }} из {{ data.tasks_total }}</div>
-        <div class="mt-1 text-[11px] text-mute">выполнено</div>
+        <div class="mt-1 text-lg font-bold leading-tight" data-test="tasks">{{ data.tasks_done }}</div>
+        <div class="mt-1 text-[11px] text-mute">выполнено за неделю</div>
       </div>
       <div class="card p-3">
         <div class="text-xs text-mute">Привычки</div>
         <div class="mt-1 text-lg font-bold leading-tight" data-test="habits">{{ habitPct === null ? '—' : habitPct + '%' }}</div>
-        <div class="mt-1 text-[11px] text-mute">{{ data.habit_days_done }} из {{ data.habit_days_total }} дней</div>
+        <div class="mt-1 text-[11px] text-mute">норма выполнена {{ data.habit_days_done }} из {{ data.habit_days_total }} раз</div>
       </div>
     </div>
+
+    <HabitTracker :week-start="ws" />
 
     <!-- Сферы против целей -->
     <section class="mb-4">

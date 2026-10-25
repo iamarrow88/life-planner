@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitEntry, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, Task, TimeEntry, User } from '../types'
+import type { GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitEntry, HabitWeek, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
@@ -19,6 +19,9 @@ export const useApp = defineStore('app', () => {
   let tick: number | undefined
   /** Открытое окно правки времени */
   /** Открытая карточка задачи */
+  const habitDetailId = ref<string | null>(null)
+  const openHabit = (id: string) => { habitDetailId.value = id }
+  const closeHabit = () => { habitDetailId.value = null }
   const detailId = ref<string | null>(null)
   const openTask = (id: string) => { detailId.value = id }
   const closeTask = () => { detailId.value = null }
@@ -248,6 +251,18 @@ export const useApp = defineStore('app', () => {
   async function addHabit(h: NewHabit) {
     const x = await guard(() => repo.addHabit(h)); if (x) data.value.habits.push(x as Habit)
   }
+  async function updateHabit(id: string, patch: Partial<NewHabit>) {
+    const h = await guard(() => repo.updateHabit(id, patch)) as Habit | undefined
+    if (!h) return false
+    const i = data.value.habits.findIndex(x => x.id === id); if (i >= 0) data.value.habits[i] = h
+    return true
+  }
+  async function removeHabit(id: string) {
+    const ok = await guard(async () => { await repo.archiveHabit(id); return true })
+    if (ok) data.value.habits = data.value.habits.filter(h => h.id !== id)
+    return !!ok
+  }
+  const habitWeek = (ws: string) => guard(() => repo.habitWeek(ws)) as Promise<HabitWeek | undefined>
   async function startTimer(target: { task_id?: string; habit_id?: string; sphere_id?: string }) {
     const e = await guard(() => repo.startTimer(target))
     if (e) {
@@ -307,7 +322,7 @@ export const useApp = defineStore('app', () => {
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, projectById, projectsOf, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, addDays,
-    init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, addHabit,
+    init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, addHabit, updateHabit, removeHabit, habitWeek, habitDetailId, openHabit, closeHabit,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport,
     startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence,

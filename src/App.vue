@@ -6,6 +6,7 @@ import NavIcon from './components/NavIcon.vue'
 import TimerBar from './components/TimerBar.vue'
 import TimeEditor from './components/TimeEditor.vue'
 import TaskDetail from './components/TaskDetail.vue'
+import HabitDetail from './components/HabitDetail.vue'
 import { repo, supabaseProblems } from './data'
 
 const app = useApp()
@@ -62,6 +63,7 @@ async function logout() { await app.signOut(); router.push('/login') }
     </main>
 
     <TaskDetail />
+    <HabitDetail />
     <TimeEditor />
 
     <!-- Нижняя панель на телефоне -->

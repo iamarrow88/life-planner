@@ -69,7 +69,7 @@ function weekDataFor(s: Snapshot, ws: string): WeekData {
   })
   return {
     week_start: ws, total_minutes: spheres.reduce((t, x) => t + x.minutes, 0), prev_total_minutes: prevTotal, spheres,
-    tasks_done: tasks.filter(t => t.status === 'done').length, tasks_total: tasks.length,
+    tasks_done: s.tasks.filter(t => t.status === 'done' && !!t.done_at && dayOf(t.done_at) >= ws && dayOf(t.done_at) <= we).length, tasks_total: tasks.length,
     habit_days_done: habitDone, habit_days_total: habitTotal, top_time_tasks: top,
   }
 }
@@ -158,7 +158,20 @@ export const demoRepo: Repo = {
     for (const t of s.tasks) if (t.project_id === id) t.project_id = null
     write(s)
   },
-  async addHabit(h) { const s = read(); const x: Habit = { id: uid(), ...h }; s.habits.push(x); write(s); return x },
+  async updateHabit(id, patch) {
+    const s = read(); const h = s.habits.find(x => x.id === id)
+    if (!h) throw new Error('Привычка не найдена')
+    Object.assign(h, patch); write(s); return { ...h }
+  },
+  async archiveHabit(id) { const s = read(); s.habits = s.habits.filter(h => h.id !== id); write(s) },
+  async habitWeek(ws) {
+    const s = read(); const we = addDays(ws, 6)
+    return {
+      entries: s.habitEntries.filter(e => e.entry_date >= ws && e.entry_date <= we),
+      timeEntries: s.timeEntries.filter(e => e.habit_id && dayOf(e.started_at) >= addDays(ws, -1) && dayOf(e.started_at) <= addDays(we, 1)),
+    }
+  },
+  async addHabit(h) { const s = read(); const x: Habit = { id: uid(), created_at: new Date().toISOString(), ...h }; s.habits.push(x); write(s); return x },
   async startTimer(target) {
     const s = read()
     const now = new Date().toISOString()
