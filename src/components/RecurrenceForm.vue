@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useApp } from '../stores/app'
+import AutoTextarea from './AutoTextarea.vue'
 import type { RecurrenceFreq, RecurrenceMode } from '../types'
 
 const emit = defineEmits<{ done: [] }>()
@@ -47,7 +48,7 @@ async function save() {
 
 <template>
   <form class="card space-y-3 p-4" @submit.prevent="save">
-    <input v-model="title" class="input" placeholder="Что повторяется? Например, «Уборка»" required autofocus />
+    <AutoTextarea v-model="title" single-line :maxlength="500" required autofocus placeholder="Что повторяется? Например, «Уборка»" @submit="save" />
 
     <div>
       <div class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-mute">Как часто</div>

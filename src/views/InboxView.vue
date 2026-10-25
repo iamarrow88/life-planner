@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useApp } from '../stores/app'
 import { addDays, shortDate } from '../lib/time'
 import TaskRow from '../components/TaskRow.vue'
+import AutoTextarea from '../components/AutoTextarea.vue'
 import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 
@@ -20,7 +21,7 @@ async function add() {
 /** Выполненные задачи «из входящих»: те, которые так и не получили дату */
 const doneUndated = computed(() => app.data.tasks.filter(t => t.status === 'done' && !t.due_date))
 /** Предустановленное время для быстрого планирования */
-const TIMES = ['09:00', '15:00', '19:00']
+const TIMES = ['09:00', '14:00', '18:00']
 /** Для какой задачи и на какую дату сейчас выбирается время (всплывающее окно) */
 const choosing = ref<{ id: string; date: string } | null>(null)
 const choose = (id: string, date: string) => { choosing.value = choosing.value?.id === id && choosing.value.date === date ? null : { id, date } }
@@ -59,8 +60,8 @@ const setSphere = (id: string, v: string) => app.updateTask(id, { sphere_id: v |
   <h1 class="mb-1 text-2xl font-bold">Входящие</h1>
   <p class="mb-4 text-sm text-mute">Всё, что не хочется держать в голове. Разберёшь потом.</p>
 
-  <form class="mb-5 flex flex-wrap gap-2" @submit.prevent="add">
-    <input v-model="text" class="input !w-auto min-w-[12rem] flex-1" placeholder="Что нужно запомнить?" autofocus />
+  <form class="mb-5 flex flex-wrap items-start gap-2" @submit.prevent="add">
+    <AutoTextarea v-model="text" single-line :maxlength="500" class="!w-auto min-w-[12rem] flex-1" placeholder="Что нужно запомнить?" autofocus @submit="add" />
     <EstimateInput v-model="estimate" />
     <button class="btn-primary shrink-0" :disabled="!text.trim()">Добавить</button>
   </form>

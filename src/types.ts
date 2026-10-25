@@ -6,6 +6,7 @@ export interface Task {
   id: string; title: string; status: TaskStatus
   sphere_id: string | null; due_date: string | null; start_time: string | null
   estimate_minutes: number | null; done_at: string | null; recurrence_id?: string | null
+  note?: string | null                    // описание задачи
   remind_before_minutes?: number | null   // null — не напоминать; 0 — в момент начала
 }
 export type RecurrenceFreq = 'day' | 'week' | 'month' | 'year'
@@ -49,6 +50,7 @@ export interface NewTask {
   title: string; status: TaskStatus; sphere_id?: string | null
   due_date?: string | null; start_time?: string | null; estimate_minutes?: number | null
   remind_before_minutes?: number | null
+  note?: string | null
 }
 export interface NewHabit { name: string; kind: HabitKind; target_value: number | null; sphere_id: string }
 export interface TimerTarget { task_id?: string; habit_id?: string; sphere_id?: string }

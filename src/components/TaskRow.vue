@@ -25,6 +25,7 @@ const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
       <button class="block w-full truncate text-left text-[15px] hover:text-accent" :class="done && 'text-mute line-through'" @click="app.openTask(task.id)">{{ task.title }}</button>
       <div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-mute">
         <span v-if="task.recurrence_id" title="Повторяющаяся" class="font-semibold text-accent">↻</span>
+        <span v-if="task.note" title="Есть описание" class="font-semibold">≡</span>
         <span v-if="task.start_time" class="font-medium text-ink/70">{{ hhmm(task.start_time) }}<span v-if="task.remind_before_minutes != null" title="Напомнит"> 🔔</span></span>
         <span v-if="sphere" class="inline-flex items-center gap-1">
           <span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}

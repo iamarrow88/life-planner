@@ -2,11 +2,13 @@
 import { computed, ref, watch } from 'vue'
 import { useApp } from '../stores/app'
 import { fmtSec } from '../lib/time'
+import AutoTextarea from './AutoTextarea.vue'
 import EstimateInput from './EstimateInput.vue'
 
 const app = useApp()
 const task = computed(() => app.data.tasks.find(t => t.id === app.detailId) ?? null)
 const title = ref('')
+const note = ref('')
 const date = ref('')
 const time = ref('')
 const estimate = ref<number | null>(null)
@@ -22,7 +24,7 @@ const totals = computed(() => (task.value ? app.taskTotals[task.value.id] : unde
 
 watch(task, t => {
   if (!t) return
-  title.value = t.title; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
+  title.value = t.title; note.value = t.note ?? ''; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
   estimate.value = t.estimate_minutes; sphereId.value = t.sphere_id ?? ''
   remind.value = t.remind_before_minutes == null ? '' : String(t.remind_before_minutes); remindTouched.value = false
 }, { immediate: true })
@@ -40,7 +42,7 @@ async function save() {
   busy.value = true
   const due = date.value || null
   await app.updateTask(t.id, {
-    title: title.value.trim(), due_date: due,
+    title: title.value.trim(), note: note.value.trim() || null, due_date: due,
     start_time: due && time.value ? `${time.value}:00` : null, // время без даты не бывает
     remind_before_minutes: due && time.value && remind.value !== '' ? Number(remind.value) : null, // напоминание — только если есть время
     estimate_minutes: estimate.value, sphere_id: sphereId.value || null,
@@ -63,7 +65,8 @@ async function remove() {
         <button type="button" class="text-2xl leading-none text-mute" aria-label="Закрыть" @click="app.closeTask()">×</button>
       </div>
 
-      <input v-model="title" class="input" placeholder="Название" required />
+      <AutoTextarea v-model="title" single-line :maxlength="500" required placeholder="Название задачи" @submit="save" />
+      <AutoTextarea v-model="note" :min-rows="3" placeholder="Описание задачи" />
 
       <div class="grid grid-cols-2 gap-2">
         <label class="text-xs text-mute">
@@ -72,6 +75,8 @@ async function remove() {
         </label>
         <label class="text-xs text-mute">Время начала<input v-model="time" type="time" class="input mt-1" :disabled="!date" @input="onTimeInput" @change="onTimeInput" /></label>
       </div>
+
+      <p v-if="!date && task.status !== 'done'" class="-mt-1 text-xs text-mute">Без даты задача лежит во «Входящих».</p>
 
       <label class="text-xs text-mute">Напоминание
         <select v-model="remind" class="input mt-1" :disabled="!date || !time" @change="remindTouched = true">

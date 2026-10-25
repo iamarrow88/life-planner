@@ -43,7 +43,7 @@ async function callGoogle(body: Record<string, unknown>): Promise<GoogleStatus> 
   return r.data as GoogleStatus
 }
 
-const TASK_COLS = 'id,title,status,sphere_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
+const TASK_COLS = 'id,title,note,status,sphere_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
 const REC_COLS = 'id,title,sphere_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
 const TE_COLS = 'id,task_id,habit_id,sphere_id,started_at,ended_at,source'
 
@@ -84,7 +84,7 @@ export const supabaseRepo: Repo = {
   },
   async addTask(t) {
     return ok(await db().from('tasks').insert({
-      title: t.title, status: t.status, sphere_id: t.sphere_id ?? null, due_date: t.due_date ?? null,
+      title: t.title, note: t.note ?? null, status: t.status, sphere_id: t.sphere_id ?? null, due_date: t.due_date ?? null,
       start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null,
       remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null,
     }).select(TASK_COLS).single()) as Task

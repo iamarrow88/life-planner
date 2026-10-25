@@ -114,7 +114,7 @@ export const demoRepo: Repo = {
   async load() { const s = read(); generate(s); write(s); return s },
   async addTask(t) {
     const s = read()
-    const task: Task = { id: uid(), title: t.title, status: t.status, sphere_id: t.sphere_id ?? null,
+    const task: Task = { id: uid(), title: t.title, note: t.note ?? null, status: t.status, sphere_id: t.sphere_id ?? null,
       due_date: t.due_date ?? null, start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null,
       remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null, done_at: null }
     s.tasks.unshift(task); write(s); return task

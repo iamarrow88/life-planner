@@ -6,6 +6,7 @@ import TaskRow from '../components/TaskRow.vue'
 import HabitRow from '../components/HabitRow.vue'
 import HabitForm from '../components/HabitForm.vue'
 import RecurrenceForm from '../components/RecurrenceForm.vue'
+import AutoTextarea from '../components/AutoTextarea.vue'
 import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import { describe } from '../lib/recurrence'
@@ -120,8 +121,8 @@ async function add() {
       <button v-for="f in filters" :key="f.v" class="chip py-1.5 text-sm" :class="filter === f.v && 'chip-on'" @click="filter = f.v">{{ f.label }}</button>
     </div>
     <p v-if="filter === 'today' && overdueCount" class="mb-2 text-xs text-amber-700">Просрочено: {{ overdueCount }} — они показаны вверху списка.</p>
-    <form class="mb-3 flex flex-wrap gap-2" @submit.prevent="add">
-      <input v-model="text" class="input !w-auto min-w-[10rem] flex-1" placeholder="Новое дело…" />
+    <form class="mb-3 flex flex-wrap items-start gap-2" @submit.prevent="add">
+      <AutoTextarea v-model="text" single-line :maxlength="500" class="!w-auto min-w-[10rem] flex-1" placeholder="Новое дело…" @submit="add" />
       <EstimateInput v-model="estimate" />
       <button class="btn-primary shrink-0" :disabled="!text.trim()">+</button>
       <button type="button" class="btn-ghost shrink-0" title="Повторяющаяся задача" @click="showRecForm = !showRecForm">↻</button>
