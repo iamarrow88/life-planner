@@ -137,7 +137,7 @@ function pickedDate(id: string, e: Event) {
             <div class="flex flex-col gap-1.5">
               <button v-for="s in app.spheres" :key="s.id" type="button" class="chip w-full justify-start gap-2 py-1.5 text-sm hover:chip-on" :class="t.sphere_id === s.id && 'chip-on'" @click="pickSphere(t.id, s.id)">
                 <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ background: s.color }"></span>{{ s.name }}
-                <span v-if="app.projectsOf(s.id).length" class="ml-auto text-xs text-mute">проектов: {{ app.projectsOf(s.id).length }} ›</span>
+                <span v-if="app.projectsOf(s.id).length" class="ml-auto text-xs text-mute">{{ app.projectsOf(s.id).length }} ›</span>
               </button>
               <button type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" :class="!t.sphere_id && 'chip-on'" @click="pickSphere(t.id, null)">Без сферы</button>
             </div>
