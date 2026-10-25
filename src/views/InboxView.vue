@@ -43,6 +43,12 @@ async function pickSphere(id: string, sphereId: string | null) {
   if (t && t.sphere_id === sphereId && !t.project_id) return
   await app.setTaskSphere(id, sphereId)
 }
+const newProjectName = ref('')
+async function createProject(id: string, sphereId: string) {
+  const name = newProjectName.value.trim(); if (!name) return
+  const p = await app.addProject(sphereId, name); newProjectName.value = ''
+  if (p) await pickProject(id, sphereId, p.id)
+}
 async function pickProject(id: string, sphereId: string, projectId: string | null) {
   menu.value = null
   await app.setTaskProject(id, projectId, sphereId)
@@ -110,7 +116,7 @@ function pickedDate(id: string, e: Event) {
         <div class="relative">
           <div role="dialog" aria-label="Выбери время" class="absolute left-3 top-1 z-20 w-64 rounded-2xl border border-line bg-white p-3 shadow-lg">
             <div class="mb-2 flex items-center justify-between text-sm">
-              <span class="font-semibold">{{ dateLabel(choosing.date) }} — во сколько?</span>
+              <span class="font-semibold">{{ dateLabel(choosing?.date) }} — во сколько?</span>
               <button type="button" class="text-lg leading-none text-mute" aria-label="Закрыть" @click="choosing = null">×</button>
             </div>
             <div class="grid grid-cols-3 gap-2">
@@ -131,7 +137,7 @@ function pickedDate(id: string, e: Event) {
             <div class="flex flex-col gap-1.5">
               <button v-for="s in app.spheres" :key="s.id" type="button" class="chip w-full justify-start gap-2 py-1.5 text-sm hover:chip-on" :class="t.sphere_id === s.id && 'chip-on'" @click="pickSphere(t.id, s.id)">
                 <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ background: s.color }"></span>{{ s.name }}
-                <span v-if="app.projectsOf(s.id).length" class="ml-auto text-xs text-mute">{{ app.projectsOf(s.id).length }} ›</span>
+                <span v-if="app.projectsOf(s.id).length" class="ml-auto text-xs text-mute">проектов: {{ app.projectsOf(s.id).length }} ›</span>
               </button>
               <button type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" :class="!t.sphere_id && 'chip-on'" @click="pickSphere(t.id, null)">Без сферы</button>
             </div>
@@ -140,12 +146,16 @@ function pickedDate(id: string, e: Event) {
           <template v-else-if="menu.sphereId">
             <div class="mb-2 flex items-center justify-between text-sm">
               <button type="button" class="text-mute" aria-label="Назад к сферам" @click="menu = { id: t.id, step: 'sphere' }">‹</button>
-              <span class="flex-1 truncate px-2 font-semibold">Проект · {{ app.sphereById(menu?.sphereId)?.name }}</span>
+              <span class="flex-1 truncate px-2 font-semibold">{{ app.sphereById(menu.sphereId)?.name }}</span>
               <button type="button" class="text-lg leading-none text-mute" aria-label="Закрыть" @click="menu = null">×</button>
             </div>
             <div class="flex flex-col gap-1.5">
               <button v-for="p in app.projectsOf(menu?.sphereId)" :key="p.id" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" :class="t.project_id === p.id && 'chip-on'" @click="pickProject(t.id, menu?.sphereId!, p.id)">{{ p.name }}</button>
               <button type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" @click="pickProject(t.id, menu?.sphereId!, null)">Без проекта</button>
+              <form class="mt-1 flex gap-1.5" @submit.prevent="createProject(t.id, menu?.sphereId!)">
+                <input v-model="newProjectName" class="input min-w-0 flex-1 !py-1 text-sm" maxlength="80" placeholder="Новый проект" aria-label="Новый проект" />
+                <button class="btn-primary !px-3 !py-1" :disabled="!newProjectName.trim()" aria-label="Добавить проект">+</button>
+              </form>
             </div>
           </template>
         </div>

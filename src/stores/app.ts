@@ -134,15 +134,27 @@ export const useApp = defineStore('app', () => {
   function onVisible() {
     if (document.visibilityState === 'visible' && Date.now() - googleLastRun > 60_000) void syncGoogle()
   }
+  /** Приложение на телефоне может висеть открытым днями: при возврате подтягиваем свежие данные (сферы, проекты, задачи с других устройств) */
+  let lastLoad = Date.now()
+  async function reloadQuietly() {
+    if (!user.value || loading.value) return
+    try { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0]); lastLoad = Date.now() } catch { /* оставляем то, что есть */ }
+  }
+  function onShow() {
+    if (document.visibilityState === 'visible' && Date.now() - lastLoad > 30_000) void reloadQuietly()
+  }
   function startGoogleWatch() {
     document.removeEventListener('visibilitychange', onVisible)
     document.addEventListener('visibilitychange', onVisible)
+    document.removeEventListener('visibilitychange', onShow)
+    document.addEventListener('visibilitychange', onShow)
     window.clearInterval(googleWatchTimer)
     googleWatchTimer = window.setInterval(() => void syncGoogle(), 5 * 60_000)
   }
   let googleWatchTimer: number | undefined
   function stopGoogleWatch() {
     document.removeEventListener('visibilitychange', onVisible)
+    document.removeEventListener('visibilitychange', onShow)
     window.clearInterval(googleWatchTimer); window.clearTimeout(googleTimer); google.value = null
   }
 
@@ -171,7 +183,7 @@ export const useApp = defineStore('app', () => {
   }
   async function load() {
     loading.value = true
-    await guard(async () => { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0]) })
+    await guard(async () => { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0]); lastLoad = Date.now() })
     loading.value = false
   }
   async function signIn(email: string, password: string) {
@@ -216,7 +228,7 @@ export const useApp = defineStore('app', () => {
   }
   async function addProject(sphereId: string, name: string) {
     const p = await guard(() => repo.addProject(sphereId, name)); if (p) data.value.projects.push(p as Project)
-    return !!p
+    return (p as Project | undefined) ?? null
   }
   async function renameProject(id: string, name: string) {
     const ok = await guard(async () => { await repo.renameProject(id, name); return true })

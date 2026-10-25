@@ -14,6 +14,13 @@ const time = ref('')
 const estimate = ref<number | null>(null)
 const sphereId = ref('')
 const projectId = ref('')
+const newProject = ref('')
+/** Новый проект прямо из карточки: создаём в выбранной сфере и сразу выбираем */
+async function createProject() {
+  const name = newProject.value.trim(); if (!name || !sphereId.value) return
+  const p = await app.addProject(sphereId.value, name)
+  if (p) { projectId.value = p.id; newProject.value = '' }
+}
 /** '' — не напоминать, иначе число минут до начала ('0' — в момент начала) */
 const remind = ref('')
 const remindTouched = ref(false)
@@ -98,9 +105,15 @@ async function remove() {
       <label class="text-xs text-mute">Сфера
         <select v-model="sphereId" class="input mt-1" @change="projectId = ''"><option value="">Без сферы</option><option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option></select>
       </label>
-      <label v-if="sphereId && app.projectsOf(sphereId).length" class="text-xs text-mute">Проект
-        <select v-model="projectId" class="input mt-1"><option value="">Без проекта</option><option v-for="p in app.projectsOf(sphereId)" :key="p.id" :value="p.id">{{ p.name }}</option></select>
-      </label>
+      <div v-if="sphereId" class="text-xs text-mute">
+        <label>Проект
+          <select v-model="projectId" class="input mt-1"><option value="">Без проекта</option><option v-for="p in app.projectsOf(sphereId)" :key="p.id" :value="p.id">{{ p.name }}</option></select>
+        </label>
+        <form class="mt-1.5 flex gap-1.5" @submit.prevent="createProject">
+          <input v-model="newProject" class="input min-w-0 flex-1 !py-1.5 text-sm" maxlength="80" placeholder="＋ Новый проект в этой сфере" aria-label="Новый проект" />
+          <button class="btn-ghost shrink-0 !py-1.5" :disabled="!newProject.trim()" aria-label="Добавить проект">Добавить</button>
+        </form>
+      </div>
 
       <div v-if="task.status !== 'done'" class="flex items-center gap-2">
         <button type="button" class="btn-ghost flex-1" @click="isRunning ? app.stopTimer() : app.startTimer({ task_id: task.id })">
