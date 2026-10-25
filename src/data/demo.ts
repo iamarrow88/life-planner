@@ -158,6 +158,15 @@ export const demoRepo: Repo = {
     s.projects.push(p); write(s); return p
   },
   async renameProject(id, name) { const s = read(); const p = s.projects.find(x => x.id === id); if (p) p.name = name; write(s) },
+  async moveProject(id: string, sphereId: string) {
+    const s = read(); const p = s.projects.find(x => x.id === id)
+    if (!p) throw new Error('Проект не найден')
+    p.sphere_id = sphereId
+    for (const t of s.tasks) if (t.project_id === id) t.sphere_id = sphereId
+    const ids = new Set(s.tasks.filter(t => t.project_id === id).map(t => t.id))
+    for (const e of s.timeEntries) if (e.task_id && ids.has(e.task_id)) e.sphere_id = sphereId
+    write(s)
+  },
   async archiveProject(id) { const s = read(); const p = s.projects.find(x => x.id === id); if (p) p.status = 'archived'; write(s) },
   async restoreProject(id) { const s = read(); const p = s.projects.find(x => x.id === id); if (p) p.status = 'active'; write(s) },
   async removeProject(id) {

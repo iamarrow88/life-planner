@@ -88,6 +88,8 @@ export interface Repo {
   updateSphere(id: string, patch: SpherePatch): Promise<Sphere>
   addProject(sphereId: string, name: string): Promise<Project>
   renameProject(id: string, name: string): Promise<void>
+  /** Перенос проекта в другую сферу; задачи, привычки и время переезжают вместе с ним (триггер в базе) */
+  moveProject(id: string, sphereId: string): Promise<void>
   archiveProject(id: string): Promise<void>
   restoreProject(id: string): Promise<void>
   removeProject(id: string): Promise<void>   // задачи проекта остаются в сфере, просто без проекта

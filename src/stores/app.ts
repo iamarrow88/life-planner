@@ -269,6 +269,14 @@ export const useApp = defineStore('app', () => {
     if (ok) { const p = data.value.projects.find(x => x.id === id); if (p) p.status = 'archived' }
     return !!ok
   }
+  /** Перенос проекта в другую сферу: задачи и время переезжают на сервере, поэтому после переноса тихо перечитываем данные */
+  async function moveProject(id: string, sphereId: string) {
+    const ok = await guard(async () => { await repo.moveProject(id, sphereId); return true })
+    if (!ok) return false
+    const p = data.value.projects.find(x => x.id === id); if (p) p.sphere_id = sphereId
+    await reloadQuietly()
+    return true
+  }
   async function restoreProject(id: string) {
     const ok = await guard(async () => { await repo.restoreProject(id); return true })
     if (ok) { const p = data.value.projects.find(x => x.id === id); if (p) p.status = 'active' }
@@ -348,7 +356,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, addDays,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitWeek, habitDetailId, openHabit, closeHabit,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport,

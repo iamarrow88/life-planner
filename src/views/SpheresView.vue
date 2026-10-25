@@ -62,6 +62,14 @@ async function saveRename(id: string) {
   if (name) await app.renameProject(id, name)
 }
 const archiving = ref<string | null>(null)
+const moving = ref<string | null>(null)
+async function moveProject(id: string, name: string, toSphere: string) {
+  const n = app.data.tasks.filter(t => t.project_id === id).length
+  const to = app.sphereById(toSphere)?.name ?? ''
+  if (!window.confirm(`Перенести проект «${name}» в сферу «${to}»?${n ? ` Его задачи (${n}) и учтённое время тоже перейдут в эту сферу.` : ''}`)) return
+  moving.value = null
+  await app.moveProject(id, toSphere)
+}
 const openArchive = ref<Record<string, boolean>>({})
 async function restoreProject(id: string) { await app.restoreProject(id) }
 async function removeProject(id: string, name: string) {
@@ -200,7 +208,7 @@ async function saveEdit(id: string) {
         </button>
         <div v-if="openProjects[s.id]" class="mt-2 space-y-2">
           <ul v-if="app.projectsOf(s.id).length" class="divide-y divide-line rounded-xl border border-line bg-white">
-            <li v-for="p in app.projectsOf(s.id)" :key="p.id" class="flex items-center gap-2 px-3 py-2 text-sm">
+            <li v-for="p in app.projectsOf(s.id)" :key="p.id" class="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
               <form v-if="editingProject === p.id" class="flex flex-1 items-center gap-2" @submit.prevent="saveRename(p.id)">
                 <input v-model="editProjectName" class="input !py-1.5" maxlength="120" required autofocus @keydown.esc="editingProject = null" />
                 <button class="text-xs font-semibold text-accent">OK</button>
@@ -209,8 +217,17 @@ async function saveEdit(id: string) {
                 <span class="min-w-0 flex-1 truncate">{{ p.name }}</span>
                 <span class="shrink-0 text-xs text-mute">{{ openTasksIn(p.id) }} задач</span>
                 <button type="button" class="shrink-0 text-xs text-mute hover:text-accent" aria-label="Переименовать проект" @click="startRename(p.id, p.name)">✎</button>
+                <button v-if="app.spheres.length > 1" type="button" class="shrink-0 text-xs text-mute hover:text-accent" :class="moving === p.id && 'text-accent'" aria-label="Перенести проект" :title="'Перенести проект ' + p.name + ' в другую сферу'" @click="moving = moving === p.id ? null : p.id">Перенести</button>
                 <button type="button" class="shrink-0 text-xs text-mute hover:text-accent" aria-label="В архив" :title="'Архивировать проект ' + p.name" @click="archiving = p.id">В архив</button>
               </template>
+              <div v-if="moving === p.id" class="basis-full rounded-xl bg-bg p-2" data-test="move-picker">
+                <div class="mb-1.5 text-xs text-mute">Перенести в сферу:</div>
+                <div class="flex flex-wrap gap-1.5">
+                  <button v-for="t in app.spheres.filter(x => x.id !== s.id)" :key="t.id" type="button" class="chip gap-1.5 py-1 text-xs hover:chip-on" @click="moveProject(p.id, p.name, t.id)">
+                    <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ background: t.color }"></span>{{ t.name }}
+                  </button>
+                </div>
+              </div>
             </li>
           </ul>
           <p v-else class="text-xs text-mute">Проектов пока нет. Задачи можно держать прямо в сфере.</p>

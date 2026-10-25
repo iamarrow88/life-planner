@@ -106,6 +106,7 @@ export const supabaseRepo: Repo = {
     return ok(await db().from('projects').insert({ sphere_id: sphereId, name }).select('id,sphere_id,name,status').single()) as Project
   },
   async renameProject(id, name) { ok(await db().from('projects').update({ name }).eq('id', id)) },
+  async moveProject(id, sphereId) { ok(await db().from('projects').update({ sphere_id: sphereId }).eq('id', id)) },
   async archiveProject(id) { ok(await db().from('projects').update({ status: 'archived' }).eq('id', id)) },
   async restoreProject(id) { ok(await db().from('projects').update({ status: 'active' }).eq('id', id)) },
   async removeProject(id) { ok(await db().from('projects').delete().eq('id', id)) },
