@@ -1,9 +1,10 @@
 export type TaskStatus = 'inbox' | 'planned' | 'done'
 export type HabitKind = 'timer' | 'plain' | 'counter'
 
-export interface Sphere { id: string; name: string; color: string; weekly_goal_minutes: number }
+export interface Sphere { id: string; name: string; color: string; weekly_goal_minutes: number; description?: string | null }
+export type SpherePatch = Partial<Pick<Sphere, 'name' | 'color' | 'description' | 'weekly_goal_minutes'>>
 /** Проект всегда лежит внутри сферы; задача может быть без проекта */
-export interface Project { id: string; sphere_id: string; name: string }
+export interface Project { id: string; sphere_id: string; name: string; status?: 'active' | 'done' | 'archived' }
 export interface Task {
   id: string; title: string; status: TaskStatus
   sphere_id: string | null; project_id?: string | null; due_date: string | null; start_time: string | null
@@ -83,9 +84,12 @@ export interface Repo {
   addTask(t: NewTask): Promise<Task>
   updateTask(id: string, patch: Partial<NewTask>): Promise<Task>
   removeTask(id: string): Promise<void>
-  addSphere(name: string, color: string, goalMinutes: number): Promise<Sphere>
+  addSphere(name: string, color: string, goalMinutes: number, description?: string): Promise<Sphere>
+  updateSphere(id: string, patch: SpherePatch): Promise<Sphere>
   addProject(sphereId: string, name: string): Promise<Project>
   renameProject(id: string, name: string): Promise<void>
+  archiveProject(id: string): Promise<void>
+  restoreProject(id: string): Promise<void>
   removeProject(id: string): Promise<void>   // задачи проекта остаются в сфере, просто без проекта
   addHabit(h: NewHabit): Promise<Habit>
   updateHabit(id: string, patch: Partial<NewHabit>): Promise<Habit>

@@ -107,7 +107,7 @@ async function remove() {
       </label>
       <div v-if="sphereId" class="text-xs text-mute">
         <label>Проект
-          <select v-model="projectId" class="input mt-1"><option value="">Без проекта</option><option v-for="p in app.projectsOf(sphereId)" :key="p.id" :value="p.id">{{ p.name }}</option></select>
+          <select v-model="projectId" class="input mt-1"><option value="">Без проекта</option><option v-for="p in app.projectsOf(sphereId)" :key="p.id" :value="p.id">{{ p.name }}</option><option v-if="projectId && app.projectById(projectId)?.status === 'archived'" :value="projectId">{{ app.projectById(projectId)?.name }} (в архиве)</option></select>
         </label>
         <form class="mt-1.5 flex gap-1.5" @submit.prevent="createProject">
           <input v-model="newProject" class="input min-w-0 flex-1 !py-1.5 text-sm" maxlength="80" placeholder="＋ Новый проект в этой сфере" aria-label="Новый проект" />

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useApp } from '../stores/app'
+import AutoTextarea from '../components/AutoTextarea.vue'
+import ProjectArchive from '../components/ProjectArchive.vue'
 import { fmtMinutes, shortDate, weekStart, addDays, monthStart } from '../lib/time'
 
 const app = useApp()
@@ -11,6 +13,7 @@ const minutesBy = computed(() => (period.value === 'week' ? app.weekMinutes : ap
 const name = ref('')
 const color = ref(COLORS[0])
 const goalHours = ref(5)
+const description = ref('')
 
 const total = computed(() => app.spheres.reduce((s, x) => s + (minutesBy.value[x.id] ?? 0), 0))
 const R = 70, C = 2 * Math.PI * R
@@ -58,6 +61,9 @@ async function saveRename(id: string) {
   editingProject.value = null
   if (name) await app.renameProject(id, name)
 }
+const archiving = ref<string | null>(null)
+const openArchive = ref<Record<string, boolean>>({})
+async function restoreProject(id: string) { await app.restoreProject(id) }
 async function removeProject(id: string, name: string) {
   const n = openTasksIn(id)
   const tail = n ? ` Задачи (${n}) останутся в сфере, просто без проекта.` : ''
@@ -66,8 +72,26 @@ async function removeProject(id: string, name: string) {
 
 async function save() {
   if (!name.value.trim()) return
-  await app.addSphere(name.value.trim(), color.value, Math.round(goalHours.value * 60))
-  name.value = ''; adding.value = false
+  const ok = await app.addSphere(name.value.trim(), color.value, Math.round(goalHours.value * 60), description.value)
+  if (ok) { name.value = ''; description.value = ''; adding.value = false }
+}
+
+// ---- Редактирование сферы (название, цвет, описание, цель по умолчанию)
+const editing = ref<string | null>(null)
+const eName = ref(''); const eColor = ref(''); const eDesc = ref(''); const eGoal = ref(0)
+function startEdit(id: string) {
+  const s = app.sphereById(id); if (!s) return
+  goalEditing.value = null
+  editing.value = id; eName.value = s.name; eColor.value = s.color; eDesc.value = s.description ?? ''
+  eGoal.value = Math.round((s.weekly_goal_minutes / 60) * 100) / 100
+}
+async function saveEdit(id: string) {
+  const name = eName.value.trim(); if (!name) return
+  const ok = await app.updateSphere(id, {
+    name, color: eColor.value, description: eDesc.value.trim() || null,
+    weekly_goal_minutes: Math.max(0, Math.round((eGoal.value || 0) * 60)),
+  })
+  if (ok) editing.value = null
 }
 </script>
 
@@ -81,9 +105,11 @@ async function save() {
   </div>
 
   <form v-if="adding" class="card mb-4 space-y-3 p-4" @submit.prevent="save">
-    <input v-model="name" class="input" placeholder="Название сферы" required autofocus />
-    <div class="flex gap-2">
-      <button v-for="c in COLORS" :key="c" type="button" class="h-8 w-8 rounded-full ring-offset-2" :class="color === c && 'ring-2 ring-ink'" :style="{ background: c }" @click="color = c"></button>
+    <input v-model="name" class="input" placeholder="Название сферы" maxlength="80" required autofocus />
+    <AutoTextarea v-model="description" :min-rows="2" :maxlength="2000" placeholder="Описание сферы (необязательно)" />
+    <div class="flex flex-wrap items-center gap-2">
+      <button v-for="c in COLORS" :key="c" type="button" class="h-8 w-8 rounded-full ring-offset-2" :class="color === c && 'ring-2 ring-ink'" :style="{ background: c }" :aria-label="'Цвет ' + c" @click="color = c"></button>
+      <input v-model="color" type="color" class="h-8 w-8 cursor-pointer rounded-full border border-line bg-white p-0.5" aria-label="Свой цвет" title="Свой цвет" />
     </div>
     <label class="flex items-center gap-3 text-sm text-mute">Цель на неделю, часов
       <input v-model.number="goalHours" type="number" min="0" step="0.5" class="input !w-24" />
@@ -116,7 +142,8 @@ async function save() {
     <li v-for="s in app.spheres" :key="s.id" class="card p-4">
       <div class="flex items-center gap-3">
         <span class="h-3 w-3 shrink-0 rounded-full" :style="{ background: s.color }"></span>
-        <div class="flex-1 font-semibold">{{ s.name }}</div>
+        <div class="min-w-0 flex-1 truncate font-semibold">{{ s.name }}</div>
+        <button type="button" class="text-sm text-mute hover:text-accent" aria-label="Редактировать сферу" :title="'Редактировать сферу ' + s.name" @click="editing === s.id ? (editing = null) : startEdit(s.id)">✎</button>
         <button class="text-xs font-semibold text-mute hover:text-accent" @click="app.openEditor({ sphere_id: s.id }, s.name)">Править время</button>
         <button class="rounded-full px-3 py-1 text-xs font-semibold transition"
           :class="app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? 'bg-accent text-white' : 'bg-accent-soft text-accent'"
@@ -124,6 +151,23 @@ async function save() {
           {{ app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? 'Стоп' : '▶ Таймер' }}
         </button>
       </div>
+      <p v-if="s.description" class="mt-2 whitespace-pre-line break-words text-sm text-mute" data-test="sphere-desc">{{ s.description }}</p>
+      <form v-if="editing === s.id" class="mt-3 space-y-3 rounded-xl bg-bg p-3" @submit.prevent="saveEdit(s.id)">
+        <input v-model="eName" class="input" maxlength="80" required aria-label="Название сферы" placeholder="Название сферы" />
+        <AutoTextarea v-model="eDesc" :min-rows="3" :maxlength="2000" aria-label="Описание сферы" placeholder="Описание сферы" />
+        <div class="flex flex-wrap items-center gap-2">
+          <button v-for="c in COLORS" :key="c" type="button" class="h-8 w-8 rounded-full ring-offset-2" :class="eColor.toLowerCase() === c.toLowerCase() && 'ring-2 ring-ink'" :style="{ background: c }" :aria-label="'Цвет ' + c" @click="eColor = c"></button>
+          <input v-model="eColor" type="color" class="h-8 w-8 cursor-pointer rounded-full border border-line bg-white p-0.5" aria-label="Свой цвет" title="Свой цвет" />
+        </div>
+        <label class="flex items-center gap-3 text-sm text-mute">Цель на неделю по умолчанию, часов
+          <input v-model.number="eGoal" type="number" min="0" step="0.5" class="input !w-24" aria-label="Цель по умолчанию, часов" />
+        </label>
+        <p v-if="hasWeekOwnGoal(s.id)" class="text-xs text-mute">Для этой недели задана своя цель — она не изменится (её можно поправить кнопкой «цель» ниже).</p>
+        <div class="flex gap-2">
+          <button class="btn-primary flex-1" :disabled="!eName.trim()">Сохранить</button>
+          <button type="button" class="btn-ghost" @click="editing = null">Отмена</button>
+        </div>
+      </form>
       <div class="mt-3 h-2 overflow-hidden rounded-full bg-line">
         <div class="h-full rounded-full transition-all" :style="{ width: pct(s.id, app.goalFor(s.id)) + '%', background: s.color }"></div>
       </div>
@@ -165,7 +209,7 @@ async function save() {
                 <span class="min-w-0 flex-1 truncate">{{ p.name }}</span>
                 <span class="shrink-0 text-xs text-mute">{{ openTasksIn(p.id) }} задач</span>
                 <button type="button" class="shrink-0 text-xs text-mute hover:text-accent" aria-label="Переименовать проект" @click="startRename(p.id, p.name)">✎</button>
-                <button type="button" class="shrink-0 text-xs text-mute hover:text-red-600" aria-label="Удалить проект" @click="removeProject(p.id, p.name)">Удалить</button>
+                <button type="button" class="shrink-0 text-xs text-mute hover:text-accent" aria-label="В архив" :title="'Архивировать проект ' + p.name" @click="archiving = p.id">В архив</button>
               </template>
             </li>
           </ul>
@@ -174,9 +218,21 @@ async function save() {
             <input v-model="newProject[s.id]" class="input !py-2" maxlength="120" placeholder="Новый проект" />
             <button class="btn-ghost shrink-0 !px-3" :disabled="!(newProject[s.id] ?? '').trim()">+</button>
           </form>
+          <!-- Архив проектов этой сферы -->
+          <div v-if="app.archivedProjectsOf(s.id).length">
+            <button type="button" class="text-xs font-semibold text-mute" @click="openArchive[s.id] = !openArchive[s.id]">Архив ({{ app.archivedProjectsOf(s.id).length }}) {{ openArchive[s.id] ? '▴' : '▾' }}</button>
+            <ul v-if="openArchive[s.id]" class="mt-1.5 divide-y divide-line rounded-xl border border-line bg-white">
+              <li v-for="p in app.archivedProjectsOf(s.id)" :key="p.id" class="flex items-center gap-2 px-3 py-2 text-sm text-mute" data-test="archived-project">
+                <span class="min-w-0 flex-1 truncate">{{ p.name }}</span>
+                <button type="button" class="shrink-0 text-xs font-semibold text-accent" :aria-label="'Вернуть проект ' + p.name" @click="restoreProject(p.id)">Вернуть</button>
+                <button type="button" class="shrink-0 text-xs hover:text-red-600" aria-label="Удалить проект" @click="removeProject(p.id, p.name)">Удалить</button>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </li>
   </ul>
+  <ProjectArchive v-if="archiving" :project-id="archiving" @close="archiving = null" />
   <p v-if="!app.spheres.length" class="card p-8 text-center text-mute">Создай первую сферу: здоровье, хобби, семья…</p>
 </template>

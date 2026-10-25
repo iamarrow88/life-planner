@@ -144,8 +144,13 @@ export const demoRepo: Repo = {
     write(s); return t
   },
   async removeTask(id) { const s = read(); s.tasks = s.tasks.filter(t => t.id !== id); write(s) },
-  async addSphere(name, color, goal) {
-    const s = read(); const sp: Sphere = { id: uid(), name, color, weekly_goal_minutes: goal }
+  async updateSphere(id, patch) {
+    const s = read(); const sp = s.spheres.find(x => x.id === id)
+    if (!sp) throw new Error('Сфера не найдена')
+    Object.assign(sp, patch); write(s); return { ...sp }
+  },
+  async addSphere(name, color, goal, description) {
+    const s = read(); const sp: Sphere = { id: uid(), name, color, weekly_goal_minutes: goal, description: description?.trim() || null }
     s.spheres.push(sp); write(s); return sp
   },
   async addProject(sphereId, name) {
@@ -153,6 +158,8 @@ export const demoRepo: Repo = {
     s.projects.push(p); write(s); return p
   },
   async renameProject(id, name) { const s = read(); const p = s.projects.find(x => x.id === id); if (p) p.name = name; write(s) },
+  async archiveProject(id) { const s = read(); const p = s.projects.find(x => x.id === id); if (p) p.status = 'archived'; write(s) },
+  async restoreProject(id) { const s = read(); const p = s.projects.find(x => x.id === id); if (p) p.status = 'active'; write(s) },
   async removeProject(id) {
     const s = read(); s.projects = s.projects.filter(x => x.id !== id)
     for (const t of s.tasks) if (t.project_id === id) t.project_id = null

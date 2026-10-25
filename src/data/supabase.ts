@@ -45,6 +45,7 @@ async function callGoogle(body: Record<string, unknown>): Promise<GoogleStatus> 
 
 const TASK_COLS = 'id,title,note,status,sphere_id,project_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
 const REC_COLS = 'id,title,sphere_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
+const SPHERE_COLS = 'id,name,color,weekly_goal_minutes,description'
 const TE_COLS = 'id,task_id,habit_id,sphere_id,started_at,ended_at,source'
 
 export const supabaseRepo: Repo = {
@@ -67,8 +68,8 @@ export const supabaseRepo: Repo = {
     await c.rpc('generate_recurring_tasks') // создаёт задачи по повторам на 30 дней вперёд (безопасно вызывать повторно)
     const ws = weekStartOf(today)
     const [spheres, projects, tasks, habits, he, te, recs, goals, reviews] = await Promise.all([
-      c.from('spheres').select('id,name,color,weekly_goal_minutes').is('archived_at', null).order('position').order('created_at'),
-      c.from('projects').select('id,sphere_id,name').neq('status', 'archived').order('position').order('created_at'),
+      c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
+      c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
       c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }),
       c.from('habits').select('id,name,kind,target_value,sphere_id,created_at').is('archived_at', null).order('position').order('created_at'),
       c.from('habit_entries').select('habit_id,entry_date,value').eq('entry_date', today),
@@ -94,14 +95,19 @@ export const supabaseRepo: Repo = {
     return ok(await db().from('tasks').update(patch).eq('id', id).select(TASK_COLS).single()) as Task
   },
   async removeTask(id) { ok(await db().from('tasks').delete().eq('id', id)) },
-  async addSphere(name, color, goal) {
-    return ok(await db().from('spheres').insert({ name, color, weekly_goal_minutes: goal })
-      .select('id,name,color,weekly_goal_minutes').single()) as Sphere
+  async addSphere(name, color, goal, description) {
+    return ok(await db().from('spheres').insert({ name, color, weekly_goal_minutes: goal, description: description?.trim() || null })
+      .select(SPHERE_COLS).single()) as Sphere
+  },
+  async updateSphere(id, patch) {
+    return ok(await db().from('spheres').update(patch).eq('id', id).select(SPHERE_COLS).single()) as Sphere
   },
   async addProject(sphereId, name) {
-    return ok(await db().from('projects').insert({ sphere_id: sphereId, name }).select('id,sphere_id,name').single()) as Project
+    return ok(await db().from('projects').insert({ sphere_id: sphereId, name }).select('id,sphere_id,name,status').single()) as Project
   },
   async renameProject(id, name) { ok(await db().from('projects').update({ name }).eq('id', id)) },
+  async archiveProject(id) { ok(await db().from('projects').update({ status: 'archived' }).eq('id', id)) },
+  async restoreProject(id) { ok(await db().from('projects').update({ status: 'active' }).eq('id', id)) },
   async removeProject(id) { ok(await db().from('projects').delete().eq('id', id)) },
   async addHabit(h) {
     return ok(await db().from('habits').insert(h).select('id,name,kind,target_value,sphere_id,created_at').single()) as Habit

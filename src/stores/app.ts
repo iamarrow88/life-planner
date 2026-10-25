@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitEntry, HabitWeek, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, Task, TimeEntry, User } from '../types'
+import type { GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitEntry, HabitWeek, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
@@ -32,7 +32,8 @@ export const useApp = defineStore('app', () => {
   const sphereById = (id: string | null) => data.value.spheres.find(s => s.id === id) ?? null
   const projectById = (id: string | null | undefined) => data.value.projects.find(p => p.id === id) ?? null
   /** Проекты сферы */
-  const projectsOf = (sphereId: string | null) => data.value.projects.filter(p => p.sphere_id === sphereId)
+  const projectsOf = (sphereId: string | null) => data.value.projects.filter(p => p.sphere_id === sphereId && p.status !== 'archived')
+  const archivedProjectsOf = (sphereId: string | null) => data.value.projects.filter(p => p.sphere_id === sphereId && p.status === 'archived')
   const running = computed<TimeEntry | null>(() => data.value.timeEntries.find(e => !e.ended_at) ?? null)
   const runningSeconds = computed(() => (running.value ? entrySeconds(running.value, now.value) : 0))
   /** раз в 40 минут просим проверить, идёт ли ещё дело; через 3 часа считаем таймер забытым */
@@ -226,8 +227,19 @@ export const useApp = defineStore('app', () => {
   async function removeTask(id: string) {
     await guard(() => repo.removeTask(id)); data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
   }
-  async function addSphere(name: string, color: string, goal: number) {
-    const s = await guard(() => repo.addSphere(name, color, goal)); if (s) data.value.spheres.push(s as Sphere)
+  async function addSphere(name: string, color: string, goal: number, description = '') {
+    if (sphereNameTaken(name)) { error.value = `Сфера «${name}» уже есть`; return false }
+    const s = await guard(() => repo.addSphere(name, color, goal, description)); if (s) data.value.spheres.push(s as Sphere)
+    return !!s
+  }
+  const sphereNameTaken = (name: string, exceptId?: string) =>
+    data.value.spheres.some(s => s.id !== exceptId && s.name.trim().toLowerCase() === name.trim().toLowerCase())
+  async function updateSphere(id: string, patch: SpherePatch) {
+    if (patch.name !== undefined && sphereNameTaken(patch.name, id)) { error.value = `Сфера «${patch.name}» уже есть`; return false }
+    const sp = await guard(() => repo.updateSphere(id, patch)) as Sphere | undefined
+    if (!sp) return false
+    const i = data.value.spheres.findIndex(x => x.id === id); if (i >= 0) data.value.spheres[i] = { ...data.value.spheres[i], ...sp }
+    return true
   }
   async function addProject(sphereId: string, name: string) {
     const p = await guard(() => repo.addProject(sphereId, name)); if (p) data.value.projects.push(p as Project)
@@ -247,6 +259,21 @@ export const useApp = defineStore('app', () => {
   /** Сменить сферу задачи (проект при этом сбрасывается — он принадлежал прежней сфере) */
   const setTaskSphere = (id: string, sphereId: string | null) => updateTask(id, { sphere_id: sphereId, project_id: null })
   /** Поставить проект (сфера берётся из проекта); null — оставить в сфере без проекта */
+  /** Архивация проекта: сначала переносим незавершённые задачи (moves: id задачи → куда), потом сам проект уходит в архив */
+  async function archiveProject(id: string, moves: Record<string, { sphere_id: string | null; project_id: string | null }>) {
+    for (const [taskId, to] of Object.entries(moves)) {
+      await updateTask(taskId, { sphere_id: to.sphere_id, project_id: to.project_id })
+      if (error.value) return false
+    }
+    const ok = await guard(async () => { await repo.archiveProject(id); return true })
+    if (ok) { const p = data.value.projects.find(x => x.id === id); if (p) p.status = 'archived' }
+    return !!ok
+  }
+  async function restoreProject(id: string) {
+    const ok = await guard(async () => { await repo.restoreProject(id); return true })
+    if (ok) { const p = data.value.projects.find(x => x.id === id); if (p) p.status = 'active' }
+    return !!ok
+  }
   const setTaskProject = (id: string, projectId: string | null, sphereId: string | null) => updateTask(id, { project_id: projectId, ...(projectId ? { sphere_id: projectById(projectId)?.sphere_id ?? sphereId } : { sphere_id: sphereId }) })
   async function addHabit(h: NewHabit) {
     const x = await guard(() => repo.addHabit(h)); if (x) data.value.habits.push(x as Habit)
@@ -321,8 +348,8 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, projectById, projectsOf, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, addDays,
-    init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, addHabit, updateHabit, removeHabit, habitWeek, habitDetailId, openHabit, closeHabit,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, addDays,
+    init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitWeek, habitDetailId, openHabit, closeHabit,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport,
     startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence,
