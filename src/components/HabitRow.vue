@@ -2,7 +2,8 @@
 import { computed } from 'vue'
 import { useApp } from '../stores/app'
 import type { Habit } from '../types'
-import { entrySeconds } from '../lib/time'
+import { entrySeconds, shortDate } from '../lib/time'
+import { describeHabit } from '../lib/habitSchedule'
 
 const props = defineProps<{ habit: Habit }>()
 const app = useApp()
@@ -22,6 +23,16 @@ const timerMinutes = computed(() => {
 const value = computed(() => (props.habit.kind === 'timer' ? timerMinutes.value : app.habitValue(props.habit.id)))
 const done = computed(() => value.value >= target.value)
 const isRunning = computed(() => app.running?.habit_id === props.habit.id)
+const status = computed(() => app.habitStatusOf(props.habit.id))
+/** Подпись про расписание: когда следующий раз или с какого дня привычка ждёт */
+const note = computed(() => {
+  const st = status.value
+  if (!st.scheduled) return st.due ? `следующий раз: ${shortDate(st.due)}` : ''
+  if (props.habit.mode === 'after_completion' && st.due && st.due < app.today && !done.value) return `ждёт с ${shortDate(st.due)}`
+  return ''
+})
+const late = computed(() => status.value.scheduled && !!note.value)
+const custom = computed(() => (props.habit.freq ?? 'day') !== 'day' || (props.habit.interval_n ?? 1) > 1 || props.habit.mode === 'after_completion')
 const pct = computed(() => Math.min(100, Math.round((value.value / target.value) * 100)))
 </script>
 
@@ -40,6 +51,8 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
       <button type="button" class="block max-w-full truncate text-left text-[15px] hover:text-accent" title="Редактировать привычку" :aria-label="'Редактировать привычку: ' + habit.name" @click="app.openHabit(habit.id)">{{ habit.name }}</button>
       <div class="mt-0.5 flex items-center gap-2 text-xs text-mute">
         <span v-if="sphere" class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}</span>
+        <span v-if="custom" data-test="habit-repeat">↻ {{ describeHabit(habit) }}</span>
+        <span v-if="note" :class="late && 'text-amber-700'" data-test="habit-note">{{ note }}</span>
         <span v-if="habit.kind === 'counter'">{{ value }} / {{ target }}</span>
         <span v-else-if="habit.kind === 'timer'">{{ value }} / {{ target }} мин</span>
       </div>

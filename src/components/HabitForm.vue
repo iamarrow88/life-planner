@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import { useApp } from '../stores/app'
 import type { HabitKind } from '../types'
+import HabitSchedule from './HabitSchedule.vue'
+import { defaultSchedule } from '../lib/habitSchedule'
 
 const emit = defineEmits<{ done: [] }>()
 const app = useApp()
@@ -9,13 +11,16 @@ const name = ref('')
 const kind = ref<HabitKind>('plain')
 const target = ref(8)
 const sphereId = ref(app.spheres[0]?.id ?? '')
+const schedule = ref(defaultSchedule(app.today))
 const kinds: { v: HabitKind; label: string }[] = [
   { v: 'timer', label: 'Таймер' }, { v: 'plain', label: 'Без таймера' }, { v: 'counter', label: 'Счётчик' },
 ]
 
 async function save() {
   if (!name.value.trim() || !sphereId.value) return
+  if (schedule.value.freq === 'week' && schedule.value.mode === 'schedule' && !schedule.value.weekdays.length) return
   await app.addHabit({
+    ...schedule.value, weekdays: [...schedule.value.weekdays].sort(),
     name: name.value.trim(), kind: kind.value, sphere_id: sphereId.value,
     target_value: kind.value === 'plain' ? null : Math.max(1, Math.floor(target.value || 1)),
   })
@@ -37,6 +42,7 @@ async function save() {
       <option v-if="!app.spheres.length" value="" disabled>Сначала создай сферу</option>
       <option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option>
     </select>
+    <HabitSchedule v-model="schedule" />
     <div class="flex gap-2">
       <button class="btn-primary flex-1" :disabled="!sphereId">Сохранить</button>
       <button type="button" class="btn-ghost" @click="emit('done')">Отмена</button>

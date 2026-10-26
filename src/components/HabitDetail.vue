@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useApp } from '../stores/app'
-import type { HabitKind } from '../types'
+import type { HabitKind, HabitSchedule as Schedule } from '../types'
+import HabitSchedule from './HabitSchedule.vue'
+import { ALL_DAYS, defaultSchedule } from '../lib/habitSchedule'
+import { dayOf } from '../lib/time'
 
 const app = useApp()
 const habit = computed(() => app.data.habits.find(h => h.id === app.habitDetailId) ?? null)
@@ -9,6 +12,10 @@ const name = ref('')
 const kind = ref<HabitKind>('plain')
 const target = ref(1)
 const sphereId = ref('')
+const schedule = ref<Schedule>(defaultSchedule())
+// какую дату начала показали пользователю: если он её не менял, а в базе было пусто («день создания»), так и оставляем пустой
+let shownStart: string | null = null
+const needDays = computed(() => schedule.value.freq === 'week' && schedule.value.mode === 'schedule')
 const busy = ref(false)
 const kinds: { v: HabitKind; label: string }[] = [
   { v: 'timer', label: 'Таймер' }, { v: 'plain', label: 'Без таймера' }, { v: 'counter', label: 'Счётчик' },
@@ -17,6 +24,11 @@ const kinds: { v: HabitKind; label: string }[] = [
 watch(habit, h => {
   if (!h) return
   name.value = h.name; kind.value = h.kind; target.value = h.target_value ?? (h.kind === 'timer' ? 20 : 8); sphereId.value = h.sphere_id
+  schedule.value = {
+    freq: h.freq ?? 'day', interval_n: h.interval_n ?? 1, weekdays: h.weekdays ? [...h.weekdays] : [...ALL_DAYS], mode: h.mode ?? 'schedule',
+    starts_on: h.starts_on ?? (h.created_at ? dayOf(h.created_at) : app.today),
+  }
+  shownStart = schedule.value.starts_on
 }, { immediate: true })
 
 function pickKind(k: HabitKind) {
@@ -27,8 +39,11 @@ function pickKind(k: HabitKind) {
 
 async function save() {
   const h = habit.value; if (!h || !name.value.trim() || !sphereId.value) return
+  if (needDays.value && !schedule.value.weekdays.length) return
   busy.value = true
   const ok = await app.updateHabit(h.id, {
+    ...schedule.value, weekdays: [...schedule.value.weekdays].sort(),
+    starts_on: !h.starts_on && schedule.value.starts_on === shownStart ? null : schedule.value.starts_on,
     name: name.value.trim(), kind: kind.value, sphere_id: sphereId.value,
     target_value: kind.value === 'plain' ? null : Math.max(1, Math.floor(target.value || 1)),
   })
@@ -63,8 +78,10 @@ async function remove() {
         <select v-model="sphereId" class="input mt-1" required><option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option></select>
       </label>
 
+      <HabitSchedule v-model="schedule" start-open />
+
       <div class="flex gap-2">
-        <button class="btn-primary flex-1" :disabled="busy || !name.trim() || !sphereId">Сохранить</button>
+        <button class="btn-primary flex-1" :disabled="busy || !name.trim() || !sphereId || (needDays && !schedule.weekdays.length)">Сохранить</button>
         <button type="button" class="btn-ghost !text-red-700" @click="remove">Удалить</button>
       </div>
     </form>

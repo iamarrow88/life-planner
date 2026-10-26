@@ -1,6 +1,7 @@
-import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitEntry, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData } from '../types'
+import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData } from '../types'
 import { addDays, dayOf, entrySeconds, todayStr } from '../lib/time'
 import { matches, nextAfter } from '../lib/recurrence'
+import { dueOn, scheduledOn } from '../lib/habitSchedule'
 
 const KEY = 'planner-demo-v1'
 const uid = () => crypto.randomUUID()
@@ -38,6 +39,39 @@ function seed(): Snapshot {
   return { spheres, projects, tasks, habits, recurrences: [], weekGoals: [], reviews: [], habitEntries: [{ habit_id: habits[0].id, entry_date: t, value: 3 }], timeEntries }
 }
 
+// ---- Привычки: расписание (то же, что habit_days / habit_status в базе)
+const habitTarget = (h: Habit) => h.target_value ?? 1
+function habitValue(s: Snapshot, h: Habit, d: string): number {
+  if (h.kind === 'timer') return Math.floor(s.timeEntries.filter(e => e.habit_id === h.id && dayOf(e.started_at) === d).reduce((t, e) => t + entrySeconds(e), 0) / 60)
+  return s.habitEntries.find(e => e.habit_id === h.id && e.entry_date === d)?.value ?? 0
+}
+/** Дни, когда привычка выполнена (норма набрана) */
+function habitDoneDays(s: Snapshot, h: Habit): string[] {
+  const days = new Set<string>()
+  if (h.kind === 'timer') for (const e of s.timeEntries) { if (e.habit_id === h.id) days.add(dayOf(e.started_at)) }
+  else for (const e of s.habitEntries) { if (e.habit_id === h.id) days.add(e.entry_date) }
+  return [...days].filter(d => habitValue(s, h, d) >= habitTarget(h)).sort()
+}
+const lastBefore = (days: string[], d: string): string | null => { let r: string | null = null; for (const x of days) if (x < d) r = x; return r }
+function habitDaysFor(s: Snapshot, from: string, to: string): HabitDay[] {
+  const out: HabitDay[] = []
+  for (const h of s.habits) {
+    const done = habitDoneDays(s, h)
+    const created = h.created_at ? dayOf(h.created_at) : '0000-01-01'
+    for (let d = from; d <= to; d = addDays(d, 1)) {
+      const value = habitValue(s, h, d)
+      out.push({ habit_id: h.id, day: d, value, target: habitTarget(h), done: value >= habitTarget(h), scheduled: d >= created && scheduledOn(h, d, lastBefore(done, d)) })
+    }
+  }
+  return out
+}
+function habitStatusFor(s: Snapshot, day: string): HabitStatus[] {
+  return s.habits.map(h => {
+    const ld = lastBefore(habitDoneDays(s, h), day)
+    return { habit_id: h.id, scheduled: scheduledOn(h, day, ld), due: dueOn(h, day, ld), last_done: ld }
+  })
+}
+
 /** Итог недели для демо-режима: то же, что week_review_data в базе */
 function weekDataFor(s: Snapshot, ws: string): WeekData {
   const we = addDays(ws, 6), today = todayStr()
@@ -49,18 +83,9 @@ function weekDataFor(s: Snapshot, ws: string): WeekData {
   const prevTotal = s.spheres.reduce((t, sp) => t + sphereMin(sp.id, addDays(ws, -7), addDays(ws, -1)), 0)
   const tasks = s.tasks.filter(t => t.due_date && t.due_date >= ws && t.due_date <= we && t.status !== 'inbox')
 
-  let habitDone = 0, habitTotal = 0
   const lastDay = we < today ? we : today
-  for (let d = ws; d <= lastDay; d = addDays(d, 1)) {
-    for (const h of s.habits) {
-      habitTotal++
-      const target = h.target_value ?? 1
-      const value = h.kind === 'timer'
-        ? Math.floor(s.timeEntries.filter(e => e.habit_id === h.id && dayOf(e.started_at) === d).reduce((t, e) => t + entrySeconds(e), 0) / 60)
-        : s.habitEntries.find(e => e.habit_id === h.id && e.entry_date === d)?.value ?? 0
-      if (value >= target) habitDone++
-    }
-  }
+  const hd = lastDay >= ws ? habitDaysFor(s, ws, lastDay).filter(x => x.scheduled) : []
+  const habitDone = hd.filter(x => x.done).length, habitTotal = hd.length
   const perTask = new Map<string, number>()
   for (const e of s.timeEntries) if (e.task_id && inWeek(e, ws, we)) perTask.set(e.task_id, (perTask.get(e.task_id) ?? 0) + entrySeconds(e))
   const top = [...perTask.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).flatMap(([id, sec]) => {
@@ -113,7 +138,7 @@ export const demoRepo: Repo = {
   async signIn() { return USER },
   async signUp() { return USER },
   async signOut() { /* в демо выходить некуда */ },
-  async load() { const s = read(); generate(s); write(s); return s },
+  async load() { const s = read(); generate(s); write(s); return { ...s, habitStatus: habitStatusFor(s, todayStr()) } },
   async addTask(t) {
     const s = read()
     const task: Task = { id: uid(), title: t.title, note: t.note ?? null, status: t.status, sphere_id: t.sphere_id ?? null, project_id: t.project_id ?? null,
@@ -158,7 +183,7 @@ export const demoRepo: Repo = {
     s.projects.push(p); write(s); return p
   },
   async renameProject(id, name) { const s = read(); const p = s.projects.find(x => x.id === id); if (p) p.name = name; write(s) },
-  async moveProject(id: string, sphereId: string) {
+  async moveProject(id, sphereId) {
     const s = read(); const p = s.projects.find(x => x.id === id)
     if (!p) throw new Error('Проект не найден')
     p.sphere_id = sphereId
@@ -180,13 +205,8 @@ export const demoRepo: Repo = {
     Object.assign(h, patch); write(s); return { ...h }
   },
   async archiveHabit(id) { const s = read(); s.habits = s.habits.filter(h => h.id !== id); write(s) },
-  async habitWeek(ws) {
-    const s = read(); const we = addDays(ws, 6)
-    return {
-      entries: s.habitEntries.filter(e => e.entry_date >= ws && e.entry_date <= we),
-      timeEntries: s.timeEntries.filter(e => e.habit_id && dayOf(e.started_at) >= addDays(ws, -1) && dayOf(e.started_at) <= addDays(we, 1)),
-    }
-  },
+  async habitDays(from, to) { return habitDaysFor(read(), from, to) },
+  async habitStatus(day) { return habitStatusFor(read(), day) },
   async addHabit(h) { const s = read(); const x: Habit = { id: uid(), created_at: new Date().toISOString(), ...h }; s.habits.push(x); write(s); return x },
   async startTimer(target) {
     const s = read()

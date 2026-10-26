@@ -21,11 +21,22 @@ export interface Recurrence {
   starts_on: string; ends_on: string | null
 }
 export type NewRecurrence = Omit<Recurrence, 'id' | 'month_day' | 'ends_on'>
-export interface Habit {
+/** Расписание привычки: как часто и от какой даты отсчитывать (как у повторяющихся задач) */
+export interface HabitSchedule {
+  freq: RecurrenceFreq; interval_n: number; weekdays: number[]
+  /** 'schedule' — по расписанию от даты начала; 'after_completion' — следующий раз через интервал после выполнения */
+  mode: RecurrenceMode
+  starts_on: string | null
+}
+export interface Habit extends Partial<HabitSchedule> {
   /** когда создана: дни до этого в трекере не считаются */
   created_at?: string
   id: string; name: string; kind: HabitKind; target_value: number | null; sphere_id: string
 }
+/** День привычки: значение, норма, выполнена ли и запланирована ли на этот день */
+export interface HabitDay { habit_id: string; day: string; value: number; target: number; done: boolean; scheduled: boolean }
+/** Состояние привычки на сегодня: запланирована ли, когда срок, когда последний раз выполнена */
+export interface HabitStatus { habit_id: string; scheduled: boolean; due: string | null; last_done: string | null }
 export interface HabitEntry { habit_id: string; entry_date: string; value: number }
 export interface TimeEntry {
   id: string; task_id: string | null; habit_id: string | null; sphere_id: string | null
@@ -50,6 +61,7 @@ export interface Snapshot {
   weekGoals: WeekGoal[]; reviews: WeeklyReview[]
   habitEntries: HabitEntry[]   // за сегодня
   timeEntries: TimeEntry[]     // с начала недели + запущенный
+  habitStatus?: HabitStatus[]  // состояние привычек на сегодня (считает база)
 }
 export interface NewTask {
   title: string; status: TaskStatus; sphere_id?: string | null; project_id?: string | null
@@ -57,9 +69,7 @@ export interface NewTask {
   remind_before_minutes?: number | null
   note?: string | null
 }
-/** Отметки привычек и записи таймера за неделю — для трекера в итоге недели */
-export interface HabitWeek { entries: HabitEntry[]; timeEntries: TimeEntry[] }
-export interface NewHabit { name: string; kind: HabitKind; target_value: number | null; sphere_id: string }
+export interface NewHabit extends Partial<HabitSchedule> { name: string; kind: HabitKind; target_value: number | null; sphere_id: string }
 export interface TimerTarget { task_id?: string; habit_id?: string; sphere_id?: string }
 export interface EditorTarget { task_id?: string; habit_id?: string; sphere_id?: string }
 export interface PushSub { endpoint: string; p256dh: string; auth_key: string; user_agent: string }
@@ -97,7 +107,9 @@ export interface Repo {
   updateHabit(id: string, patch: Partial<NewHabit>): Promise<Habit>
   /** «Удалить» привычку: уходит из списков, история отметок остаётся в базе */
   archiveHabit(id: string): Promise<void>
-  habitWeek(weekStart: string): Promise<HabitWeek>
+  /** Все дни диапазона по каждой привычке: значение, выполнена ли, запланирована ли */
+  habitDays(from: string, to: string): Promise<HabitDay[]>
+  habitStatus(day: string): Promise<HabitStatus[]>
   startTimer(target: TimerTarget): Promise<TimeEntry>
   stopTimer(): Promise<TimeEntry | null>
   bumpHabit(id: string, delta: number, day: string): Promise<HabitEntry>

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitEntry, HabitWeek, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
+import type { GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
@@ -81,6 +81,10 @@ export const useApp = defineStore('app', () => {
   }
   const reviewFor = (week: string): WeeklyReview | undefined => data.value.reviews.find(r => r.week_start === week)
   const currentReview = computed(() => reviewFor(weekStart(today.value)))
+  /** Состояние привычки на сегодня. Если база его не прислала — считаем запланированной */
+  const habitStatusOf = (id: string): HabitStatus => data.value.habitStatus?.find(s => s.habit_id === id) ?? { habit_id: id, scheduled: true, due: null, last_done: null }
+  const dueHabits = computed(() => data.value.habits.filter(h => habitStatusOf(h.id).scheduled))
+  const laterHabits = computed(() => data.value.habits.filter(h => !habitStatusOf(h.id).scheduled))
   const habitValue = (id: string) => data.value.habitEntries.find(e => e.habit_id === id && e.entry_date === today.value)?.value ?? 0
 
   // ---------- Google Календарь ----------
@@ -284,12 +288,13 @@ export const useApp = defineStore('app', () => {
   }
   const setTaskProject = (id: string, projectId: string | null, sphereId: string | null) => updateTask(id, { project_id: projectId, ...(projectId ? { sphere_id: projectById(projectId)?.sphere_id ?? sphereId } : { sphere_id: sphereId }) })
   async function addHabit(h: NewHabit) {
-    const x = await guard(() => repo.addHabit(h)); if (x) data.value.habits.push(x as Habit)
+    const x = await guard(() => repo.addHabit(h)); if (x) { data.value.habits.push(x as Habit); await reloadQuietly() }
   }
   async function updateHabit(id: string, patch: Partial<NewHabit>) {
     const h = await guard(() => repo.updateHabit(id, patch)) as Habit | undefined
     if (!h) return false
     const i = data.value.habits.findIndex(x => x.id === id); if (i >= 0) data.value.habits[i] = h
+    await reloadQuietly() // расписание могло измениться — состояние привычек на сегодня считает база
     return true
   }
   async function removeHabit(id: string) {
@@ -297,7 +302,7 @@ export const useApp = defineStore('app', () => {
     if (ok) data.value.habits = data.value.habits.filter(h => h.id !== id)
     return !!ok
   }
-  const habitWeek = (ws: string) => guard(() => repo.habitWeek(ws)) as Promise<HabitWeek | undefined>
+  const habitDays = (from: string, to: string) => guard(() => repo.habitDays(from, to)) as Promise<HabitDay[] | undefined>
   async function startTimer(target: { task_id?: string; habit_id?: string; sphere_id?: string }) {
     const e = await guard(() => repo.startTimer(target))
     if (e) {
@@ -357,7 +362,7 @@ export const useApp = defineStore('app', () => {
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, addDays,
-    init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitWeek, habitDetailId, openHabit, closeHabit,
+    init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport,
     startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence,

@@ -72,7 +72,8 @@ const timeRange = (t: Task) => {
 }
 const hourOf = (t: Task) => Math.min(22, Math.max(6, Number(hhmm(t.start_time).slice(0, 2))))
 
-const habits = computed(() => app.data.habits)
+const habits = computed(() => app.dueHabits)
+const showLater = ref(false)
 
 async function add() {
   const title = text.value.trim()
@@ -112,7 +113,14 @@ async function add() {
     <div v-if="habits.length" class="card divide-y divide-line">
       <HabitRow v-for="h in habits" :key="h.id" :habit="h" />
     </div>
-    <p v-else-if="!showHabitForm" class="text-sm text-mute">Привычек пока нет.</p>
+    <p v-else-if="!showHabitForm && !app.laterHabits.length" class="text-sm text-mute">Привычек пока нет.</p>
+    <p v-else-if="!showHabitForm" class="text-sm text-mute">На сегодня привычек нет.</p>
+    <div v-if="app.laterHabits.length" class="mt-2">
+      <button type="button" class="text-xs font-semibold text-mute" :aria-expanded="showLater" @click="showLater = !showLater">Не сегодня ({{ app.laterHabits.length }}) {{ showLater ? '▴' : '▾' }}</button>
+      <div v-if="showLater" class="card mt-1.5 divide-y divide-line" data-test="later-habits">
+        <HabitRow v-for="h in app.laterHabits" :key="h.id" :habit="h" />
+      </div>
+    </div>
   </section>
 
   <!-- Список -->

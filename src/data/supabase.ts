@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitEntry, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
-import { addDays, weekStart as weekStartOf } from '../lib/time'
+import type { GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
+import { weekStart as weekStartOf } from '../lib/time'
 
 const env = import.meta.env as Record<string, string | undefined>
 const clean = (v?: string) => v?.trim().replace(/^["']|["']$/g, '') || undefined
@@ -46,6 +46,7 @@ async function callGoogle(body: Record<string, unknown>): Promise<GoogleStatus> 
 const TASK_COLS = 'id,title,note,status,sphere_id,project_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
 const REC_COLS = 'id,title,sphere_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
 const SPHERE_COLS = 'id,name,color,weekly_goal_minutes,description'
+const HABIT_COLS = 'id,name,kind,target_value,sphere_id,created_at,freq,interval_n,mode,weekdays,starts_on'
 const TE_COLS = 'id,task_id,habit_id,sphere_id,started_at,ended_at,source'
 
 export const supabaseRepo: Repo = {
@@ -67,21 +68,24 @@ export const supabaseRepo: Repo = {
     const c = db()
     await c.rpc('generate_recurring_tasks') // создаёт задачи по повторам на 30 дней вперёд (безопасно вызывать повторно)
     const ws = weekStartOf(today)
-    const [spheres, projects, tasks, habits, he, te, recs, goals, reviews] = await Promise.all([
+    const [spheres, projects, tasks, habits, he, te, recs, goals, reviews, hs] = await Promise.all([
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
       c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }),
-      c.from('habits').select('id,name,kind,target_value,sphere_id,created_at').is('archived_at', null).order('position').order('created_at'),
+      c.from('habits').select(HABIT_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('habit_entries').select('habit_id,entry_date,value').eq('entry_date', today),
       c.from('time_entries').select(TE_COLS).or(`local_date.gte.${since},ended_at.is.null`),
       c.from('recurrences').select(REC_COLS).order('created_at'),
       c.from('sphere_week_goals').select('sphere_id,week_start,minutes').gte('week_start', ws),
       c.from('weekly_reviews').select('week_start,snapshot,went_well,got_in_way,to_change,focus_sphere_id,completed_at').order('week_start', { ascending: false }),
+      c.rpc('habit_status', { p_day: today }),
     ])
     return {
       spheres: ok(spheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as Task[], habits: ok(habits) as Habit[],
       habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], recurrences: ok(recs) as Recurrence[],
       weekGoals: ok(goals) as WeekGoal[], reviews: ok(reviews) as WeeklyReview[],
+      // если состояние привычек не пришло — считаем, что все запланированы на сегодня (список не должен пропасть)
+      habitStatus: hs.error ? [] : (hs.data as HabitStatus[]),
     }
   },
   async addTask(t) {
@@ -111,21 +115,14 @@ export const supabaseRepo: Repo = {
   async restoreProject(id) { ok(await db().from('projects').update({ status: 'active' }).eq('id', id)) },
   async removeProject(id) { ok(await db().from('projects').delete().eq('id', id)) },
   async addHabit(h) {
-    return ok(await db().from('habits').insert(h).select('id,name,kind,target_value,sphere_id,created_at').single()) as Habit
+    return ok(await db().from('habits').insert(h).select(HABIT_COLS).single()) as Habit
   },
   async updateHabit(id, patch) {
-    return ok(await db().from('habits').update(patch).eq('id', id).select('id,name,kind,target_value,sphere_id,created_at').single()) as Habit
+    return ok(await db().from('habits').update(patch).eq('id', id).select(HABIT_COLS).single()) as Habit
   },
   async archiveHabit(id) { ok(await db().from('habits').update({ archived_at: new Date().toISOString() }).eq('id', id)) },
-  async habitWeek(ws) {
-    const we = addDays(ws, 6)
-    const [he, te] = await Promise.all([
-      db().from('habit_entries').select('habit_id,entry_date,value').gte('entry_date', ws).lte('entry_date', we),
-      // с запасом по краям: границы дня в часовом поясе пользователя считаем на клиенте
-      db().from('time_entries').select(TE_COLS).not('habit_id', 'is', null).gte('started_at', addDays(ws, -1)).lte('started_at', addDays(we, 2)),
-    ])
-    return { entries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[] }
-  },
+  async habitDays(from, to) { return ok(await db().rpc('habit_days', { p_from: from, p_to: to })) as HabitDay[] },
+  async habitStatus(day) { return ok(await db().rpc('habit_status', { p_day: day })) as HabitStatus[] },
   async startTimer(t) {
     return ok(await db().rpc('start_timer', {
       p_task: t.task_id ?? null, p_habit: t.habit_id ?? null, p_sphere: t.sphere_id ?? null, p_project: null,

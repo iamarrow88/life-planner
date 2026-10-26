@@ -1,43 +1,47 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useApp } from '../stores/app'
-import type { Habit, HabitWeek } from '../types'
-import { addDays, dayOf, entrySeconds, shortDate } from '../lib/time'
+import type { Habit, HabitDay } from '../types'
+import { addDays, shortDate } from '../lib/time'
 
 const props = defineProps<{ weekStart: string }>()
 const app = useApp()
-const week = ref<HabitWeek | null>(null)
+const week = ref<HabitDay[]>([])
 const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const days = computed(() => Array.from({ length: 7 }, (_, i) => addDays(props.weekStart, i)))
 
-async function load() { week.value = (await app.habitWeek(props.weekStart)) ?? null }
+async function load() { week.value = (await app.habitDays(props.weekStart, addDays(props.weekStart, 6))) ?? [] }
 watch(() => props.weekStart, load, { immediate: true })
 // отметили привычку на «Сегодня» и вернулись — цифры должны совпадать
 watch(() => app.data.habitEntries, load, { deep: true })
+watch(() => app.data.habits, load)
 
+// 'before' — день не считается: ещё не наступил, был до создания привычки или привычка в этот день не запланирована
 type State = 'done' | 'part' | 'none' | 'future' | 'before'
-interface Cell { day: string; value: number; state: State }
-function valueOf(h: Habit, d: string): number {
-  const w = week.value; if (!w) return 0
-  if (h.kind === 'timer') return Math.floor(w.timeEntries.filter(e => e.habit_id === h.id && dayOf(e.started_at) === d).reduce((t, e) => t + entrySeconds(e, app.now), 0) / 60)
-  return w.entries.find(e => e.habit_id === h.id && e.entry_date === d)?.value ?? 0
-}
+interface Cell { day: string; value: number; state: State; scheduled: boolean }
 const rows = computed(() => app.data.habits.map(h => {
+  const mine = week.value.filter(x => x.habit_id === h.id)
   const target = h.target_value ?? 1
-  const created = h.created_at ? dayOf(h.created_at) : ''
   const cells: Cell[] = days.value.map(d => {
-    const value = valueOf(h, d)
-    const state: State = d > app.today ? 'future' : d < created ? 'before' : value >= target ? 'done' : value > 0 ? 'part' : 'none'
-    return { day: d, value, state }
+    const x = mine.find(m => m.day === d)
+    const value = x?.value ?? 0
+    const scheduled = !!x?.scheduled
+    const state: State = d > app.today ? 'future' : value >= target ? 'done' : !scheduled ? 'before' : value > 0 ? 'part' : 'none'
+    return { day: d, value, state, scheduled }
   })
-  return { habit: h, target, cells, done: cells.filter(c => c.state === 'done').length, passed: cells.filter(c => c.state !== 'future' && c.state !== 'before').length }
+  // в итог входят только запланированные дни, которые уже наступили
+  const counted = cells.filter(c => c.scheduled && c.day <= app.today)
+  return { habit: h, target, cells, done: counted.filter(c => c.state === 'done').length, passed: counted.length }
 }))
 const unit = (h: Habit) => (h.kind === 'timer' ? ' мин' : '')
 const label = (h: Habit, c: Cell, target: number) => {
-  const st = c.state === 'done' ? 'выполнено' : c.state === 'part' ? `частично ${c.value} из ${target}${unit(h)}` : c.state === 'future' ? 'ещё впереди' : c.state === 'before' ? 'привычки ещё не было' : 'не выполнено'
+  const st = c.state === 'done' ? (c.scheduled ? 'выполнено' : 'выполнено (в этот день не было запланировано)')
+      : c.state === 'part' ? `частично ${c.value} из ${target}${unit(h)}`
+          : c.state === 'future' ? 'ещё впереди' : c.state === 'before' ? 'в этот день не запланировано' : 'не выполнено'
   return `${h.name}, ${shortDate(c.day)}: ${st}`
 }
 </script>
+
 
 <template>
   <section v-if="rows.length" class="mb-4" data-test="habit-tracker">
