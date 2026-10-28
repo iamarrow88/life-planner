@@ -74,11 +74,18 @@ export interface TimerTarget { task_id?: string; habit_id?: string; sphere_id?: 
 export interface EditorTarget { task_id?: string; habit_id?: string; sphere_id?: string }
 export interface PushSub { endpoint: string; p256dh: string; auth_key: string; user_agent: string }
 export interface User { id: string; email: string }
+export interface CaptureInfo { created_at: string; last_used_at: string | null }
+export interface GoogleCalendar { id: string; summary: string; primary: boolean; writable: boolean; color?: string | null }
+export interface GoogleSettingsPatch { import_events?: boolean; import_calendar_ids?: string[]; export_calendar_id?: string }
 export interface GoogleStatus {
   configured: boolean            // на сервере заданы GOOGLE_CLIENT_ID / SECRET
   connected: boolean
   email: string | null
   import_events: boolean         // создавать задачи из событий Google
+  calendars?: GoogleCalendar[]   // календари аккаунта (список обновляется при синхронизации)
+  import_calendar_ids?: string[] // из каких календарей создавать задачи
+  export_calendar_id?: string | null // в какой календарь отправлять задачи из приложения
+  can_list_calendars?: boolean   // выдан ли доступ к списку календарей (иначе работает только основной)
   last_sync_at: string | null
   last_error: string | null
   report?: { pulled: number; imported: number; unlinked: number; pushed: number; deleted: number; changed: boolean; errors: string[] } | { busy: true }
@@ -128,6 +135,10 @@ export interface Repo {
   googleStatus(): Promise<GoogleStatus>
   googleConnect(code: string, redirectUri: string): Promise<GoogleStatus>
   googleDisconnect(): Promise<GoogleStatus>
-  googleSettings(importEvents: boolean): Promise<GoogleStatus>
+  googleSettings(patch: GoogleSettingsPatch): Promise<GoogleStatus>
   googleSync(): Promise<GoogleStatus>
+  // ключ быстрого ввода (приложение для часов): сам ключ показывается один раз при создании
+  captureInfo(): Promise<CaptureInfo | null>
+  captureCreate(): Promise<string>
+  captureRevoke(): Promise<void>
 }

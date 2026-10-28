@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
+import type { GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
@@ -135,9 +135,19 @@ export const useApp = defineStore('app', () => {
     try { setGoogle(await repo.googleDisconnect()) } catch (e) { googleError.value = (e as Error).message }
     googleBusy.value = false
   }
-  async function setGoogleImport(on: boolean) {
-    try { setGoogle(await repo.googleSettings(on)) } catch (e) { googleError.value = (e as Error).message }
+  async function setGoogleSettings(patch: GoogleSettingsPatch) {
+    try { setGoogle(await repo.googleSettings(patch)) } catch (e) { googleError.value = (e as Error).message }
   }
+  const setGoogleImport = (on: boolean) => setGoogleSettings({ import_events: on })
+  /** Включить/выключить календарь в списке «брать события из». Хотя бы один остаётся выбранным */
+  async function toggleImportCalendar(id: string, on: boolean) {
+    const cur = new Set(google.value?.import_calendar_ids ?? [])
+    if (on) cur.add(id); else cur.delete(id)
+    if (!cur.size) return
+    await setGoogleSettings({ import_calendar_ids: [...cur] })
+    void syncGoogle(true)
+  }
+  async function setExportCalendar(id: string) { await setGoogleSettings({ export_calendar_id: id }) }
   /** Приложение снова открыли / вернулись на вкладку — подтянуть изменения из Google (не чаще раза в минуту) */
   function onVisible() {
     if (document.visibilityState === 'visible' && Date.now() - googleLastRun > 60_000) void syncGoogle()
@@ -364,7 +374,7 @@ export const useApp = defineStore('app', () => {
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, addDays,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
-    google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport,
+    google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,
     startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence,
     detailId, openTask, closeTask, editor, openEditor, closeEditor, addEntry, updateEntry, removeEntry, listEntries,
   }

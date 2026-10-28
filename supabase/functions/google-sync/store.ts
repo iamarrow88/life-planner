@@ -4,7 +4,7 @@ import type { Store, TaskRow } from './sync.ts'
 // deno-lint-ignore no-explicit-any
 type Client = any
 
-const COLS = 'id,user_id,title,status,due_date,start_time,estimate_minutes,google_event_id,google_etag,google_all_day,google_dirty,updated_at'
+const COLS = 'id,user_id,title,status,due_date,start_time,estimate_minutes,google_event_id,google_etag,google_all_day,google_dirty,google_calendar_id,updated_at'
 const BATCH = 200
 
 function check<T>(r: { data: T | null; error: { message: string } | null }): T {
@@ -33,12 +33,18 @@ export function supabaseStore(sb: Client): Store {
     },
     async updateTask(id, patch) { check(await sb.from('tasks').update(patch).eq('id', id)) },
     async insertTask(row) { check(await sb.from('tasks').insert({ ...row, google_dirty: false })) },
-    async markSynced(id, eventId, etag, allDay, seen) {
-      check(await sb.rpc('google_mark_synced', { p_id: id, p_event_id: eventId, p_etag: etag, p_all_day: allDay, p_seen: seen }))
+    async markSynced(id, eventId, etag, allDay, seen, calendarId) {
+      check(await sb.rpc('google_mark_synced', { p_id: id, p_event_id: eventId, p_etag: etag, p_all_day: allDay, p_seen: seen, p_calendar_id: calendarId ?? null }))
     },
     async tombstones(userId) {
-      return check(await sb.from('google_tombstones').select('id,event_id').eq('user_id', userId).order('id').limit(BATCH)) as { id: number; event_id: string }[]
+      return check(await sb.from('google_tombstones').select('id,event_id,calendar_id').eq('user_id', userId).order('id').limit(BATCH)) as { id: number; event_id: string; calendar_id: string | null }[]
     },
     async deleteTombstones(ids) { check(await sb.from('google_tombstones').delete().in('id', ids)) },
+    async ignoredEvents(userId) {
+      return check(await sb.from('google_ignored').select('calendar_id,event_id').eq('user_id', userId)) as { calendar_id: string; event_id: string }[]
+    },
+    async ignoreEvent(userId, calendarId, eventId) {
+      check(await sb.from('google_ignored').upsert({ user_id: userId, calendar_id: calendarId, event_id: eventId }, { onConflict: 'user_id,calendar_id,event_id' }))
+    },
   }
 }

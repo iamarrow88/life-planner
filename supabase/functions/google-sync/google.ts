@@ -1,5 +1,5 @@
 // Обращения к Google (OAuth и Calendar API). Только fetch — работает и в Deno, и в Node (для тестов).
-import type { GEvent, GoogleApi } from './sync.ts'
+import { ScopeError, type CalendarInfo, type GEvent, type GoogleApi } from './sync.ts'
 
 export const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 export const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
@@ -75,6 +75,26 @@ export function calendarApi(accessToken: string, urls: Urls = {}): GoogleApi {
   const gone = (s: number) => s === 404 || s === 410
 
   return {
+    async listCalendars() {
+      const out: CalendarInfo[] = []
+      let pageToken = ''
+      do {
+        const q: Record<string, string> = { minAccessRole: 'reader', maxResults: '250' }
+        if (pageToken) q.pageToken = pageToken
+        const res = await call('GET', `${base}/users/me/calendarList?${new URLSearchParams(q)}`)
+        // 403: доступ выдавался только к событиям, а не к списку календарей — нужно переподключить Google
+        if (res.status === 403) throw new ScopeError('Нет доступа к списку календарей')
+        if (!res.ok) throw await failure(res)
+        const j = await res.json() as { items?: { id: string; summary?: string; summaryOverride?: string; primary?: boolean; accessRole?: string; backgroundColor?: string; deleted?: boolean; hidden?: boolean }[]; nextPageToken?: string }
+        for (const c of j.items ?? []) {
+          if (c.deleted || c.hidden) continue
+          out.push({ id: c.id, summary: c.summaryOverride || c.summary || c.id, primary: !!c.primary, writable: c.accessRole === 'owner' || c.accessRole === 'writer', color: c.backgroundColor ?? null })
+        }
+        pageToken = j.nextPageToken ?? ''
+      } while (pageToken)
+      // основной календарь — первым, остальные в порядке Google
+      return out.sort((a, b) => Number(b.primary) - Number(a.primary))
+    },
     async listEvents({ calendarId, timeMin, timeMax }) {
       const out: GEvent[] = []
       let pageToken = ''

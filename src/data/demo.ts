@@ -286,6 +286,9 @@ export const demoRepo: Repo = {
   async googleDisconnect(): Promise<never> { throw new Error('Синхронизация с Google работает только при подключении Supabase') },
   async googleSettings(): Promise<never> { throw new Error('Синхронизация с Google работает только при подключении Supabase') },
   async googleSync(): Promise<never> { throw new Error('Синхронизация с Google работает только при подключении Supabase') },
+  async captureInfo() { return null },
+  async captureCreate(): Promise<never> { throw new Error('Ключ для часов работает только при подключении Supabase') },
+  async captureRevoke() {},
   async exportAll(): Promise<ExportData> {
     const s = read()
     return {

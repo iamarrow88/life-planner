@@ -6,6 +6,8 @@ import { repo } from '../data'
 import { download, habitsCsv, tasksCsv, timeCsv } from '../lib/export'
 import { todayStr } from '../lib/time'
 import type { ExportData } from '../types'
+import { captureUrl } from '../data/supabase'
+import type { CaptureInfo } from '../types'
 import { googleClientId, googleRedirectUri, startGoogleLogin, takeGoogleCallback } from '../lib/google'
 import { getPushState, showTestNotification, subscribePush, unsubscribePush, type PushState } from '../lib/push'
 
@@ -101,6 +103,30 @@ onMounted(async () => {
   } else await app.refreshGoogle()
 })
 
+// ---- Часы: быстрый ввод во «Входящие»
+const watch = ref<CaptureInfo | null>(null)
+const watchKey = ref('')              // свежесозданный ключ: показываем один раз, потом он нигде не хранится
+const watchMsg = ref('')
+const watchBusy = ref(false)
+const watchText = computed(() => `capture.url=${captureUrl}\ncapture.key=${watchKey.value}\n`)
+async function loadWatch() { if (repo.mode === 'supabase') { try { watch.value = await repo.captureInfo() } catch (e) { watchMsg.value = (e as Error).message } } }
+async function createWatchKey() {
+  if (watch.value && !window.confirm('Создать новый ключ? Старый перестанет работать, приложение на часах придётся пересобрать с новым.')) return
+  watchBusy.value = true; watchMsg.value = ''
+  try { watchKey.value = await repo.captureCreate(); await loadWatch() } catch (e) { watchMsg.value = (e as Error).message }
+  watchBusy.value = false
+}
+async function revokeWatchKey() {
+  if (!window.confirm('Отозвать ключ? Часы больше не смогут добавлять задачи.')) return
+  watchBusy.value = true; watchMsg.value = ''
+  try { await repo.captureRevoke(); watchKey.value = ''; await loadWatch() } catch (e) { watchMsg.value = (e as Error).message }
+  watchBusy.value = false
+}
+async function copyWatch() {
+  try { await navigator.clipboard.writeText(watchText.value); watchMsg.value = 'Скопировано.' } catch { watchMsg.value = 'Не удалось скопировать — выдели текст и скопируй вручную.' }
+}
+onMounted(loadWatch)
+
 async function logout() { await app.signOut(); router.push('/login') }
 </script>
 
@@ -164,6 +190,25 @@ async function logout() { await app.signOut(); router.push('/login') }
             <input type="checkbox" class="mt-1" :checked="g.import_events" @change="app.setGoogleImport(($event.target as HTMLInputElement).checked)" />
             <span>Создавать задачи из событий Google<span class="block text-xs text-mute">Берутся события на ближайшие 90 дней. Если удалить такую задачу, событие в Google останется.</span></span>
           </label>
+          <div v-if="g.can_list_calendars === false" class="space-y-2 rounded-lg bg-amber-50 px-3 py-2 text-amber-900">
+            <p>Сейчас синхронизируется только основной календарь. Чтобы выбрать другие (рабочий, учебный…), дай приложению доступ к списку календарей.</p>
+            <button class="btn-ghost" :disabled="app.googleBusy" @click="connectGoogleNow">Дать доступ к списку календарей</button>
+          </div>
+          <div v-else-if="g.calendars?.length" class="space-y-2">
+            <div class="text-sm font-medium">Брать события из календарей</div>
+            <label v-for="c in g.calendars" :key="c.id" class="flex items-center gap-2">
+              <input type="checkbox" :checked="g.import_calendar_ids?.includes(c.id)" :disabled="!g.import_events" @change="app.toggleImportCalendar(c.id, ($event.target as HTMLInputElement).checked)" />
+              <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ background: c.color || '#9ca3af' }"></span>
+              <span class="min-w-0 truncate">{{ c.summary }}<span v-if="!c.writable" class="text-xs text-mute"> · только чтение</span></span>
+            </label>
+            <label class="block">
+              <span class="text-sm font-medium">Задачи из приложения отправлять в</span>
+              <select class="input mt-1 w-full" :value="g.export_calendar_id" @change="app.setExportCalendar(($event.target as HTMLSelectElement).value)">
+                <option v-for="c in g.calendars.filter(x => x.writable)" :key="c.id" :value="c.id">{{ c.summary }}</option>
+              </select>
+            </label>
+            <p class="text-xs text-mute">Уже созданные события остаются в своих календарях. События календарей «только чтение» в Google не меняются.</p>
+          </div>
           <div class="grid grid-cols-2 gap-2">
             <button class="btn-ghost" :disabled="app.googleBusy || gWorking" @click="syncNow">{{ app.googleBusy ? 'Синхронизирую…' : 'Синхронизировать' }}</button>
             <button class="btn-ghost" :disabled="app.googleBusy" @click="disconnectNow">Отключить</button>
@@ -177,6 +222,27 @@ async function logout() { await app.signOut(); router.push('/login') }
       <p v-if="app.googleError && gStatus !== 'not-deployed'" class="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">{{ app.googleError }}</p>
       <p v-else-if="g?.connected && g.last_error" class="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">{{ g.last_error }}</p>
       <p v-if="gMsg" class="text-xs text-mute">{{ gMsg }}</p>
+    </div>
+  </section>
+
+  <section class="mb-6">
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Часы · быстрый ввод</h2>
+    <div class="card space-y-3 text-sm">
+      <p class="text-mute">Приложение для часов (Wear OS) добавляет задачи во «Входящие». Ему нужен личный ключ: он позволяет только добавлять задачи и ничего не читает. Инструкция — в папке <code>watch/</code> (README).</p>
+      <p v-if="repo.mode === 'demo'" class="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">Работает только при подключённом Supabase.</p>
+      <template v-else>
+        <p v-if="watch" class="rounded-lg bg-accent-soft px-3 py-2 text-accent">Ключ создан {{ when(watch.created_at) }}. Последний ввод с часов: {{ watch.last_used_at ? when(watch.last_used_at) : 'ещё не было' }}.</p>
+        <div v-if="watchKey" class="space-y-2">
+          <p class="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">Скопируй настройки сейчас: ключ показывается один раз. Положи их в файл <code>watch/capture.properties</code> и никому не показывай.</p>
+          <textarea class="input w-full font-mono text-xs" rows="3" readonly :value="watchText" @focus="($event.target as HTMLTextAreaElement).select()"></textarea>
+          <button class="btn-ghost w-full" @click="copyWatch">Скопировать настройки</button>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <button class="btn-primary" :disabled="watchBusy" @click="createWatchKey">{{ watch ? 'Новый ключ' : 'Создать ключ' }}</button>
+          <button class="btn-ghost" :disabled="watchBusy || !watch" @click="revokeWatchKey">Отозвать</button>
+        </div>
+      </template>
+      <p v-if="watchMsg" class="text-xs text-mute">{{ watchMsg }}</p>
     </div>
   </section>
 

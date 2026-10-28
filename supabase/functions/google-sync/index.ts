@@ -6,7 +6,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { resolveAdminKey } from './admin.ts'
 import { calendarApi, exchangeCode, GoogleAuthError, refreshAccessToken, revokeToken } from './google.ts'
 import { supabaseStore } from './store.ts'
-import { syncUser, type SyncReport } from './sync.ts'
+import { syncUser, type CalendarInfo, type SyncReport } from './sync.ts'
 
 const env = (k: string) => Deno.env.get(k) ?? ''
 const CORS = {
@@ -23,7 +23,7 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0
 }
 
-interface Conn { user_id: string; refresh_token: string; google_email: string | null; calendar_id: string; import_events: boolean; last_sync_at: string | null; last_error: string | null }
+interface Conn { user_id: string; refresh_token: string; google_email: string | null; calendar_id: string; import_events: boolean; import_calendar_ids: string[] | null; calendars: CalendarInfo[] | null; can_list_calendars: boolean; last_sync_at: string | null; last_error: string | null }
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -55,7 +55,11 @@ Deno.serve(async (req: Request) => {
       const access = await refreshAccessToken({ clientId, clientSecret, refreshToken: conn.refresh_token })
       const tz = (await sb.rpc('user_tz', { p_user: conn.user_id })).data as string | null
       const rep = await syncUser({ store, google: calendarApi(access), conn, tz: tz || 'UTC' })
+      const cache: Record<string, unknown> = {}
+      if (rep.calendars && !rep.needsReconnect) { cache.calendars = rep.calendars; cache.can_list_calendars = true }
+      else if (rep.needsReconnect) cache.can_list_calendars = false
       await sb.from('google_connections').update({
+        ...cache,
         last_sync_at: new Date().toISOString(),
         last_error: rep.errors.length ? `Часть элементов не синхронизирована: ${rep.errors[0]}` : null,
       }).eq('user_id', conn.user_id)
@@ -71,9 +75,14 @@ Deno.serve(async (req: Request) => {
 
   const getConn = async (userId: string) =>
     (await sb.from('google_connections').select('*').eq('user_id', userId).maybeSingle()).data as Conn | null
+  const primaryOf = (c: Conn) => c.calendars?.find(x => x.primary)?.id ?? 'primary'
   const statusOf = (c: Conn | null) => ({
     configured: !!(clientId && clientSecret),
     connected: !!c, email: c?.google_email ?? null, import_events: c?.import_events ?? true,
+    calendars: c?.calendars ?? [],
+    import_calendar_ids: c ? (c.import_calendar_ids ?? [primaryOf(c)]) : [],
+    export_calendar_id: c ? (c.calendar_id === 'primary' ? primaryOf(c) : c.calendar_id) : null,
+    can_list_calendars: c?.can_list_calendars ?? false,
     last_sync_at: c?.last_sync_at ?? null, last_error: c?.last_error ?? null,
   })
 
@@ -110,7 +119,7 @@ Deno.serve(async (req: Request) => {
       if (!t.refreshToken) return json({ error: 'Google не выдал постоянный доступ. Открой myaccount.google.com/permissions, удали доступ этого приложения и подключи заново.' }, 400)
       if (!t.scope.includes('calendar')) return json({ error: 'Не получен доступ к календарю: при входе поставь галочку «просмотр и редактирование событий».' }, 400)
       const up = await sb.from('google_connections').upsert({
-        user_id: userId, refresh_token: t.refreshToken, google_email: t.email, last_error: null, sync_lock_until: null, connected_at: new Date().toISOString(),
+        user_id: userId, refresh_token: t.refreshToken, google_email: t.email, can_list_calendars: t.scope.includes('calendar.calendarlist'), last_error: null, sync_lock_until: null, connected_at: new Date().toISOString(),
       }, { onConflict: 'user_id' })
       if (up.error) throw new Error(up.error.message)
       // уже запланированные задачи со временем тоже отправляем в календарь
@@ -129,8 +138,9 @@ Deno.serve(async (req: Request) => {
         await revokeToken(conn.refresh_token)
         await sb.from('google_connections').delete().eq('user_id', userId)
         await sb.from('google_tombstones').delete().eq('user_id', userId)
+        await sb.from('google_ignored').delete().eq('user_id', userId)
         // связи с событиями сбрасываем: при повторном подключении всё свяжется заново
-        await sb.from('tasks').update({ google_event_id: null, google_etag: null, google_all_day: false, google_dirty: false }).eq('user_id', userId).not('google_event_id', 'is', null)
+        await sb.from('tasks').update({ google_event_id: null, google_etag: null, google_all_day: false, google_dirty: false, google_calendar_id: null }).eq('user_id', userId).not('google_event_id', 'is', null)
       }
       return json(statusOf(null))
     }
@@ -138,7 +148,23 @@ Deno.serve(async (req: Request) => {
     if (!conn) return json({ error: 'Google Календарь не подключён' }, 400)
 
     if (action === 'settings') {
-      if (typeof body.import_events === 'boolean') await sb.from('google_connections').update({ import_events: body.import_events }).eq('user_id', userId)
+      const upd: Record<string, unknown> = {}
+      if (typeof body.import_events === 'boolean') upd.import_events = body.import_events
+      const known = new Map((conn.calendars ?? []).map(c => [c.id, c]))
+      if (Array.isArray(body.import_calendar_ids)) {
+        const ids = [...new Set(body.import_calendar_ids.map(String))]
+        if (known.size && ids.some(id => !known.has(id))) return json({ error: 'Неизвестный календарь' }, 400)
+        upd.import_calendar_ids = ids
+      }
+      if (typeof body.export_calendar_id === 'string') {
+        const c = known.get(body.export_calendar_id)
+        if (known.size && (!c || !c.writable)) return json({ error: 'В этот календарь нельзя добавлять события' }, 400)
+        upd.calendar_id = body.export_calendar_id
+      }
+      if (Object.keys(upd).length) {
+        const r = await sb.from('google_connections').update(upd).eq('user_id', userId)
+        if (r.error) throw new Error(r.error.message)
+      }
       return json(statusOf(await getConn(userId)))
     }
 

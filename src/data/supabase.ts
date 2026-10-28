@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
+import type { CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
 import { weekStart as weekStartOf } from '../lib/time'
 
 const env = import.meta.env as Record<string, string | undefined>
@@ -27,6 +27,9 @@ function ok<T>(r: { data: T | null; error: { message: string } | null }): T {
 }
 const toUser = (u: { id: string; email?: string | null } | null | undefined): User | null =>
   u ? { id: u.id, email: u.email ?? '' } : null
+
+/** Адрес функции быстрого ввода (для приложения на часах) */
+export const captureUrl = url ? url.replace(/\/+$/, '') + '/functions/v1/capture' : ''
 
 /** Вызов Edge Function google-sync; понятные тексты вместо технических ошибок */
 async function callGoogle(body: Record<string, unknown>): Promise<GoogleStatus> {
@@ -176,8 +179,11 @@ export const supabaseRepo: Repo = {
   googleStatus: () => callGoogle({ action: 'status' }),
   googleConnect: (code, redirectUri) => callGoogle({ action: 'connect', code, redirect_uri: redirectUri }),
   googleDisconnect: () => callGoogle({ action: 'disconnect' }),
-  googleSettings: importEvents => callGoogle({ action: 'settings', import_events: importEvents }),
+  googleSettings: patch => callGoogle({ action: 'settings', ...patch }),
   googleSync: () => callGoogle({ action: 'sync' }),
+  async captureInfo() { return ok(await db().rpc('capture_token_info')) as CaptureInfo | null },
+  async captureCreate() { return ok(await db().rpc('create_capture_token')) as string },
+  async captureRevoke() { ok(await db().rpc('revoke_capture_token')) },
   async exportAll() { return ok(await db().rpc('export_all')) as ExportData },
   async bumpHabit(id, delta, day) {
     return ok(await db().rpc('bump_habit', { p_habit: id, p_delta: delta, p_day: day })) as HabitEntry
