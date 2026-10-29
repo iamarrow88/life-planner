@@ -15,7 +15,7 @@ export interface Task {
 export type RecurrenceFreq = 'day' | 'week' | 'month' | 'year'
 export type RecurrenceMode = 'schedule' | 'after_completion'
 export interface Recurrence {
-  id: string; title: string; sphere_id: string | null; start_time: string | null
+  id: string; title: string; sphere_id: string | null; project_id?: string | null; start_time: string | null
   estimate_minutes: number | null; remind_before_minutes?: number | null; freq: RecurrenceFreq; interval_n: number
   weekdays: number[] | null; month_day: number | null; mode: RecurrenceMode
   starts_on: string; ends_on: string | null
@@ -56,8 +56,15 @@ export interface WeeklyReview {
 }
 export interface ReviewInput { went_well: string; got_in_way: string; to_change: string; focus_sphere_id: string | null }
 export type ExportData = { version: number; exported_at: string } & Record<string, unknown>
+/** Что делать с содержимым сферы при её архивации */
+export interface SpherePlan {
+  projects: Record<string, string>                                         // id проекта → id сферы или 'archive'
+  tasks: Record<string, { sphere_id: string | null; project_id: string | null }>
+  habits: Record<string, string>                                           // id привычки → id сферы или 'archive'
+  recurrences: Record<string, string | null>                               // id шаблона повтора → id сферы или null
+}
 export interface Snapshot {
-  spheres: Sphere[]; projects: Project[]; tasks: Task[]; habits: Habit[]; recurrences: Recurrence[]
+  spheres: Sphere[]; archivedSpheres?: Sphere[]; projects: Project[]; tasks: Task[]; habits: Habit[]; recurrences: Recurrence[]
   weekGoals: WeekGoal[]; reviews: WeeklyReview[]
   habitEntries: HabitEntry[]   // за сегодня
   timeEntries: TimeEntry[]     // с начала недели + запущенный
@@ -107,6 +114,10 @@ export interface Repo {
   renameProject(id: string, name: string): Promise<void>
   /** Перенос проекта в другую сферу; задачи, привычки и время переезжают вместе с ним (триггер в базе) */
   moveProject(id: string, sphereId: string): Promise<void>
+  archiveSphere(id: string): Promise<void>
+  restoreSphere(id: string, newName?: string): Promise<void>
+  moveHabit(id: string, sphereId: string): Promise<void>
+  moveRecurrence(id: string, sphereId: string | null): Promise<void>
   archiveProject(id: string): Promise<void>
   restoreProject(id: string): Promise<void>
   removeProject(id: string): Promise<void>   // задачи проекта остаются в сфере, просто без проекта

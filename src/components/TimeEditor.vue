@@ -26,9 +26,14 @@ const pad = (n: number) => String(n).padStart(2, '0')
 const clock = (iso: string) => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}` }
 const dayOf = (iso: string) => ymd(new Date(iso))
 
+const showAllDays = ref(false)
+/** Если редактор открыт «за день» (из календаря), показываем записи этого дня; остальные — по кнопке */
+const shownEntries = computed(() => (app.editor?.day && !showAllDays.value ? entries.value.filter(e => dayOf(e.started_at) === app.editor!.day) : entries.value))
 function resetForm() {
-  // по умолчанию — «последние 30 минут»
   editingId.value = null; minutes.value = 30
+  const day = app.editor?.day
+  if (day && day !== app.today) { date.value = day; start.value = '09:00'; return }   // другой день — удобное время по умолчанию
+  // по умолчанию — «последние 30 минут»
   const n = new Date(Date.now() - 30 * 60000)
   date.value = ymd(n); start.value = `${pad(n.getHours())}:${pad(n.getMinutes())}`
 }
@@ -36,7 +41,7 @@ async function refresh() {
   if (!app.editor) return
   entries.value = (await app.listEntries(app.editor.target)) ?? []
 }
-watch(() => app.editor, e => { if (e) { resetForm(); void refresh() } })
+watch(() => app.editor, e => { if (e) { showAllDays.value = false; resetForm(); void refresh() } })
 
 function edit(e: TimeEntry) {
   editingId.value = e.id; date.value = dayOf(e.started_at); start.value = clock(e.started_at)
@@ -91,8 +96,12 @@ async function remove(id: string) {
       </form>
 
       <div class="min-h-0 flex-1 overflow-y-auto">
-        <ul v-if="entries.length" class="card divide-y divide-line">
-          <li v-for="e in entries" :key="e.id" class="flex items-center gap-3 px-3 py-2.5 text-sm">
+        <p v-if="app.editor.day && entries.length" class="mb-2 text-xs text-mute">
+          <template v-if="!showAllDays">Записи за {{ shortDate(app.editor.day) }}. </template><template v-else>Все записи. </template>
+          <button type="button" class="font-semibold text-accent" data-test="editor-all" @click="showAllDays = !showAllDays">{{ showAllDays ? 'Только за этот день' : 'Показать все' }}</button>
+        </p>
+        <ul v-if="shownEntries.length" class="card divide-y divide-line">
+          <li v-for="e in shownEntries" :key="e.id" class="flex items-center gap-3 px-3 py-2.5 text-sm">
             <div class="min-w-0 flex-1">
               <div class="font-medium">{{ shortDate(dayOf(e.started_at)) }}, {{ clock(e.started_at) }}<template v-if="e.ended_at">–{{ clock(e.ended_at) }}</template></div>
               <div class="text-xs text-mute">
@@ -106,7 +115,7 @@ async function remove(id: string) {
             </template>
           </li>
         </ul>
-        <p v-else class="py-6 text-center text-sm text-mute">Записей пока нет</p>
+        <p v-else class="py-6 text-center text-sm text-mute">{{ app.editor.day && entries.length && !showAllDays ? 'За этот день записей нет' : 'Записей пока нет' }}</p>
       </div>
     </div>
   </div>

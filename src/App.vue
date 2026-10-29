@@ -5,6 +5,7 @@ import { useApp } from './stores/app'
 import NavIcon from './components/NavIcon.vue'
 import TimerBar from './components/TimerBar.vue'
 import TimeEditor from './components/TimeEditor.vue'
+import LongTimerFix from './components/LongTimerFix.vue'
 import TaskDetail from './components/TaskDetail.vue'
 import HabitDetail from './components/HabitDetail.vue'
 import { repo, supabaseProblems } from './data'
@@ -65,6 +66,7 @@ async function logout() { await app.signOut(); router.push('/login') }
     <TaskDetail />
     <HabitDetail />
     <TimeEditor />
+    <LongTimerFix />
 
     <!-- Нижняя панель на телефоне -->
     <nav class="safe-bottom fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-white md:hidden">

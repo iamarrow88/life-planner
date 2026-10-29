@@ -80,6 +80,8 @@ async function remove() {
 
       <HabitSchedule v-model="schedule" start-open />
 
+      <button v-if="habit.kind === 'timer'" type="button" class="btn-ghost" data-test="habit-time" @click="app.openEditor({ habit_id: habit.id }, habit.name)">⏱ Затраченное время</button>
+
       <div class="flex gap-2">
         <button class="btn-primary flex-1" :disabled="busy || !name.trim() || !sphereId || (needDays && !schedule.weekdays.length)">Сохранить</button>
         <button type="button" class="btn-ghost !text-red-700" @click="remove">Удалить</button>

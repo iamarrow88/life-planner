@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useApp } from '../stores/app'
 import { addDays, dayOf, longDate, shortDate, hhmm } from '../lib/time'
 import TaskRow from '../components/TaskRow.vue'
@@ -10,7 +10,7 @@ import AutoTextarea from '../components/AutoTextarea.vue'
 import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import { describe } from '../lib/recurrence'
-import type { Task } from '../types'
+import type { Habit, HabitDay, Task } from '../types'
 
 const app = useApp()
 type Filter = 'today' | 'tomorrow' | 'week' | 'nodate'
@@ -73,6 +73,22 @@ const timeRange = (t: Task) => {
 const hourOf = (t: Task) => Math.min(22, Math.max(6, Number(hhmm(t.start_time).slice(0, 2))))
 
 const habits = computed(() => app.dueHabits)
+
+// ---- Привычки выбранного дня (в «Календаре» можно листать дни назад и править время)
+const dayHabits = ref<HabitDay[]>([])
+const dayHabitList = computed(() => dayHabits.value
+  .filter(d => d.scheduled || d.value > 0)
+  .flatMap(d => { const h = app.data.habits.find(x => x.id === d.habit_id); return h ? [{ h, d }] : [] }))
+let dayReq = 0
+async function loadDayHabits() {
+  if (view.value !== 'cal' || calDay.value === app.today) { dayHabits.value = []; return }
+  const req = ++dayReq, day = calDay.value
+  const r = await app.habitDays(day, day)
+  if (req === dayReq) dayHabits.value = r ?? []
+}
+watch([view, calDay], loadDayHabits)
+watch(() => app.data.timeEntries, loadDayHabits)   // после правки времени данные перезагружаются
+const habitValueText = (h: Habit, d: HabitDay) => (h.kind === 'plain' ? (d.done ? 'сделано' : 'не сделано') : h.kind === 'timer' ? `${d.value} / ${d.target} мин` : `${d.value} / ${d.target}`)
 const showLater = ref(false)
 
 async function add() {
@@ -104,7 +120,7 @@ async function add() {
   </RouterLink>
 
   <!-- Привычки на сегодня -->
-  <section class="mb-6">
+  <section v-if="view === 'list' || calDay === app.today" class="mb-6">
     <div class="mb-2 flex items-center justify-between">
       <h2 class="text-sm font-semibold uppercase tracking-wide text-mute">Привычки</h2>
       <button class="text-sm font-semibold text-accent" @click="showHabitForm = !showHabitForm">{{ showHabitForm ? 'Закрыть' : '+ Привычка' }}</button>
@@ -165,6 +181,19 @@ async function add() {
       <button class="text-sm font-semibold first-letter:uppercase" @click="calDay = app.today">{{ longDate(calDay) }}</button>
       <button class="btn-ghost !px-3" @click="calDay = addDays(calDay, 1)">›</button>
     </div>
+    <section v-if="calDay !== app.today && dayHabitList.length" class="mb-3" data-test="day-habits">
+      <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-mute">Привычки за день</div>
+      <div class="card divide-y divide-line">
+        <div v-for="x in dayHabitList" :key="x.h.id" class="flex items-center gap-3 px-3 py-2.5" data-test="day-habit">
+          <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold" :class="x.d.done ? 'bg-accent text-white' : 'bg-accent-soft text-accent'">{{ x.d.done ? '✓' : x.h.kind === 'timer' ? '⏱' : '#' }}</span>
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-[15px]">{{ x.h.name }}</div>
+            <div class="text-xs text-mute"><span v-if="app.sphereById(x.h.sphere_id)" class="mr-1.5 inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full" :style="{ background: app.sphereById(x.h.sphere_id)?.color }"></span>{{ app.sphereById(x.h.sphere_id)?.name }}</span>{{ habitValueText(x.h, x.d) }}</div>
+          </div>
+          <button v-if="x.h.kind === 'timer' && calDay < app.today" class="shrink-0 text-xs font-semibold text-mute hover:text-accent" @click="app.openEditor({ habit_id: x.h.id }, x.h.name, calDay)">⏱ время</button>
+        </div>
+      </div>
+    </section>
     <div v-if="untimedOnDay.length" class="mb-3">
       <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-mute">Без времени</div>
       <div class="card divide-y divide-line">

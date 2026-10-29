@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
+import type { SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
@@ -25,10 +25,13 @@ export const useApp = defineStore('app', () => {
   const detailId = ref<string | null>(null)
   const openTask = (id: string) => { detailId.value = id }
   const closeTask = () => { detailId.value = null }
-  const editor = ref<{ target: EditorTarget; title: string } | null>(null)
+  const editor = ref<{ target: EditorTarget; title: string; day?: string } | null>(null)
+  /** Только что остановленный очень долгий таймер (забытый на ночь): предлагаем сразу исправить время */
+  const longStop = ref<{ id: string; title: string; started_at: string; seconds: number } | null>(null)
 
   const spheres = computed(() => data.value.spheres)
   const inbox = computed(() => data.value.tasks.filter(t => t.status === 'inbox'))
+  const archivedSpheres = computed(() => data.value.archivedSpheres ?? [])
   const sphereById = (id: string | null) => data.value.spheres.find(s => s.id === id) ?? null
   const projectById = (id: string | null | undefined) => data.value.projects.find(p => p.id === id) ?? null
   /** Проекты сферы */
@@ -283,6 +286,48 @@ export const useApp = defineStore('app', () => {
     if (ok) { const p = data.value.projects.find(x => x.id === id); if (p) p.status = 'archived' }
     return !!ok
   }
+  /**
+   * Архивация сферы. plan: что делать с проектами (id → id сферы или 'archive'), с задачами (id → куда), с привычками (id → сфера или 'archive'),
+   * с повторяющимися задачами (id → сфера или null). Порядок: проекты, задачи, шаблоны повторов, привычки, сама сфера.
+   */
+  async function archiveSphere(id: string, plan: SpherePlan) {
+    if (!sphereById(id)) return false
+    const r = running.value
+    if (r && r.sphere_id === id && !r.task_id && !r.habit_id) await stopTimer()
+    for (const [pid, to] of Object.entries(plan.projects)) {
+      if (to === 'archive') {
+        const moves = Object.fromEntries(Object.entries(plan.tasks).filter(([tid]) => data.value.tasks.find(t => t.id === tid)?.project_id === pid))
+        if (!(await archiveProject(pid, moves))) return false
+      } else if (!(await moveProject(pid, to))) return false
+    }
+    for (const [tid, to] of Object.entries(plan.tasks)) {
+      const t = data.value.tasks.find(x => x.id === tid)
+      if (!t || t.sphere_id !== id) continue            // уже перенесена вместе с проектом
+      await updateTask(tid, { sphere_id: to.sphere_id, project_id: to.project_id })
+      if (error.value) return false
+    }
+    for (const [rid, to] of Object.entries(plan.recurrences)) {
+      if (!(await guard(async () => { await repo.moveRecurrence(rid, to); return true }))) return false
+    }
+    for (const [hid, to] of Object.entries(plan.habits)) {
+      const ok = to === 'archive' ? await removeHabit(hid) : await guard(async () => { await repo.moveHabit(hid, to); return true })
+      if (!ok) return false
+    }
+    const ok = await guard(async () => { await repo.archiveSphere(id); return true })
+    if (!ok) return false
+    const sp = sphereById(id)
+    data.value.spheres = data.value.spheres.filter(x => x.id !== id)
+    if (sp) data.value.archivedSpheres = [sp, ...(data.value.archivedSpheres ?? [])]
+    await reloadQuietly()
+    return true
+  }
+  /** Вернуть сферу из архива (newName — если прежнее название уже занято другой сферой) */
+  async function restoreSphere(id: string, newName?: string) {
+    const ok = await guard(async () => { await repo.restoreSphere(id, newName); return true })
+    if (!ok) return false
+    await reloadQuietly()
+    return true
+  }
   /** Перенос проекта в другую сферу: задачи и время переезжают на сервере, поэтому после переноса тихо перечитываем данные */
   async function moveProject(id: string, sphereId: string) {
     const ok = await guard(async () => { await repo.moveProject(id, sphereId); return true })
@@ -313,18 +358,40 @@ export const useApp = defineStore('app', () => {
     return !!ok
   }
   const habitDays = (from: string, to: string) => guard(() => repo.habitDays(from, to)) as Promise<HabitDay[] | undefined>
+  const titleOfEntry = (r: TimeEntry) =>
+    r.task_id ? (data.value.tasks.find(t => t.id === r.task_id)?.title ?? 'Задача')
+      : r.habit_id ? (data.value.habits.find(h => h.id === r.habit_id)?.name ?? 'Привычка')
+        : (sphereById(r.sphere_id)?.name ?? 'Таймер')
+  const noteLong = (r: TimeEntry, title: string) => {
+    const sec = entrySeconds(r)
+    if (sec / 60 >= FORGOTTEN_MINUTES) longStop.value = { id: r.id, title, started_at: r.started_at, seconds: sec }
+  }
   async function startTimer(target: { task_id?: string; habit_id?: string; sphere_id?: string }) {
+    const prev = running.value
+    const prevTitle = prev ? titleOfEntry(prev) : ''
     const e = await guard(() => repo.startTimer(target))
     if (e) {
-      const prev = running.value
-      if (prev) prev.ended_at = new Date().toISOString()
+      if (prev) { prev.ended_at = new Date().toISOString(); noteLong(prev, prevTitle) }
       data.value.timeEntries.push(e)
     }
   }
   async function stopTimer() {
+    const title = running.value ? titleOfEntry(running.value) : ''
     const e = await guard(() => repo.stopTimer())
-    if (e) { const i = data.value.timeEntries.findIndex(x => x.id === e.id); if (i >= 0) data.value.timeEntries[i] = e }
+    if (e) {
+      const i = data.value.timeEntries.findIndex(x => x.id === e.id); if (i >= 0) data.value.timeEntries[i] = e
+      noteLong(e, title)
+    }
   }
+  /** Исправить время только что остановленного долгого таймера: запись начинается там же, длится minutes минут */
+  async function fixLongStop(minutes: number) {
+    const l = longStop.value; if (!l) return false
+    const from = new Date(l.started_at)
+    const ok = await updateEntry(l.id, from.toISOString(), new Date(from.getTime() + Math.max(1, Math.round(minutes)) * 60000).toISOString())
+    if (ok) longStop.value = null
+    return ok
+  }
+  const dismissLongStop = () => { longStop.value = null }
   async function addRecurrence(r: NewRecurrence) {
     const ok = await guard(async () => { await repo.addRecurrence(r); return true })
     if (ok) { await load(); syncGoogleSoon() }
@@ -333,7 +400,8 @@ export const useApp = defineStore('app', () => {
   async function removeRecurrence(id: string) {
     await guard(() => repo.removeRecurrence(id)); await load()
   }
-  const openEditor = (target: EditorTarget, title: string) => { editor.value = { target, title } }
+  /** day — день, который смотрит человек (например, в «Календаре»): по нему фильтруются записи и подставляется дата новой записи */
+  const openEditor = (target: EditorTarget, title: string, day?: string) => { editor.value = { target, title, day } }
   const closeEditor = () => { editor.value = null }
   /** Изменение записей времени: после любой правки перезагружаем суммы */
   async function timeOp(fn: () => Promise<void>) {
@@ -371,11 +439,11 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, addDays,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,
     startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence,
-    detailId, openTask, closeTask, editor, openEditor, closeEditor, addEntry, updateEntry, removeEntry, listEntries,
+    detailId, openTask, closeTask, editor, openEditor, closeEditor, longStop, fixLongStop, dismissLongStop, addEntry, updateEntry, removeEntry, listEntries,
   }
 })
