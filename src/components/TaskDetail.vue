@@ -4,6 +4,7 @@ import { useApp } from '../stores/app'
 import { fmtSec } from '../lib/time'
 import AutoTextarea from './AutoTextarea.vue'
 import EstimateInput from './EstimateInput.vue'
+import { useBackdrop } from '../lib/backdrop'
 import HabitSchedule from './HabitSchedule.vue'
 import { ALL_DAYS, defaultSchedule } from '../lib/habitSchedule'
 import { matches } from '../lib/recurrence'
@@ -48,13 +49,22 @@ const scheduleOf = (r: Recurrence): Schedule => ({
   weekdays: r.weekdays?.length ? [...r.weekdays] : r.freq === 'week' ? [isodow(r.starts_on)] : [...ALL_DAYS],
 })
 
-watch(task, t => {
+/** Состояние формы: с ним сравниваем, есть ли несохранённые изменения */
+const formState = () => JSON.stringify([title.value, note.value, date.value, time.value, estimate.value, noDate.value, sphereId.value, projectId.value,
+  remind.value, repeat.value, schedule.value, repeatScope.value, newProject.value])
+let saved = ''
+const bd = useBackdrop(() => app.closeTask(), () => formState() !== saved)
+// Форму заполняем, только когда открыли другую задачу: фоновое обновление данных не должно стирать набранный текст
+watch(() => task.value?.id, () => {
+  const t = task.value
   if (!t) return
   title.value = t.title; note.value = t.note ?? ''; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
   estimate.value = t.estimate_minutes; noDate.value = t.status === 'planned' && !t.due_date; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
   remind.value = t.remind_before_minutes == null ? '' : String(t.remind_before_minutes); remindTouched.value = false
   repeat.value = !!rule.value; repeatScope.value = 'one'
   schedule.value = rule.value ? scheduleOf(rule.value) : defaultSchedule(t.due_date ?? app.today)
+  newProject.value = ''
+  saved = formState()
 }, { immediate: true })
 function toggleRepeat() {
   repeat.value = !repeat.value
@@ -117,7 +127,7 @@ async function save() {
   // у повторяющейся задачи без даты дата — первый день по правилу
   const due = date.value || (repeat.value ? firstDate() : null)
   const tpl = templateFrom(due) // время без даты не бывает, напоминание — только если есть время
-  // запоминаем форму до сохранения: обновлённая задача перезапускает watch(task), и он сбросит поля
+  // запоминаем форму до сохранения: дальше данные перечитываются
   const changedTpl = templateChanged.value, wantRepeat = repeat.value, fields = { ...ruleFields.value }, scope = repeatScope.value
   const r = rule.value
   await app.updateTask(t.id, { ...tpl, due_date: due, status: t.status === 'done' ? 'done' : due || keepsOutOfInbox.value ? 'planned' : 'inbox' })
@@ -141,11 +151,11 @@ async function remove() {
 </script>
 
 <template>
-  <div v-if="task" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @click.self="app.closeTask()">
+  <div v-if="task" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @pointerdown="bd.down" @click="bd.click">
     <form class="flex max-h-[92vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-3xl bg-bg p-5 md:rounded-3xl" @submit.prevent="save">
       <div class="flex items-start justify-between gap-3">
         <h2 class="text-lg font-bold">Задача</h2>
-        <button type="button" class="text-2xl leading-none text-mute" aria-label="Закрыть" @click="app.closeTask()">×</button>
+        <button type="button" class="text-2xl leading-none text-mute" aria-label="Закрыть" @click="bd.close">×</button>
       </div>
 
       <AutoTextarea v-model="title" single-line :maxlength="500" required placeholder="Название задачи" @submit="save" />

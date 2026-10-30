@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useApp } from '../stores/app'
+import { useBackdrop } from '../lib/backdrop'
 import { fmtMinutes, shortDate, dayOf } from '../lib/time'
 
 /** Окно после остановки очень долгого таймера (например, забытого на ночь): сразу предлагает указать реальное время */
 const app = useApp()
 const minutes = ref(30)
 const busy = ref(false)
+const bd = useBackdrop(() => app.dismissLongStop())
 watch(() => app.longStop?.id, () => { minutes.value = 30 })
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 async function fix() {
@@ -18,7 +20,7 @@ async function fix() {
 </script>
 
 <template>
-  <div v-if="app.longStop" class="fixed inset-0 z-40 flex items-end justify-center bg-black/40 md:items-center" @click.self="app.dismissLongStop()">
+  <div v-if="app.longStop" class="fixed inset-0 z-40 flex items-end justify-center bg-black/40 md:items-center" @pointerdown="bd.down" @click="bd.click">
     <form role="dialog" aria-label="Исправить время таймера" class="flex w-full max-w-md flex-col gap-3 rounded-t-3xl bg-bg p-5 md:rounded-3xl" @submit.prevent="fix">
       <h2 class="text-lg font-bold">Таймер шёл очень долго</h2>
       <p class="text-sm text-mute">

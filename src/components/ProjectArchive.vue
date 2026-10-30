@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { useApp } from '../stores/app'
+import { useBackdrop } from '../lib/backdrop'
 import DestPicker from './DestPicker.vue'
 
 const props = defineProps<{ projectId: string }>()
@@ -29,6 +30,7 @@ function place(key: string, d: Dest) {
 }
 
 const busy = ref(false)
+const bd = useBackdrop(() => emit('close'))
 async function archive() {
   busy.value = true
   const moves = Object.fromEntries(tasks.value.map(t => [t.id, { ...dest[t.id] }]))
@@ -39,7 +41,7 @@ async function archive() {
 </script>
 
 <template>
-  <div v-if="project" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @click.self="emit('close')">
+  <div v-if="project" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @pointerdown="bd.down" @click="bd.click">
     <div role="dialog" aria-label="Архивация проекта" class="flex max-h-[92vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-3xl bg-bg p-5 md:rounded-3xl">
       <div class="flex items-start justify-between gap-3">
         <h2 class="min-w-0 break-words text-lg font-bold">В архив: «{{ project.name }}»</h2>

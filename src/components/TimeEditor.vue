@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useApp } from '../stores/app'
+import { useBackdrop } from '../lib/backdrop'
 import type { TimeEntry } from '../types'
 import { entrySeconds, fmtSec, monthStart, shortDate, weekStart, ymd, fmtMinutes } from '../lib/time'
 
@@ -11,6 +12,7 @@ const date = ref(app.today)
 const start = ref('09:00')
 const minutes = ref(30)
 const busy = ref(false)
+const bd = useBackdrop(() => app.closeEditor())
 
 const sums = computed(() => {
   const w = weekStart(app.today), m = monthStart(app.today)
@@ -65,7 +67,7 @@ async function remove(id: string) {
 </script>
 
 <template>
-  <div v-if="app.editor" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @click.self="app.closeEditor()">
+  <div v-if="app.editor" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @pointerdown="bd.down" @click="bd.click">
     <div class="flex max-h-[88vh] w-full max-w-md flex-col rounded-t-3xl bg-bg p-5 md:rounded-3xl">
       <div class="mb-3 flex items-start justify-between gap-3">
         <div class="min-w-0">

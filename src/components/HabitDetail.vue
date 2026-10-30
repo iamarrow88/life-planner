@@ -5,6 +5,7 @@ import type { HabitKind, HabitSchedule as Schedule } from '../types'
 import HabitSchedule from './HabitSchedule.vue'
 import { ALL_DAYS, defaultSchedule } from '../lib/habitSchedule'
 import { dayOf } from '../lib/time'
+import { useBackdrop } from '../lib/backdrop'
 
 const app = useApp()
 const habit = computed(() => app.data.habits.find(h => h.id === app.habitDetailId) ?? null)
@@ -21,7 +22,12 @@ const kinds: { v: HabitKind; label: string }[] = [
   { v: 'timer', label: 'Таймер' }, { v: 'plain', label: 'Без таймера' }, { v: 'counter', label: 'Счётчик' },
 ]
 
-watch(habit, h => {
+const formState = () => JSON.stringify([name.value, kind.value, target.value, sphereId.value, schedule.value])
+let saved = ''
+const bd = useBackdrop(() => app.closeHabit(), () => formState() !== saved)
+// Форму заполняем, только когда открыли другую привычку: фоновое обновление данных не должно стирать набранное
+watch(() => habit.value?.id, () => {
+  const h = habit.value
   if (!h) return
   name.value = h.name; kind.value = h.kind; target.value = h.target_value ?? (h.kind === 'timer' ? 20 : 8); sphereId.value = h.sphere_id
   schedule.value = {
@@ -29,6 +35,7 @@ watch(habit, h => {
     starts_on: h.starts_on ?? (h.created_at ? dayOf(h.created_at) : app.today),
   }
   shownStart = schedule.value.starts_on
+  saved = formState()
 }, { immediate: true })
 
 function pickKind(k: HabitKind) {
@@ -57,11 +64,11 @@ async function remove() {
 </script>
 
 <template>
-  <div v-if="habit" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @click.self="app.closeHabit()">
+  <div v-if="habit" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @pointerdown="bd.down" @click="bd.click">
     <form class="flex max-h-[92vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-3xl bg-bg p-5 md:rounded-3xl" @submit.prevent="save">
       <div class="flex items-start justify-between gap-3">
         <h2 class="text-lg font-bold">Привычка</h2>
-        <button type="button" class="text-2xl leading-none text-mute" aria-label="Закрыть" @click="app.closeHabit()">×</button>
+        <button type="button" class="text-2xl leading-none text-mute" aria-label="Закрыть" @click="bd.close">×</button>
       </div>
 
       <input v-model="name" class="input" maxlength="120" required placeholder="Название привычки" aria-label="Название привычки" />
