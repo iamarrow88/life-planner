@@ -259,8 +259,9 @@ export const useApp = defineStore('app', () => {
       syncGoogleSoon()
     }
   }
+  /** Вернуть в работу: с датой или разобранную по сфере («Без даты») — в план, иначе во «Входящие» */
   async function toggleDone(t: Task) {
-    await updateTask(t.id, { status: t.status === 'done' ? (t.due_date ? 'planned' : 'inbox') : 'done' })
+    await updateTask(t.id, { status: t.status === 'done' ? (t.due_date || t.sphere_id ? 'planned' : 'inbox') : 'done' })
   }
   async function removeTask(id: string) {
     await guard(() => repo.removeTask(id)); data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
@@ -296,6 +297,9 @@ export const useApp = defineStore('app', () => {
   }
   /** Сменить сферу задачи (проект при этом сбрасывается — он принадлежал прежней сфере) */
   const setTaskSphere = (id: string, sphereId: string | null) => updateTask(id, { sphere_id: sphereId, project_id: null })
+  /** «Без даты»: задача разобрана, но без срока — уходит из «Входящих» в список «Без даты». place — заодно поставить сферу/проект */
+  const setTaskNoDate = (id: string, place?: { sphere_id: string | null; project_id: string | null }) =>
+    updateTask(id, { status: 'planned', due_date: null, start_time: null, remind_before_minutes: null, ...place })
   /** Поставить проект (сфера берётся из проекта); null — оставить в сфере без проекта */
   /** Архивация проекта: сначала переносим незавершённые задачи (moves: id задачи → куда), потом сам проект уходит в архив */
   async function archiveProject(id: string, moves: Record<string, { sphere_id: string | null; project_id: string | null }>) {
@@ -460,7 +464,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,

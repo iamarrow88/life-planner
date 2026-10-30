@@ -12,6 +12,8 @@ const note = ref('')
 const date = ref('')
 const time = ref('')
 const estimate = ref<number | null>(null)
+/** «Без даты»: задача разобрана (есть сфера), но дата не нужна — она уходит из «Входящих» в список «Без даты» */
+const noDate = ref(false)
 const sphereId = ref('')
 const projectId = ref('')
 const newProject = ref('')
@@ -33,7 +35,7 @@ const totals = computed(() => (task.value ? app.taskTotals[task.value.id] : unde
 watch(task, t => {
   if (!t) return
   title.value = t.title; note.value = t.note ?? ''; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
-  estimate.value = t.estimate_minutes; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
+  estimate.value = t.estimate_minutes; noDate.value = t.status === 'planned' && !t.due_date; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
   remind.value = t.remind_before_minutes == null ? '' : String(t.remind_before_minutes); remindTouched.value = false
 }, { immediate: true })
 // Пользователь впервые поставил время начала задаче без времени — предлагаем напомнить за 10 минут
@@ -42,7 +44,14 @@ function onTimeInput() {
 }
 
 /** Убрать дату целиком (вместе со временем и напоминанием): после сохранения задача вернётся во «Входящие» */
-function resetDate() { date.value = ''; time.value = ''; remind.value = ''; remindTouched.value = true }
+function resetDate() { date.value = ''; time.value = ''; remind.value = ''; remindTouched.value = true; noDate.value = false }
+/** Включить/выключить «Без даты»: дата, время и напоминание убираются */
+function toggleNoDate() {
+  noDate.value = !noDate.value
+  if (noDate.value) { date.value = ''; time.value = ''; remind.value = ''; remindTouched.value = true }
+}
+/** Задача без даты уходит из «Входящих», только если выбрана сфера (проект — по желанию) */
+const keepsOutOfInbox = computed(() => noDate.value && !date.value && !!sphereId.value)
 
 async function save() {
   const t = task.value
@@ -54,7 +63,7 @@ async function save() {
     start_time: due && time.value ? `${time.value}:00` : null, // время без даты не бывает
     remind_before_minutes: due && time.value && remind.value !== '' ? Number(remind.value) : null, // напоминание — только если есть время
     estimate_minutes: estimate.value, sphere_id: sphereId.value || null, project_id: sphereId.value && projectId.value ? projectId.value : null,
-    status: t.status === 'done' ? 'done' : due ? 'planned' : 'inbox',
+    status: t.status === 'done' ? 'done' : due || keepsOutOfInbox.value ? 'planned' : 'inbox',
   })
   busy.value = false
   if (!app.error) app.closeTask()
@@ -79,12 +88,17 @@ async function remove() {
       <div class="grid grid-cols-2 gap-2">
         <label class="text-xs text-mute">
           <span class="flex items-center justify-between">Дата<button v-if="date" type="button" class="font-semibold text-accent" aria-label="Сбросить дату" title="Убрать дату: задача вернётся во «Входящие»" @click="resetDate">сбросить</button></span>
-          <input v-model="date" type="date" class="input mt-1" />
+          <input v-model="date" type="date" class="input mt-1" @input="date && (noDate = false)" />
         </label>
         <label class="text-xs text-mute">Время начала<input v-model="time" type="time" class="input mt-1" :disabled="!date" @input="onTimeInput" @change="onTimeInput" /></label>
       </div>
 
-      <p v-if="!date && task.status !== 'done'" class="-mt-1 text-xs text-mute">Без даты задача лежит во «Входящих».</p>
+      <div v-if="task.status !== 'done'" class="-mt-1 flex flex-wrap items-center gap-2 text-xs text-mute">
+        <button type="button" class="chip py-1" :class="noDate && 'chip-on'" :aria-pressed="noDate" data-test="no-date" @click="toggleNoDate">Без даты</button>
+        <span v-if="keepsOutOfInbox">Задача уйдёт из «Входящих» в список «Без даты» на экране «Сегодня».</span>
+        <span v-else-if="noDate">Чтобы убрать задачу из «Входящих», выбери сферу ниже.</span>
+        <span v-else-if="!date">Без даты задача лежит во «Входящих».</span>
+      </div>
 
       <label class="text-xs text-mute">Напоминание
         <select v-model="remind" class="input mt-1" :disabled="!date || !time" @change="remindTouched = true">
