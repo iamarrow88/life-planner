@@ -41,6 +41,8 @@ const sortTasks = (a: Task, b: Task) =>
 const list = computed(() => {
   const t = app.today
   const week = addDays(t, 7)
+  // «Без даты»: сначала разобранные задачи без срока, за ними — неразобранные из «Входящих» (у них даты тоже нет)
+  if (filter.value === 'nodate') return [...pending.value.filter(x => !x.due_date).sort(sortTasks), ...app.inbox]
   return pending.value.filter(x => {
     if (filter.value === 'today') return x.due_date === t || (!!x.due_date && x.due_date < t)
     if (filter.value === 'tomorrow') return x.due_date === addDays(t, 1)
@@ -201,6 +203,7 @@ async function add() {
       <div v-for="t in list" :key="t.id">
         <TaskRow :task="t">
           <span v-if="t.due_date && (filter === 'week' || t.due_date < app.today)" class="shrink-0 text-xs" :class="t.due_date < app.today ? 'text-amber-700' : 'text-mute'">{{ shortDate(t.due_date) }}</span>
+          <RouterLink v-else-if="t.status === 'inbox'" to="/inbox" class="shrink-0 text-xs text-mute hover:text-accent" title="Задача ещё не разобрана — лежит во «Входящих»" data-test="from-inbox">во входящих</RouterLink>
         </TaskRow>
       </div>
     </div>
