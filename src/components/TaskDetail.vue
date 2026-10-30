@@ -4,6 +4,10 @@ import { useApp } from '../stores/app'
 import { fmtSec } from '../lib/time'
 import AutoTextarea from './AutoTextarea.vue'
 import EstimateInput from './EstimateInput.vue'
+import HabitSchedule from './HabitSchedule.vue'
+import { ALL_DAYS, defaultSchedule } from '../lib/habitSchedule'
+import { matches } from '../lib/recurrence'
+import { RULE_KEYS, TEMPLATE_KEYS, type HabitSchedule as Schedule, type NewRecurrence, type Recurrence, type RecurrencePatch } from '../types'
 
 const app = useApp()
 const task = computed(() => app.data.tasks.find(t => t.id === app.detailId) ?? null)
@@ -32,12 +36,64 @@ const presets = [15, 30, 45, 60, 90, 120]
 const isRunning = computed(() => !!task.value && app.running?.task_id === task.value.id)
 const totals = computed(() => (task.value ? app.taskTotals[task.value.id] : undefined))
 
+// ---- Повтор: правило, по которому создаются следующие задачи (как расписание у привычки)
+const rule = computed(() => app.data.recurrences.find(r => r.id === task.value?.recurrence_id) ?? null)
+const repeat = ref(false)
+const schedule = ref<Schedule>(defaultSchedule())
+/** Изменения названия, сферы, времени… у повторяющейся задачи: только эта или и будущие тоже */
+const repeatScope = ref<'one' | 'all'>('one')
+const isodow = (d: string) => { const [y, m, dd] = d.split('-').map(Number); return ((new Date(Date.UTC(y, m - 1, dd)).getUTCDay() + 6) % 7) + 1 }
+const scheduleOf = (r: Recurrence): Schedule => ({
+  freq: r.freq, interval_n: r.interval_n, mode: r.mode, starts_on: r.starts_on,
+  weekdays: r.weekdays?.length ? [...r.weekdays] : r.freq === 'week' ? [isodow(r.starts_on)] : [...ALL_DAYS],
+})
+
 watch(task, t => {
   if (!t) return
   title.value = t.title; note.value = t.note ?? ''; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
   estimate.value = t.estimate_minutes; noDate.value = t.status === 'planned' && !t.due_date; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
   remind.value = t.remind_before_minutes == null ? '' : String(t.remind_before_minutes); remindTouched.value = false
+  repeat.value = !!rule.value; repeatScope.value = 'one'
+  schedule.value = rule.value ? scheduleOf(rule.value) : defaultSchedule(t.due_date ?? app.today)
 }, { immediate: true })
+function toggleRepeat() {
+  repeat.value = !repeat.value
+  if (!repeat.value) return
+  noDate.value = false // у повторяющейся задачи всегда есть дата
+  if (!rule.value) schedule.value = defaultSchedule(date.value || app.today)
+}
+/** Расписание в виде полей правила */
+const ruleFields = computed(() => {
+  const s = schedule.value
+  return {
+    freq: s.freq, interval_n: s.interval_n, mode: s.mode, starts_on: s.starts_on || date.value || app.today,
+    weekdays: s.freq === 'week' && s.mode === 'schedule' ? [...s.weekdays].sort() : null,
+  }
+})
+const needDays = computed(() => repeat.value && schedule.value.freq === 'week' && schedule.value.mode === 'schedule' && !schedule.value.weekdays.length)
+/** Первая дата по правилу — для задачи без даты, которую делают повторяющейся */
+function firstDate(): string {
+  const r = { ...ruleFields.value, id: '', title: '', sphere_id: null, start_time: null, estimate_minutes: null, month_day: null, ends_on: null } as Recurrence
+  if (r.mode === 'after_completion') return r.starts_on
+  for (let i = 0; i <= 7 * 367; i++) { const d = app.addDays(r.starts_on, i); if (matches(r, d)) return d }
+  return r.starts_on
+}
+const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+/** Поля задачи, которые правило копирует в каждую новую задачу */
+function templateFrom(due: string | null): Pick<NewRecurrence, (typeof TEMPLATE_KEYS)[number]> {
+  const st = due && time.value ? `${time.value}:00` : null
+  return {
+    title: title.value.trim(), note: note.value.trim() || null, sphere_id: sphereId.value || null,
+    project_id: sphereId.value && projectId.value ? projectId.value : null, start_time: st, estimate_minutes: estimate.value,
+    remind_before_minutes: st && remind.value !== '' ? Number(remind.value) : null,
+  }
+}
+/** Поменяли ли в этот раз что-то из шаблона (название, описание, сферу, время…) */
+const templateChanged = computed(() => {
+  const t = task.value; if (!t) return false
+  const tpl = templateFrom(date.value || t.due_date)
+  return TEMPLATE_KEYS.some(k => !same(tpl[k], t[k]))
+})
 // Пользователь впервые поставил время начала задаче без времени — предлагаем напомнить за 10 минут
 function onTimeInput() {
   if (time.value && !remind.value && !remindTouched.value && !task.value?.start_time) remind.value = '10'
@@ -56,15 +112,25 @@ const keepsOutOfInbox = computed(() => noDate.value && !date.value && !!sphereId
 async function save() {
   const t = task.value
   if (!t || !title.value.trim()) return
+  if (needDays.value) return
   busy.value = true
-  const due = date.value || null
-  await app.updateTask(t.id, {
-    title: title.value.trim(), note: note.value.trim() || null, due_date: due,
-    start_time: due && time.value ? `${time.value}:00` : null, // время без даты не бывает
-    remind_before_minutes: due && time.value && remind.value !== '' ? Number(remind.value) : null, // напоминание — только если есть время
-    estimate_minutes: estimate.value, sphere_id: sphereId.value || null, project_id: sphereId.value && projectId.value ? projectId.value : null,
-    status: t.status === 'done' ? 'done' : due || keepsOutOfInbox.value ? 'planned' : 'inbox',
-  })
+  // у повторяющейся задачи без даты дата — первый день по правилу
+  const due = date.value || (repeat.value ? firstDate() : null)
+  const tpl = templateFrom(due) // время без даты не бывает, напоминание — только если есть время
+  // запоминаем форму до сохранения: обновлённая задача перезапускает watch(task), и он сбросит поля
+  const changedTpl = templateChanged.value, wantRepeat = repeat.value, fields = { ...ruleFields.value }, scope = repeatScope.value
+  const r = rule.value
+  await app.updateTask(t.id, { ...tpl, due_date: due, status: t.status === 'done' ? 'done' : due || keepsOutOfInbox.value ? 'planned' : 'inbox' })
+  if (!app.error) {
+    if (wantRepeat && !r) await app.attachRecurrence(t.id, { ...tpl, ...fields })
+    else if (!wantRepeat && r) await app.detachRecurrence(r.id, t.id)
+    else if (wantRepeat && r) {
+      const patch: RecurrencePatch = {}
+      if (RULE_KEYS.some(k => !same(fields[k], r[k]))) Object.assign(patch, fields)
+      if (scope === 'all' && changedTpl) Object.assign(patch, tpl)
+      if (Object.keys(patch).length) await app.updateRecurrence(r.id, patch, t.id)
+    }
+  }
   busy.value = false
   if (!app.error) app.closeTask()
 }
@@ -129,6 +195,23 @@ async function remove() {
         </form>
       </div>
 
+      <!-- Повтор -->
+      <div class="space-y-2" data-test="task-repeat">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-mute">
+          <button type="button" class="chip py-1" :class="repeat && 'chip-on'" :aria-pressed="repeat" data-test="repeat-toggle" @click="toggleRepeat">↻ Повторять</button>
+          <span v-if="repeat && !rule && !date">Дата задачи — первый день по расписанию.</span>
+          <span v-if="!repeat && rule">Повтор отключится: будущие задачи по нему удалятся, эта останется.</span>
+        </div>
+        <HabitSchedule v-if="repeat" v-model="schedule" kind="task" :start-open="!rule" />
+        <div v-if="repeat && rule && templateChanged" class="rounded-2xl border border-line bg-white p-3 text-xs text-mute" data-test="repeat-scope">
+          <div class="mb-1.5">Изменения названия, сферы, времени и т. п. применить:</div>
+          <div class="flex gap-1.5">
+            <button type="button" class="chip flex-1 justify-center py-1.5" :class="repeatScope === 'one' && 'chip-on'" @click="repeatScope = 'one'">Только к этой</button>
+            <button type="button" class="chip flex-1 justify-center py-1.5" :class="repeatScope === 'all' && 'chip-on'" @click="repeatScope = 'all'">И к следующим</button>
+          </div>
+        </div>
+      </div>
+
       <div v-if="task.status !== 'done'" class="flex items-center gap-2">
         <button type="button" class="btn-ghost flex-1" @click="isRunning ? app.stopTimer() : app.startTimer({ task_id: task.id })">
           {{ isRunning ? '■ Остановить таймер' : '▶ Запустить таймер' }}
@@ -138,7 +221,7 @@ async function remove() {
       <p v-if="totals && totals.month > 0" class="text-xs text-mute">Потрачено: неделя {{ fmtSec(totals.week) }} · месяц {{ fmtSec(totals.month) }}</p>
 
       <div class="flex gap-2">
-        <button class="btn-primary flex-1" :disabled="busy">Сохранить</button>
+        <button class="btn-primary flex-1" :disabled="busy || needDays">Сохранить</button>
         <button type="button" class="btn-ghost !text-red-700" @click="remove">Удалить</button>
       </div>
     </form>

@@ -4,8 +4,8 @@ import { useApp } from '../stores/app'
 import type { HabitSchedule, RecurrenceFreq, RecurrenceMode } from '../types'
 import { describeHabit } from '../lib/habitSchedule'
 
-/** Расписание привычки: «каждые N …», дни недели, от какой даты отсчитывать. Свёрнуто до одной строки с описанием */
-const props = defineProps<{ modelValue: HabitSchedule; startOpen?: boolean }>()
+/** Расписание привычки или повторяющейся задачи (kind='task'): «каждые N …», дни недели, от какой даты отсчитывать. Свёрнуто до одной строки с описанием */
+const props = defineProps<{ modelValue: HabitSchedule; startOpen?: boolean; kind?: 'habit' | 'task' }>()
 const emit = defineEmits<{ 'update:modelValue': [v: HabitSchedule] }>()
 const app = useApp()
 const open = ref(props.startOpen)
@@ -64,9 +64,12 @@ const needDays = computed(() => v.value.freq === 'week' && v.value.mode === 'sch
           <button v-for="m in modes" :key="m.v" type="button" class="chip flex-1 justify-center py-2 text-sm" :class="v.mode === m.v && 'chip-on'" :aria-pressed="v.mode === m.v" @click="set({ mode: m.v })">{{ m.label }}</button>
         </div>
         <p class="mt-1.5 text-xs text-mute">
-          {{ v.mode === 'schedule'
+          <template v-if="kind === 'task'">{{ v.mode === 'schedule'
+            ? 'Задачи заранее появляются по календарю от даты начала, даже если прошлая не сделана.'
+            : 'Следующая задача появится через интервал после того дня, когда отметишь текущую выполненной.' }}</template>
+          <template v-else>{{ v.mode === 'schedule'
             ? 'Дни заранее зафиксированы от даты начала. Если пропустила день, расписание не сдвигается.'
-            : 'Следующий раз — через интервал после того дня, когда привычка выполнена. Пока не выполнена, она остаётся в списке «Сегодня».' }}
+            : 'Следующий раз — через интервал после того дня, когда привычка выполнена. Пока не выполнена, она остаётся в списке «Сегодня».' }}</template>
         </p>
       </div>
 

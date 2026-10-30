@@ -1,3 +1,4 @@
+import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
 import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData } from '../types'
 import { addDays, dayOf, entrySeconds, todayStr } from '../lib/time'
 import { matches, nextAfter } from '../lib/recurrence'
@@ -115,10 +116,17 @@ function read(): Snapshot {
 function write(s: Snapshot) { try { localStorage.setItem(KEY, JSON.stringify(s)) } catch { /* ignore */ } }
 
 function newFromRule(r: Recurrence, due: string): Task {
-  return { id: uid(), title: r.title, status: 'planned', sphere_id: r.sphere_id, due_date: due,
+  return { id: uid(), title: r.title, note: r.note ?? null, status: 'planned', sphere_id: r.sphere_id, project_id: r.project_id ?? null, due_date: due,
     start_time: r.start_time, estimate_minutes: r.estimate_minutes, remind_before_minutes: r.remind_before_minutes ?? null,
     done_at: null, recurrence_id: r.id }
 }
+
+/** Будущие невыполненные задачи правила (кроме keep и тех, где уже записано время) — их можно пересоздать */
+function futureOf(s: Snapshot, recId: string, keep?: string): Task[] {
+  const t = todayStr()
+  return s.tasks.filter(x => x.recurrence_id === recId && x.id !== keep && x.status !== 'done' && (x.due_date ?? '') >= t)
+}
+const hasTime = (s: Snapshot, taskId: string) => s.timeEntries.some(e => e.task_id === taskId)
 
 /** Создаёт задачи по правилам на 30 дней вперёд (не дублируя уже созданные) */
 function generate(s: Snapshot) {
@@ -247,6 +255,33 @@ export const demoRepo: Repo = {
     s.recurrences.push(rec)
     if (rec.mode === 'after_completion') s.tasks.unshift(newFromRule(rec, rec.starts_on))
     generate(s); write(s)
+  },
+  async attachRecurrence(taskId, r) {
+    const s = read()
+    const rec: Recurrence = { ...r, id: uid(), month_day: null, ends_on: null }
+    s.recurrences.push(rec)
+    const t = s.tasks.find(x => x.id === taskId); if (t) t.recurrence_id = rec.id
+    generate(s); write(s)
+  },
+  async updateRecurrence(id, patch, keep) {
+    const s = read(); const r = s.recurrences.find(x => x.id === id)
+    if (!r) throw new Error('Повтор не найден')
+    Object.assign(r, patch)
+    const tpl = Object.fromEntries(TEMPLATE_KEYS.filter(k => k in patch).map(k => [k, patch[k] ?? null]))
+    for (const t of futureOf(s, id, keep)) Object.assign(t, tpl)
+    if (RULE_KEYS.some(k => k in patch)) {
+      const drop = new Set(futureOf(s, id, keep).filter(t => !hasTime(s, t.id)).map(t => t.id))
+      s.tasks = s.tasks.filter(t => !drop.has(t.id))
+      generate(s)
+    }
+    write(s)
+  },
+  async detachRecurrence(id, keep) {
+    const s = read()
+    const drop = new Set(futureOf(s, id, keep).filter(t => !hasTime(s, t.id)).map(t => t.id))
+    s.tasks = s.tasks.filter(t => !drop.has(t.id))
+    for (const t of s.tasks) if (t.recurrence_id === id) t.recurrence_id = null
+    s.recurrences = s.recurrences.filter(r => r.id !== id); write(s)
   },
   async removeRecurrence(id) {
     const s = read(); const t = todayStr()

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
+import type { RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
@@ -425,6 +425,15 @@ export const useApp = defineStore('app', () => {
   async function removeRecurrence(id: string) {
     await guard(() => repo.removeRecurrence(id)); await load()
   }
+  /** Повтор из карточки задачи: подключить, изменить, отключить. После — перечитываем: будущие задачи пересоздаются в базе */
+  async function recurrenceOp(fn: () => Promise<void>) {
+    const ok = await guard(async () => { await fn(); return true })
+    if (ok) { await load(); syncGoogleSoon() }
+    return !!ok
+  }
+  const attachRecurrence = (taskId: string, r: NewRecurrence) => recurrenceOp(() => repo.attachRecurrence(taskId, r))
+  const updateRecurrence = (id: string, patch: RecurrencePatch, keepTaskId?: string) => recurrenceOp(() => repo.updateRecurrence(id, patch, keepTaskId))
+  const detachRecurrence = (id: string, keepTaskId: string) => recurrenceOp(() => repo.detachRecurrence(id, keepTaskId))
   /** day — день, который смотрит человек (например, в «Календаре»): по нему фильтруются записи и подставляется дата новой записи */
   const openEditor = (target: EditorTarget, title: string, day?: string) => { editor.value = { target, title, day } }
   const closeEditor = () => { editor.value = null }
@@ -468,7 +477,7 @@ export const useApp = defineStore('app', () => {
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,
-    startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence,
+    startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence, attachRecurrence, updateRecurrence, detachRecurrence,
     detailId, openTask, closeTask, editor, openEditor, closeEditor, longStop, fixLongStop, dismissLongStop, addEntry, updateEntry, removeEntry, listEntries,
   }
 })

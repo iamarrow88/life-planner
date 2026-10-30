@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
-import { weekStart as weekStartOf } from '../lib/time'
+import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
+import type { RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
+import { todayStr, weekStart as weekStartOf } from '../lib/time'
 
 const env = import.meta.env as Record<string, string | undefined>
 const clean = (v?: string) => v?.trim().replace(/^["']|["']$/g, '') || undefined
@@ -47,10 +48,24 @@ async function callGoogle(body: Record<string, unknown>): Promise<GoogleStatus> 
 }
 
 const TASK_COLS = 'id,title,note,status,sphere_id,project_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
-const REC_COLS = 'id,title,sphere_id,project_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
+const REC_COLS = 'id,title,note,sphere_id,project_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
 const SPHERE_COLS = 'id,name,color,weekly_goal_minutes,description'
 const HABIT_COLS = 'id,name,kind,target_value,sphere_id,created_at,freq,interval_n,mode,weekdays,starts_on'
 const TE_COLS = 'id,task_id,habit_id,sphere_id,started_at,ended_at,source'
+
+/** Поля шаблона правила в виде записи задачи */
+const templateOf = (r: RecurrencePatch) =>
+  Object.fromEntries(TEMPLATE_KEYS.filter(k => k in r).map(k => [k, r[k] ?? null])) as Partial<Task>
+/** Убрать будущие невыполненные задачи правила (кроме keep и тех, где уже записано время) — как rebuild_recurrence в базе */
+async function dropFuture(recId: string, keep?: string) {
+  let q = db().from('tasks').select('id').eq('recurrence_id', recId).neq('status', 'done').gte('due_date', todayStr())
+  if (keep) q = q.neq('id', keep)
+  const ids = (ok(await q) as { id: string }[]).map(x => x.id)
+  if (!ids.length) return
+  const withTime = new Set((ok(await db().from('time_entries').select('task_id').in('task_id', ids)) as { task_id: string }[]).map(x => x.task_id))
+  const drop = ids.filter(id => !withTime.has(id))
+  if (drop.length) ok(await db().from('tasks').delete().in('id', drop))
+}
 
 export const supabaseRepo: Repo = {
   mode: 'supabase',
@@ -146,7 +161,7 @@ export const supabaseRepo: Repo = {
   async stopTimer() { return (ok(await db().rpc('stop_timer')) as TimeEntry | null) ?? null },
   async addRecurrence(r) {
     ok(await db().from('recurrences').insert({
-      title: r.title, sphere_id: r.sphere_id, start_time: r.start_time, estimate_minutes: r.estimate_minutes,
+      title: r.title, note: r.note ?? null, sphere_id: r.sphere_id, project_id: r.project_id ?? null, start_time: r.start_time, estimate_minutes: r.estimate_minutes,
       remind_before_minutes: r.start_time ? (r.remind_before_minutes ?? null) : null,
       freq: r.freq, interval_n: r.interval_n, weekdays: r.freq === 'week' ? r.weekdays : null,
       mode: r.mode, starts_on: r.starts_on,
@@ -154,6 +169,31 @@ export const supabaseRepo: Repo = {
     ok(await db().rpc('generate_recurring_tasks'))
   },
   async removeRecurrence(id) { ok(await db().rpc('delete_recurrence', { p_id: id })) },
+  async attachRecurrence(taskId, r) {
+    const rec = ok(await db().from('recurrences').insert({
+      ...templateOf(r), remind_before_minutes: r.start_time ? (r.remind_before_minutes ?? null) : null,
+      freq: r.freq, interval_n: r.interval_n, weekdays: r.weekdays, mode: r.mode, starts_on: r.starts_on,
+    }).select('id').single()) as { id: string }
+    // задача становится первым разом правила: в тот же день база вторую не создаст (unique по правилу и дате)
+    ok(await db().from('tasks').update({ recurrence_id: rec.id }).eq('id', taskId))
+    ok(await db().rpc('generate_recurring_tasks'))
+  },
+  async updateRecurrence(id, patch, keep) {
+    const ruleChanged = RULE_KEYS.some(k => k in patch)
+    ok(await db().from('recurrences').update({ ...patch, ...(ruleChanged ? { generated_until: null } : {}) }).eq('id', id))
+    const tpl = templateOf(patch)
+    if (Object.keys(tpl).length) {
+      let q = db().from('tasks').update(tpl).eq('recurrence_id', id).neq('status', 'done').gte('due_date', todayStr())
+      if (keep) q = q.neq('id', keep)
+      ok(await q)
+    }
+    if (ruleChanged) { await dropFuture(id, keep); ok(await db().rpc('generate_recurring_tasks')) }
+  },
+  async detachRecurrence(id, keep) {
+    await dropFuture(id, keep)
+    ok(await db().from('tasks').update({ recurrence_id: null }).eq('id', keep))
+    ok(await db().from('recurrences').delete().eq('id', id))  // у оставшихся (выполненных) задач связь обнулится сама
+  },
   async listEntries(t) {
     let q = db().from('time_entries').select(TE_COLS).order('started_at', { ascending: false }).limit(100)
     if (t.task_id) q = q.eq('task_id', t.task_id)

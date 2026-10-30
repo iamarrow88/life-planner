@@ -15,12 +15,16 @@ export interface Task {
 export type RecurrenceFreq = 'day' | 'week' | 'month' | 'year'
 export type RecurrenceMode = 'schedule' | 'after_completion'
 export interface Recurrence {
-  id: string; title: string; sphere_id: string | null; project_id?: string | null; start_time: string | null
+  id: string; title: string; note?: string | null; sphere_id: string | null; project_id?: string | null; start_time: string | null
   estimate_minutes: number | null; remind_before_minutes?: number | null; freq: RecurrenceFreq; interval_n: number
   weekdays: number[] | null; month_day: number | null; mode: RecurrenceMode
   starts_on: string; ends_on: string | null
 }
 export type NewRecurrence = Omit<Recurrence, 'id' | 'month_day' | 'ends_on'>
+/** Правка правила: поля расписания (freq…starts_on) пересоздают будущие задачи, поля шаблона (title…) переносятся в будущие невыполненные */
+export type RecurrencePatch = Partial<NewRecurrence>
+export const RULE_KEYS = ['freq', 'interval_n', 'weekdays', 'mode', 'starts_on'] as const
+export const TEMPLATE_KEYS = ['title', 'note', 'sphere_id', 'project_id', 'start_time', 'estimate_minutes', 'remind_before_minutes'] as const
 /** Расписание привычки: как часто и от какой даты отсчитывать (как у повторяющихся задач) */
 export interface HabitSchedule {
   freq: RecurrenceFreq; interval_n: number; weekdays: number[]
@@ -135,6 +139,12 @@ export interface Repo {
   bumpHabit(id: string, delta: number, day: string): Promise<HabitEntry>
   addRecurrence(r: NewRecurrence): Promise<void>
   removeRecurrence(id: string): Promise<void>
+  /** Сделать существующую задачу повторяющейся: создаётся правило, задача становится его первым разом */
+  attachRecurrence(taskId: string, r: NewRecurrence): Promise<void>
+  /** Изменить правило. keepTaskId — задача, которую правят прямо сейчас: её не трогаем */
+  updateRecurrence(id: string, patch: RecurrencePatch, keepTaskId?: string): Promise<void>
+  /** Перестать повторять: правило и будущие невыполненные задачи удаляются, keepTaskId остаётся обычной задачей */
+  detachRecurrence(id: string, keepTaskId: string): Promise<void>
   listEntries(target: EditorTarget): Promise<TimeEntry[]>
   addEntry(target: EditorTarget, startedAt: string, endedAt: string): Promise<void>
   updateEntry(id: string, startedAt: string, endedAt: string): Promise<void>
