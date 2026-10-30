@@ -108,7 +108,7 @@ function matchTarget(e: TimeEntry, t: EditorTarget): boolean {
 function read(): Snapshot {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) { const s = JSON.parse(raw) as Snapshot; s.projects ??= []; s.recurrences ??= []; s.weekGoals ??= []; s.reviews ??= []; return s }
+    if (raw) { const s = JSON.parse(raw) as Snapshot; s.projects ??= []; s.recurrences ??= []; s.weekGoals ??= []; s.reviews ??= []; s.archivedSpheres ??= []; return s }
   } catch { /* ignore */ }
   const s = seed(); write(s); return s
 }
@@ -192,6 +192,18 @@ export const demoRepo: Repo = {
     for (const e of s.timeEntries) if (e.task_id && ids.has(e.task_id)) e.sphere_id = sphereId
     write(s)
   },
+  async archiveSphere(id) {
+    const s = read(); const i = s.spheres.findIndex(x => x.id === id)
+    if (i >= 0) { (s.archivedSpheres ??= []).unshift(s.spheres[i]); s.spheres.splice(i, 1) }
+    write(s)
+  },
+  async restoreSphere(id, newName) {
+    const s = read(); const arch = s.archivedSpheres ??= []; const i = arch.findIndex(x => x.id === id)
+    if (i >= 0) { const sp = arch[i]; if (newName) sp.name = newName; arch.splice(i, 1); s.spheres.push(sp) }
+    write(s)
+  },
+  async moveHabit(id, sphereId) { const s = read(); const h = s.habits.find(x => x.id === id); if (h) h.sphere_id = sphereId; write(s) },
+  async moveRecurrence(id, sphereId) { const s = read(); const r = s.recurrences.find(x => x.id === id); if (r) r.sphere_id = sphereId; write(s) },
   async archiveProject(id) { const s = read(); const p = s.projects.find(x => x.id === id); if (p) p.status = 'archived'; write(s) },
   async restoreProject(id) { const s = read(); const p = s.projects.find(x => x.id === id); if (p) p.status = 'active'; write(s) },
   async removeProject(id) {
@@ -203,6 +215,10 @@ export const demoRepo: Repo = {
     const s = read(); const h = s.habits.find(x => x.id === id)
     if (!h) throw new Error('Привычка не найдена')
     Object.assign(h, patch); write(s); return { ...h }
+  },
+  async reorderHabits(ids) {
+    const s = read(); const rank = new Map(ids.map((id, i) => [id, i]))
+    s.habits.sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9)); write(s)
   },
   async archiveHabit(id) { const s = read(); s.habits = s.habits.filter(h => h.id !== id); write(s) },
   async habitDays(from, to) { return habitDaysFor(read(), from, to) },

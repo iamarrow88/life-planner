@@ -125,6 +125,8 @@ export interface Repo {
   updateHabit(id: string, patch: Partial<NewHabit>): Promise<Habit>
   /** «Удалить» привычку: уходит из списков, история отметок остаётся в базе */
   archiveHabit(id: string): Promise<void>
+  /** Сохранить порядок привычек: id всех привычек в нужном порядке */
+  reorderHabits(ids: string[]): Promise<void>
   /** Все дни диапазона по каждой привычке: значение, выполнена ли, запланирована ли */
   habitDays(from: string, to: string): Promise<HabitDay[]>
   habitStatus(day: string): Promise<HabitStatus[]>

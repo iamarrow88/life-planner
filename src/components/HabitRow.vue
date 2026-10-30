@@ -5,7 +5,7 @@ import type { Habit } from '../types'
 import { entrySeconds, shortDate } from '../lib/time'
 import { describeHabit } from '../lib/habitSchedule'
 
-const props = defineProps<{ habit: Habit }>()
+const props = defineProps<{ habit: Habit; sortable?: boolean }>()
 const app = useApp()
 const sphere = computed(() => app.sphereById(props.habit.sphere_id))
 const target = computed(() => props.habit.target_value ?? 1)
@@ -38,6 +38,8 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
 
 <template>
   <div class="flex items-center gap-3 px-3 py-2.5">
+    <!-- Ручка: за неё привычку перетаскивают, меняя порядок -->
+    <span v-if="sortable" data-drag-handle class="-ml-1 -mr-1.5 shrink-0 cursor-grab touch-none select-none px-1 text-base leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить привычку" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
     <!-- Без таймера: одно нажатие -->
     <button v-if="habit.kind === 'plain'" class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition"
       :class="done ? 'border-accent bg-accent text-white' : 'border-line hover:border-accent'"
@@ -48,7 +50,7 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
       :class="done ? 'bg-accent text-white' : 'bg-accent-soft text-accent'">{{ done ? '✓' : habit.kind === 'timer' ? '⏱' : '#' }}</span>
 
     <div class="min-w-0 flex-1">
-      <button type="button" class="block max-w-full truncate text-left text-[15px] hover:text-accent" title="Редактировать привычку" :aria-label="'Редактировать привычку: ' + habit.name" @click="app.openHabit(habit.id)">{{ habit.name }}</button>
+      <button type="button" class="block max-w-full truncate text-left text-[15px] hover:text-accent" :class="done && 'text-mute line-through'" title="Редактировать привычку" :aria-label="'Редактировать привычку: ' + habit.name" @click="app.openHabit(habit.id)">{{ habit.name }}</button>
       <div class="mt-0.5 flex items-center gap-2 text-xs text-mute">
         <span v-if="sphere" class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}</span>
         <span v-if="custom" data-test="habit-repeat">↻ {{ describeHabit(habit) }}</span>

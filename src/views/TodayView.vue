@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, type Directive } from 'vue'
 import { useApp } from '../stores/app'
 import { addDays, dayOf, longDate, shortDate, hhmm } from '../lib/time'
 import TaskRow from '../components/TaskRow.vue'
@@ -10,6 +10,8 @@ import AutoTextarea from '../components/AutoTextarea.vue'
 import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import { describe } from '../lib/recurrence'
+import { dragSort } from '../lib/dragSort'
+import { emptyCollapse, nextCollapse, splitHabits, type CollapseState } from '../lib/habitCollapse'
 import type { Habit, HabitDay, Task } from '../types'
 
 const app = useApp()
@@ -74,6 +76,41 @@ const hourOf = (t: Task) => Math.min(22, Math.max(6, Number(hhmm(t.start_time).s
 
 const habits = computed(() => app.dueHabits)
 
+// ---- Сворачивание привычек (если их больше 4): выполненные прячутся, их место занимают невыполненные
+const COLLAPSE_KEY = 'planner-habit-collapse'
+function loadCollapse(): CollapseState {
+  try {
+    const s = JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? 'null') as CollapseState | null
+    if (s && s.day === app.today && Array.isArray(s.hidden) && Array.isArray(s.kept)) return s
+  } catch { /* без хранилища просто начинаем заново */ }
+  return emptyCollapse(app.today)
+}
+const collapse = ref<CollapseState>(loadCollapse())
+let prevDone: Set<string> | null = null
+const doneIds = computed(() => new Set(habits.value.filter(h => app.habitIsDone(h)).map(h => h.id)))
+watch(doneIds, now => {
+  if (collapse.value.day !== app.today) { collapse.value = emptyCollapse(app.today); prevDone = null }
+  if (prevDone) collapse.value = nextCollapse(collapse.value, prevDone, now, habits.value.length)
+  prevDone = new Set(now)
+  try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(collapse.value)) } catch { /* не страшно */ }
+}, { immediate: true })
+const habitSplit = computed(() => splitHabits(habits.value.map(h => h.id), doneIds.value, collapse.value))
+const habitById = (id: string) => habits.value.find(h => h.id === id)!
+const visibleHabits = computed(() => habitSplit.value.visible.map(habitById))
+const restHabits = computed(() => [...habitSplit.value.queued, ...habitSplit.value.hiddenDone].map(habitById))
+const showRest = ref(false)
+const restLabel = computed(() => {
+  const q = habitSplit.value.queued.length, d = habitSplit.value.hiddenDone.length
+  return [d ? `выполнено: ${d}` : '', q ? `в очереди: ${q}` : ''].filter(Boolean).join(', ')
+})
+async function onHabitSort(ids: string[]) { await app.reorderHabits(ids) }
+/** v-drag-sort: перетаскивание за ручку; колбэк берётся свежий при каждом обновлении */
+const vDragSort: Directive<HTMLElement & { _ds?: () => void; _cb?: (ids: string[]) => void }, (ids: string[]) => void> = {
+  mounted(el, b) { el._cb = b.value; el._ds = dragSort(el, () => el._cb) },
+  updated(el, b) { el._cb = b.value },
+  unmounted(el) { el._ds?.() },
+}
+
 // ---- Привычки выбранного дня (в «Календаре» можно листать дни назад и править время)
 const dayHabits = ref<HabitDay[]>([])
 const dayHabitList = computed(() => dayHabits.value
@@ -126,9 +163,17 @@ async function add() {
       <button class="text-sm font-semibold text-accent" @click="showHabitForm = !showHabitForm">{{ showHabitForm ? 'Закрыть' : '+ Привычка' }}</button>
     </div>
     <HabitForm v-if="showHabitForm" class="mb-3" @done="showHabitForm = false" />
-    <div v-if="habits.length" class="card divide-y divide-line">
-      <HabitRow v-for="h in habits" :key="h.id" :habit="h" />
-    </div>
+    <template v-if="habits.length">
+      <div class="card divide-y divide-line" data-test="habit-list" v-drag-sort="onHabitSort">
+        <div v-for="h in visibleHabits" :key="h.id" :data-id="h.id"><HabitRow :habit="h" sortable /></div>
+      </div>
+      <div v-if="restHabits.length" class="mt-2">
+        <button type="button" class="text-xs font-semibold text-mute" data-test="habit-rest-toggle" :aria-expanded="showRest" @click="showRest = !showRest">Ещё привычки ({{ restLabel }}) {{ showRest ? '▴' : '▾' }}</button>
+        <div v-if="showRest" class="card mt-1.5 divide-y divide-line" data-test="habit-rest">
+          <HabitRow v-for="h in restHabits" :key="h.id" :habit="h" />
+        </div>
+      </div>
+    </template>
     <p v-else-if="!showHabitForm && !app.laterHabits.length" class="text-sm text-mute">Привычек пока нет.</p>
     <p v-else-if="!showHabitForm" class="text-sm text-mute">На сегодня привычек нет.</p>
     <div v-if="app.laterHabits.length" class="mt-2">

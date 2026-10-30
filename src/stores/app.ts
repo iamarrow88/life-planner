@@ -88,6 +88,27 @@ export const useApp = defineStore('app', () => {
   const habitStatusOf = (id: string): HabitStatus => data.value.habitStatus?.find(s => s.habit_id === id) ?? { habit_id: id, scheduled: true, due: null, last_done: null }
   const dueHabits = computed(() => data.value.habits.filter(h => habitStatusOf(h.id).scheduled))
   const laterHabits = computed(() => data.value.habits.filter(h => !habitStatusOf(h.id).scheduled))
+  /** Выполнена ли привычка сегодня (для таймера — по минутам сегодняшних записей) */
+  const habitIsDone = (h: Habit) => {
+    const target = h.target_value ?? 1
+    if (h.kind !== 'timer') return (data.value.habitEntries.find(e => e.habit_id === h.id && e.entry_date === today.value)?.value ?? 0) >= target
+    let sec = 0
+    for (const e of data.value.timeEntries) if (e.habit_id === h.id && dayOf(e.started_at) === today.value) sec += entrySeconds(e, now.value)
+    return Math.floor(sec / 60) >= target
+  }
+  /** Новый порядок привычек. ids — привычки, показанные в новом порядке (могут быть не все): остальные остаются на своих местах */
+  async function reorderHabits(ids: string[]) {
+    const all = data.value.habits.map(h => h.id)
+    const slots = all.map((id, i) => [id, i] as const).filter(([id]) => ids.includes(id)).map(([, i]) => i)
+    const next = [...all]
+    slots.forEach((slot, k) => { next[slot] = ids[k] })
+    const before = data.value.habits
+    const byId = new Map(before.map(h => [h.id, h]))
+    data.value.habits = next.map(id => byId.get(id)!)
+    const ok = await guard(async () => { await repo.reorderHabits(next); return true })
+    if (!ok) data.value.habits = before
+    return !!ok
+  }
   const habitValue = (id: string) => data.value.habitEntries.find(e => e.habit_id === id && e.entry_date === today.value)?.value ?? 0
 
   // ---------- Google Календарь ----------
@@ -439,7 +460,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,

@@ -47,7 +47,7 @@ async function callGoogle(body: Record<string, unknown>): Promise<GoogleStatus> 
 }
 
 const TASK_COLS = 'id,title,note,status,sphere_id,project_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
-const REC_COLS = 'id,title,sphere_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
+const REC_COLS = 'id,title,sphere_id,project_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
 const SPHERE_COLS = 'id,name,color,weekly_goal_minutes,description'
 const HABIT_COLS = 'id,name,kind,target_value,sphere_id,created_at,freq,interval_n,mode,weekdays,starts_on'
 const TE_COLS = 'id,task_id,habit_id,sphere_id,started_at,ended_at,source'
@@ -71,8 +71,9 @@ export const supabaseRepo: Repo = {
     const c = db()
     await c.rpc('generate_recurring_tasks') // создаёт задачи по повторам на 30 дней вперёд (безопасно вызывать повторно)
     const ws = weekStartOf(today)
-    const [spheres, projects, tasks, habits, he, te, recs, goals, reviews, hs] = await Promise.all([
+    const [spheres, archivedSpheres, projects, tasks, habits, he, te, recs, goals, reviews, hs] = await Promise.all([
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
+      c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
       c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
       c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }),
       c.from('habits').select(HABIT_COLS).is('archived_at', null).order('position').order('created_at'),
@@ -84,7 +85,7 @@ export const supabaseRepo: Repo = {
       c.rpc('habit_status', { p_day: today }),
     ])
     return {
-      spheres: ok(spheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as Task[], habits: ok(habits) as Habit[],
+      spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as Task[], habits: ok(habits) as Habit[],
       habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], recurrences: ok(recs) as Recurrence[],
       weekGoals: ok(goals) as WeekGoal[], reviews: ok(reviews) as WeeklyReview[],
       // если состояние привычек не пришло — считаем, что все запланированы на сегодня (список не должен пропасть)
@@ -118,10 +119,21 @@ export const supabaseRepo: Repo = {
   async restoreProject(id) { ok(await db().from('projects').update({ status: 'active' }).eq('id', id)) },
   async removeProject(id) { ok(await db().from('projects').delete().eq('id', id)) },
   async addHabit(h) {
-    return ok(await db().from('habits').insert(h).select(HABIT_COLS).single()) as Habit
+    // новая привычка — в конец списка: position = максимальный + 1
+    const last = ok(await db().from('habits').select('position').is('archived_at', null).order('position', { ascending: false }).limit(1)) as { position: number }[]
+    return ok(await db().from('habits').insert({ ...h, position: (last[0]?.position ?? -1) + 1 }).select(HABIT_COLS).single()) as Habit
   },
   async updateHabit(id, patch) {
     return ok(await db().from('habits').update(patch).eq('id', id).select(HABIT_COLS).single()) as Habit
+  },
+  async archiveSphere(id) { ok(await db().from('spheres').update({ archived_at: new Date().toISOString() }).eq('id', id)) },
+  async restoreSphere(id, newName) { ok(await db().from('spheres').update({ archived_at: null, ...(newName ? { name: newName } : {}) }).eq('id', id)) },
+  // project_id сбрасываем: у привычки/правила с проектом сфера всегда равна сфере проекта, и смена одной сферы не сработала бы
+  async moveHabit(id, sphereId) { ok(await db().from('habits').update({ sphere_id: sphereId, project_id: null }).eq('id', id)) },
+  async moveRecurrence(id, sphereId) { ok(await db().from('recurrences').update({ sphere_id: sphereId, project_id: null }).eq('id', id)) },
+  async reorderHabits(ids) {
+    const rs = await Promise.all(ids.map((id, i) => db().from('habits').update({ position: i }).eq('id', id)))
+    for (const r of rs) if (r.error) throw new Error(r.error.message)
   },
   async archiveHabit(id) { ok(await db().from('habits').update({ archived_at: new Date().toISOString() }).eq('id', id)) },
   async habitDays(from, to) { return ok(await db().rpc('habit_days', { p_from: from, p_to: to })) as HabitDay[] },
