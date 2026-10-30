@@ -119,7 +119,8 @@ function toggleNoDate() {
 /** Задача без даты уходит из «Входящих», только если выбрана сфера (проект — по желанию) */
 const keepsOutOfInbox = computed(() => noDate.value && !date.value && !!sphereId.value)
 
-async function save() {
+/** markDone — «Выполнено»: сохраняем правки, останавливаем таймер этой задачи и закрываем её */
+async function save(markDone = false) {
   const t = task.value
   if (!t || !title.value.trim()) return
   if (needDays.value) return
@@ -130,7 +131,8 @@ async function save() {
   // запоминаем форму до сохранения: дальше данные перечитываются
   const changedTpl = templateChanged.value, wantRepeat = repeat.value, fields = { ...ruleFields.value }, scope = repeatScope.value
   const r = rule.value
-  await app.updateTask(t.id, { ...tpl, due_date: due, status: t.status === 'done' ? 'done' : due || keepsOutOfInbox.value ? 'planned' : 'inbox' })
+  if (markDone && isRunning.value) await app.stopTimer()
+  await app.updateTask(t.id, { ...tpl, due_date: due, status: markDone || t.status === 'done' ? 'done' : due || keepsOutOfInbox.value ? 'planned' : 'inbox' })
   if (!app.error) {
     if (wantRepeat && !r) await app.attachRecurrence(t.id, { ...tpl, ...fields })
     else if (!wantRepeat && r) await app.detachRecurrence(r.id, t.id)
@@ -152,13 +154,13 @@ async function remove() {
 
 <template>
   <div v-if="task" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @pointerdown="bd.down" @click="bd.click">
-    <form class="flex max-h-[92vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-3xl bg-bg p-5 md:rounded-3xl" @submit.prevent="save">
+    <form class="flex max-h-[92vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-3xl bg-bg p-5 md:rounded-3xl" @submit.prevent="save()">
       <div class="flex items-start justify-between gap-3">
         <h2 class="text-lg font-bold">Задача</h2>
         <button type="button" class="text-2xl leading-none text-mute" aria-label="Закрыть" @click="bd.close">×</button>
       </div>
 
-      <AutoTextarea v-model="title" single-line :maxlength="500" required placeholder="Название задачи" @submit="save" />
+      <AutoTextarea v-model="title" single-line :maxlength="500" required placeholder="Название задачи" @submit="save()" />
       <AutoTextarea v-model="note" :min-rows="3" placeholder="Описание задачи" />
 
       <div class="grid grid-cols-2 gap-2">
@@ -232,6 +234,7 @@ async function remove() {
 
       <div class="flex gap-2">
         <button class="btn-primary flex-1" :disabled="busy || needDays">Сохранить</button>
+        <button v-if="task.status !== 'done'" type="button" class="btn-ghost" :disabled="busy || needDays" data-test="task-done" :title="isRunning ? 'Остановить таймер и отметить выполненной' : 'Отметить выполненной'" @click="save(true)">✓ Выполнено</button>
         <button type="button" class="btn-ghost !text-red-700" @click="remove">Удалить</button>
       </div>
     </form>
