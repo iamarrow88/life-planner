@@ -5,12 +5,14 @@ import type { HabitKind } from '../types'
 import HabitSchedule from './HabitSchedule.vue'
 import { defaultSchedule } from '../lib/habitSchedule'
 
+/** sphereId — сфера, выбранная заранее (форма открыта из карточки сферы) */
+const props = defineProps<{ sphereId?: string }>()
 const emit = defineEmits<{ done: [] }>()
 const app = useApp()
 const name = ref('')
 const kind = ref<HabitKind>('plain')
 const target = ref(8)
-const sphereId = ref(app.spheres[0]?.id ?? '')
+const sphereId = ref(props.sphereId ?? app.spheres[0]?.id ?? '')
 const schedule = ref(defaultSchedule(app.today))
 const kinds: { v: HabitKind; label: string }[] = [
   { v: 'timer', label: 'Таймер' }, { v: 'plain', label: 'Без таймера' }, { v: 'counter', label: 'Счётчик' },

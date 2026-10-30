@@ -8,7 +8,14 @@ export const router = createRouter({
     { path: '/login', component: () => import('./views/LoginView.vue'), meta: { public: true } },
     { path: '/inbox', component: () => import('./views/InboxView.vue') },
     { path: '/today', component: () => import('./views/TodayView.vue') },
-    { path: '/spheres', component: () => import('./views/SpheresView.vue') },
+    {
+      path: '/spheres',
+      // вложенные пути: на карточке сферы вкладка «Сферы» в меню остаётся подсвеченной
+      children: [
+        { path: '', component: () => import('./views/SpheresView.vue') },
+        { path: ':id', component: () => import('./views/SphereView.vue') },
+      ],
+    },
     { path: '/review', component: () => import('./views/ReviewView.vue') },
     { path: '/more', component: () => import('./views/MoreView.vue') },
   ],

@@ -4,6 +4,8 @@ import { useApp } from '../stores/app'
 import AutoTextarea from './AutoTextarea.vue'
 import type { RecurrenceFreq, RecurrenceMode } from '../types'
 
+/** sphereId — сфера, выбранная заранее (форма открыта из карточки сферы) */
+const props = defineProps<{ sphereId?: string }>()
 const emit = defineEmits<{ done: [] }>()
 const app = useApp()
 const title = ref('')
@@ -16,7 +18,7 @@ const remind = ref('')
 const remindTouched = ref(false)
 watch(time, (now, before) => { if (now && !before && !remindTouched.value) remind.value = '10' })
 const estimate = ref<number | null>(null)
-const sphereId = ref('')
+const sphereId = ref(props.sphereId ?? '')
 const startsOn = ref(app.today)
 const busy = ref(false)
 
