@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
+import type { TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
 import { todayStr, weekStart as weekStartOf } from '../lib/time'
 
 const env = import.meta.env as Record<string, string | undefined>
@@ -86,7 +86,7 @@ export const supabaseRepo: Repo = {
     const c = db()
     await c.rpc('generate_recurring_tasks') // создаёт задачи по повторам на 30 дней вперёд (безопасно вызывать повторно)
     const ws = weekStartOf(today)
-    const [spheres, archivedSpheres, projects, tasks, habits, he, te, recs, goals, reviews, hs] = await Promise.all([
+    const [spheres, archivedSpheres, projects, tasks, habits, he, te, recs, goals, reviews, hs, budget, work] = await Promise.all([
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
       c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
@@ -98,6 +98,8 @@ export const supabaseRepo: Repo = {
       c.from('sphere_week_goals').select('sphere_id,week_start,minutes').gte('week_start', ws),
       c.from('weekly_reviews').select('week_start,snapshot,went_well,got_in_way,to_change,focus_sphere_id,completed_at').order('week_start', { ascending: false }),
       c.rpc('habit_status', { p_day: today }),
+      c.from('user_settings').select('sleep_minutes_per_day,routine_minutes_per_day').maybeSingle(),
+      c.from('week_work').select('week_start,minutes').order('week_start'),
     ])
     return {
       spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as Task[], habits: ok(habits) as Habit[],
@@ -105,6 +107,9 @@ export const supabaseRepo: Repo = {
       weekGoals: ok(goals) as WeekGoal[], reviews: ok(reviews) as WeeklyReview[],
       // если состояние привычек не пришло — считаем, что все запланированы на сегодня (список не должен пропасть)
       habitStatus: hs.error ? [] : (hs.data as HabitStatus[]),
+      // бюджет времени — отдельный патч базы: если его ещё не выполнили, экран просто подскажет это
+      timeBudget: budget.error || work.error ? null : ((budget.data as TimeBudget | null) ?? { sleep_minutes_per_day: 480, routine_minutes_per_day: 180 }),
+      weekWork: work.error ? [] : (work.data as WeekWork[]),
     }
   },
   async addTask(t) {
@@ -167,6 +172,14 @@ export const supabaseRepo: Repo = {
       mode: r.mode, starts_on: r.starts_on,
     }))
     ok(await db().rpc('generate_recurring_tasks'))
+  },
+  async saveTimeBudget(patch) {
+    const uid = (await db().auth.getSession()).data.session?.user.id
+    if (!uid) throw new Error('Нужно войти')
+    ok(await db().from('user_settings').upsert({ user_id: uid, ...patch }))
+  },
+  async setWeekWork(weekStart, minutes) {
+    ok(await db().from('week_work').upsert({ week_start: weekStart, minutes }, { onConflict: 'user_id,week_start' }))
   },
   async removeRecurrence(id) { ok(await db().rpc('delete_recurrence', { p_id: id })) },
   async attachRecurrence(taskId, r) {

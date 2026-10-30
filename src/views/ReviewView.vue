@@ -16,6 +16,7 @@ const gotInWay = ref('')
 const toChange = ref('')
 const focus = ref('')
 const nextGoals = ref<Record<string, number>>({}) // часы на следующую неделю
+const nextWork = ref(0) // часы работы на следующую неделю
 
 const saved = computed(() => app.reviewFor(ws.value))
 const completed = computed(() => !!saved.value?.completed_at)
@@ -36,6 +37,7 @@ async function loadWeek() {
   data.value = snap?.spheres ? (snap as WeekData) : ((await app.weekData(ws.value)) ?? null)
   wentWell.value = r?.went_well ?? ''; gotInWay.value = r?.got_in_way ?? ''; toChange.value = r?.to_change ?? ''
   focus.value = r?.focus_sphere_id ?? ''
+  nextWork.value = Math.round((app.workFor(nextWs.value) / 60) * 100) / 100
   nextGoals.value = Object.fromEntries(app.spheres.map(s => [s.id, Math.round((app.goalFor(s.id, nextWs.value) / 60) * 100) / 100]))
   loading.value = false
 }
@@ -55,6 +57,9 @@ async function complete() {
     const minutes = Math.round((nextGoals.value[s.id] ?? 0) * 60)
     if (minutes !== app.goalFor(s.id, nextWs.value)) await app.setWeekGoal(s.id, nextWs.value, minutes, false)
   }
+  // часы работы на следующую неделю: сохраняем явно, даже если совпали с прошлой (так видно, что их подтвердили)
+  const wm = Math.round((nextWork.value || 0) * 60)
+  if (app.timeBudgetReady && (wm !== app.workFor(nextWs.value) || !app.hasOwnWork(nextWs.value))) await app.setWeekWork(nextWs.value, wm)
   // в снимок кладём свежие цифры, а не те, что были на экране при открытии
   const fresh = (await app.weekData(ws.value)) ?? data.value
   const ok = await app.saveReview(ws.value, input(), fresh, true)
@@ -154,6 +159,12 @@ async function complete() {
       <div class="card space-y-3 p-4">
         <label class="block text-sm font-medium">Главная сфера недели
           <select v-model="focus" class="input mt-1"><option value="">Не выбрана</option><option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option></select>
+        </label>
+        <label class="flex items-center gap-3 text-sm font-medium" data-test="next-work">
+          <span class="flex-1">Работа на следующей неделе, часов
+            <span class="block text-xs font-normal text-mute">Вычитается из свободного времени на экране «Сферы». Если работа — отдельная сфера с таймером, поставь 0.</span>
+          </span>
+          <input v-model.number="nextWork" type="number" min="0" max="168" step="0.5" class="input !w-24" aria-label="Часы работы на следующей неделе" />
         </label>
         <div>
           <div class="mb-1.5 text-sm font-medium">Цели по времени, часов</div>

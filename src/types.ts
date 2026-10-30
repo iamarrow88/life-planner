@@ -47,6 +47,10 @@ export interface TimeEntry {
   started_at: string; ended_at: string | null; source: 'timer' | 'manual'
 }
 export interface WeekGoal { sphere_id: string; week_start: string; minutes: number }
+/** Бюджет времени: сколько в день уходит на сон и «текучку» (еда, дорога, быт) — это время не делится между сферами */
+export interface TimeBudget { sleep_minutes_per_day: number; routine_minutes_per_day: number }
+/** Часы работы за неделю (тоже не делятся между сферами) */
+export interface WeekWork { week_start: string; minutes: number }
 export interface WeekData {
   week_start: string; total_minutes: number; prev_total_minutes: number
   spheres: { sphere_id: string; name: string; color: string; minutes: number; goal_minutes: number }[]
@@ -73,6 +77,8 @@ export interface Snapshot {
   habitEntries: HabitEntry[]   // за сегодня
   timeEntries: TimeEntry[]     // с начала недели + запущенный
   habitStatus?: HabitStatus[]  // состояние привычек на сегодня (считает база)
+  timeBudget?: TimeBudget | null // null — в базе ещё нет этих полей (не выполнен planner_time_budget.sql)
+  weekWork?: WeekWork[]
 }
 export interface NewTask {
   title: string; status: TaskStatus; sphere_id?: string | null; project_id?: string | null
@@ -151,6 +157,8 @@ export interface Repo {
   removeEntry(id: string): Promise<void>
   weekData(weekStart: string): Promise<WeekData>
   setWeekGoal(sphereId: string, weekStart: string, minutes: number, makeDefault: boolean): Promise<void>
+  saveTimeBudget(patch: Partial<TimeBudget>): Promise<void>
+  setWeekWork(weekStart: string, minutes: number): Promise<void>
   saveReview(weekStart: string, input: ReviewInput, snapshot: WeekData | null, complete: boolean): Promise<void>
   exportAll(): Promise<ExportData>
   savePushSubscription(sub: PushSub): Promise<void>

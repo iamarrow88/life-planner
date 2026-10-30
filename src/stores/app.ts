@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
+import type { TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
@@ -453,6 +453,32 @@ export const useApp = defineStore('app', () => {
     if (ok) await load()
     return !!ok
   }
+  // ---- Бюджет времени: сон и текучка (в день), работа (в неделю)
+  const DEFAULT_BUDGET: TimeBudget = { sleep_minutes_per_day: 480, routine_minutes_per_day: 180 }
+  const timeBudget = computed(() => data.value.timeBudget ?? DEFAULT_BUDGET)
+  /** false — в Supabase не выполнен planner_time_budget.sql: считаем по значениям по умолчанию, сохранить нельзя */
+  const timeBudgetReady = computed(() => data.value.timeBudget !== null)
+  /** Часы работы недели: заданные на неё, иначе последние заданные раньше, иначе 0 */
+  function workFor(week: string): number {
+    let best: { week_start: string; minutes: number } | null = null
+    for (const w of data.value.weekWork ?? []) if (w.week_start <= week && (!best || w.week_start > best.week_start)) best = w
+    return best?.minutes ?? 0
+  }
+  const hasOwnWork = (week: string) => (data.value.weekWork ?? []).some(w => w.week_start === week)
+  async function saveTimeBudget(patch: Partial<TimeBudget>) {
+    const ok = await guard(async () => { await repo.saveTimeBudget(patch); return true })
+    if (ok) data.value.timeBudget = { ...timeBudget.value, ...patch }
+    return !!ok
+  }
+  async function setWeekWork(week: string, minutes: number) {
+    const m = Math.max(0, Math.round(minutes))
+    const ok = await guard(async () => { await repo.setWeekWork(week, m); return true })
+    if (ok) {
+      const list = (data.value.weekWork ??= []); const w = list.find(x => x.week_start === week)
+      if (w) w.minutes = m; else list.push({ week_start: week, minutes: m })
+    }
+    return !!ok
+  }
   const weekData = (week: string) => guard(() => repo.weekData(week)) as Promise<WeekData | undefined>
   async function saveReview(week: string, input: ReviewInput, snapshot: WeekData | null, complete: boolean) {
     const ok = await guard(async () => { await repo.saveReview(week, input, snapshot, complete); return true })
@@ -475,6 +501,7 @@ export const useApp = defineStore('app', () => {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
+    timeBudget, timeBudgetReady, workFor, hasOwnWork, saveTimeBudget, setWeekWork,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,
     startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence, attachRecurrence, updateRecurrence, detachRecurrence,

@@ -29,6 +29,16 @@ async function run(kind: 'json' | 'tasks' | 'time' | 'habits') {
   }
   busy.value = false
 }
+// ---- Бюджет времени: сон и текучка (часов в день) — это время не делится между сферами
+const sleepH = ref(app.timeBudget.sleep_minutes_per_day / 60)
+const routineH = ref(app.timeBudget.routine_minutes_per_day / 60)
+const budgetMsg = ref('')
+const toMin = (h: number) => Math.min(1440, Math.max(0, Math.round((h || 0) * 60)))
+async function saveBudget() {
+  budgetMsg.value = ''
+  if (await app.saveTimeBudget({ sleep_minutes_per_day: toMin(sleepH.value), routine_minutes_per_day: toMin(routineH.value) })) budgetMsg.value = 'Сохранено.'
+}
+
 // ---- Уведомления
 const push = ref<PushState | 'loading'>('loading')
 const pushBusy = ref(false)
@@ -132,6 +142,23 @@ async function logout() { await app.signOut(); router.push('/login') }
 
 <template>
   <h1 class="mb-4 text-2xl font-bold">Ещё</h1>
+
+  <section class="mb-6">
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Бюджет времени</h2>
+    <form class="card space-y-3 p-4" data-test="budget-settings" @submit.prevent="saveBudget">
+      <p class="text-sm text-mute">Это время вычитается из недели, прежде чем делить её между сферами. Часы работы задаются в итоге недели (на следующую) или на экране «Сферы».</p>
+      <label class="flex items-center justify-between gap-3 text-sm">Сон, часов в день
+        <input v-model.number="sleepH" type="number" min="0" max="24" step="0.5" class="input !w-24" aria-label="Сон, часов в день" />
+      </label>
+      <label class="flex items-center justify-between gap-3 text-sm">Текучка, часов в день
+        <input v-model.number="routineH" type="number" min="0" max="24" step="0.5" class="input !w-24" aria-label="Текучка, часов в день" />
+      </label>
+      <p class="text-xs text-mute">Текучка — еда, дорога, душ, уборка, покупки: то, что не относится ни к одной сфере.</p>
+      <button class="btn-primary w-full" :disabled="!app.timeBudgetReady">Сохранить</button>
+      <p v-if="!app.timeBudgetReady" class="text-xs text-amber-800">Чтобы сохранять, выполни <code>planner_time_budget.sql</code> в Supabase (SQL Editor).</p>
+      <p v-if="budgetMsg" class="text-xs text-accent">{{ budgetMsg }}</p>
+    </form>
+  </section>
 
   <section class="mb-6">
     <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Экспорт данных</h2>

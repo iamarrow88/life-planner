@@ -109,7 +109,7 @@ function matchTarget(e: TimeEntry, t: EditorTarget): boolean {
 function read(): Snapshot {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) { const s = JSON.parse(raw) as Snapshot; s.projects ??= []; s.recurrences ??= []; s.weekGoals ??= []; s.reviews ??= []; s.archivedSpheres ??= []; return s }
+    if (raw) { const s = JSON.parse(raw) as Snapshot; s.projects ??= []; s.recurrences ??= []; s.weekGoals ??= []; s.reviews ??= []; s.archivedSpheres ??= []; s.weekWork ??= []; s.timeBudget ??= { sleep_minutes_per_day: 480, routine_minutes_per_day: 180 }; return s }
   } catch { /* ignore */ }
   const s = seed(); write(s); return s
 }
@@ -282,6 +282,12 @@ export const demoRepo: Repo = {
     s.tasks = s.tasks.filter(t => !drop.has(t.id))
     for (const t of s.tasks) if (t.recurrence_id === id) t.recurrence_id = null
     s.recurrences = s.recurrences.filter(r => r.id !== id); write(s)
+  },
+  async saveTimeBudget(patch) { const s = read(); s.timeBudget = { ...s.timeBudget!, ...patch }; write(s) },
+  async setWeekWork(weekStart, minutes) {
+    const s = read(); const list = (s.weekWork ??= []); const w = list.find(x => x.week_start === weekStart)
+    if (w) w.minutes = minutes; else list.push({ week_start: weekStart, minutes })
+    write(s)
   },
   async removeRecurrence(id) {
     const s = read(); const t = todayStr()
