@@ -369,6 +369,7 @@ export const useApp = defineStore('app', () => {
   const setTaskProject = (id: string, projectId: string | null, sphereId: string | null) => updateTask(id, { project_id: projectId, ...(projectId ? { sphere_id: projectById(projectId)?.sphere_id ?? sphereId } : { sphere_id: sphereId }) })
   async function addHabit(h: NewHabit) {
     const x = await guard(() => repo.addHabit(h)); if (x) { data.value.habits.push(x as Habit); await reloadQuietly() }
+    return !!x
   }
   async function updateHabit(id: string, patch: Partial<NewHabit>) {
     const h = await guard(() => repo.updateHabit(id, patch)) as Habit | undefined
@@ -417,6 +418,48 @@ export const useApp = defineStore('app', () => {
     return ok
   }
   const dismissLongStop = () => { longStop.value = null }
+  const isodow = (d: string) => { const [y, m, dd] = d.split('-').map(Number); return ((new Date(Date.UTC(y, m - 1, dd)).getUTCDay() + 6) % 7) + 1 }
+  /**
+   * Привычку — в повторяющуюся задачу: правило с тем же расписанием, сфера та же; у привычки с таймером норма становится оценкой времени.
+   * Сама привычка уходит в архив (история отметок и время остаются в базе)
+   */
+  async function habitToTask(id: string) {
+    const h = data.value.habits.find(x => x.id === id); if (!h) return false
+    const freq = h.freq ?? 'day', mode = h.mode ?? 'schedule'
+    // «по расписанию» — сохраняем отсчёт (от него считаются «каждые N»); «после выполнения» — первый раз сегодня или когда привычка и так ждёт
+    const due = habitStatusOf(id).due
+    const startsOn = mode === 'schedule' ? (h.starts_on ?? (h.created_at ? dayOf(h.created_at) : today.value)) : (due && due > today.value ? due : today.value)
+    const ok = await addRecurrence({
+      title: h.name, note: h.kind === 'counter' && h.target_value ? `Норма: ${h.target_value} раз` : null,
+      sphere_id: h.sphere_id, project_id: null, start_time: null, remind_before_minutes: null,
+      estimate_minutes: h.kind === 'timer' ? h.target_value : null,
+      freq, interval_n: h.interval_n ?? 1, mode, starts_on: startsOn,
+      weekdays: freq === 'week' && mode === 'schedule' ? [...(h.weekdays?.length ? h.weekdays : [isodow(startsOn)])].sort() : null,
+    })
+    return ok && removeHabit(id)
+  }
+  /**
+   * Повторяющуюся задачу — в привычку с тем же расписанием (нужна сфера). С оценкой времени — привычка с таймером на это время, иначе простая.
+   * Правило удаляется вместе с будущими невыполненными задачами; эта задача тоже, если она не выполнена и времени по ней не записано
+   */
+  async function taskToHabit(taskId: string) {
+    const t = data.value.tasks.find(x => x.id === taskId)
+    const r = data.value.recurrences.find(x => x.id === t?.recurrence_id)
+    if (!t || !r || !t.sphere_id) return false
+    const est = t.estimate_minutes ?? r.estimate_minutes
+    const ok = await addHabit({
+      name: t.title, kind: est ? 'timer' : 'plain', target_value: est ?? null, sphere_id: t.sphere_id,
+      freq: r.freq, interval_n: r.interval_n, mode: r.mode,
+      starts_on: r.mode === 'schedule' ? r.starts_on : (t.due_date && t.due_date > today.value ? t.due_date : today.value),
+      weekdays: r.weekdays?.length ? [...r.weekdays] : r.freq === 'week' ? [isodow(r.starts_on)] : [1, 2, 3, 4, 5, 6, 7],
+    })
+    if (!ok) return false
+    if (!(await guard(async () => { await repo.removeRecurrence(r.id); return true }))) return false
+    const left = data.value.tasks.find(x => x.id === taskId)
+    if (left && left.status !== 'done' && !taskTotals.value[taskId]?.month) await guard(() => repo.removeTask(taskId))
+    await load(); syncGoogleSoon()
+    return !error.value
+  }
   async function addRecurrence(r: NewRecurrence) {
     const ok = await guard(async () => { await repo.addRecurrence(r); return true })
     if (ok) { await load(); syncGoogleSoon() }
@@ -504,7 +547,7 @@ export const useApp = defineStore('app', () => {
     timeBudget, timeBudgetReady, workFor, hasOwnWork, saveTimeBudget, setWeekWork,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,
-    startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence, attachRecurrence, updateRecurrence, detachRecurrence,
+    startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence, habitToTask, taskToHabit, attachRecurrence, updateRecurrence, detachRecurrence,
     detailId, openTask, closeTask, editor, openEditor, closeEditor, longStop, fixLongStop, dismissLongStop, addEntry, updateEntry, removeEntry, listEntries,
   }
 })

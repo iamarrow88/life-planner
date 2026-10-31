@@ -57,6 +57,16 @@ async function save() {
   busy.value = false
   if (ok) app.closeHabit()
 }
+/** Сделать задачей: привычка станет повторяющейся задачей с тем же расписанием */
+async function toTask() {
+  const h = habit.value; if (!h) return
+  const unsaved = formState() !== saved ? ' Несохранённые правки в карточке не перенесутся.' : ''
+  if (!confirm(`Сделать «${h.name}» повторяющейся задачей с тем же расписанием? Привычка уйдёт из списка привычек, история отметок останется в базе.${unsaved}`)) return
+  busy.value = true
+  const ok = await app.habitToTask(h.id)
+  busy.value = false
+  if (ok) app.closeHabit()
+}
 async function remove() {
   const h = habit.value
   if (h && confirm('Удалить привычку? Она пропадёт из списков, а накопленная история останется в базе.')) { await app.removeHabit(h.id); app.closeHabit() }
@@ -86,6 +96,7 @@ async function remove() {
       </label>
 
       <HabitSchedule v-model="schedule" start-open />
+      <button type="button" class="btn-ghost" :disabled="busy" data-test="habit-to-task" title="Привычка станет повторяющейся задачей с тем же расписанием" @click="toTask">↻ Сделать задачей</button>
 
       <button v-if="habit.kind === 'timer'" type="button" class="btn-ghost" data-test="habit-time" @click="app.openEditor({ habit_id: habit.id }, habit.name)">⏱ Затраченное время</button>
 

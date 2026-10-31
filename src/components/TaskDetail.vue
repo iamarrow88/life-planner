@@ -146,6 +146,16 @@ async function save(markDone = false) {
   busy.value = false
   if (!app.error) app.closeTask()
 }
+/** Сделать привычкой: только у повторяющейся задачи со сферой */
+async function toHabit() {
+  const t = task.value; if (!t || !rule.value || !t.sphere_id) return
+  const unsaved = formState() !== saved ? ' Несохранённые правки в карточке не перенесутся.' : ''
+  if (!confirm(`Сделать «${t.title}» привычкой с тем же расписанием? Повтор и будущие задачи по нему удалятся${t.status === 'done' ? '' : ', эта задача тоже (если по ней не записано время)'}.${unsaved}`)) return
+  busy.value = true
+  const ok = await app.taskToHabit(t.id)
+  busy.value = false
+  if (ok) app.closeTask()
+}
 async function remove() {
   const t = task.value
   if (t && confirm('Удалить задачу?')) { await app.removeTask(t.id); app.closeTask() }
@@ -215,6 +225,10 @@ async function remove() {
           <span v-if="!repeat && rule">Повтор отключится: будущие задачи по нему удалятся, эта останется.</span>
         </div>
         <HabitSchedule v-if="repeat" v-model="schedule" kind="task" :start-open="!rule" />
+        <div v-if="rule && repeat" class="flex flex-wrap items-center gap-2 text-xs text-mute">
+          <button type="button" class="chip py-1 hover:chip-on" :disabled="busy || !task.sphere_id" data-test="task-to-habit" @click="toHabit">Сделать привычкой</button>
+          <span v-if="!task.sphere_id">Сначала выбери сферу и сохрани — привычка всегда живёт в сфере.</span>
+        </div>
         <div v-if="repeat && rule && templateChanged" class="rounded-2xl border border-line bg-white p-3 text-xs text-mute" data-test="repeat-scope">
           <div class="mb-1.5">Изменения названия, сферы, времени и т. п. применить:</div>
           <div class="flex gap-1.5">
