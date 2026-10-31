@@ -6,6 +6,8 @@ import TaskRow from '../components/TaskRow.vue'
 import AutoTextarea from '../components/AutoTextarea.vue'
 import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
+import QuickTags from '../components/QuickTags.vue'
+import TagBar from '../components/TagBar.vue'
 
 const app = useApp()
 const text = ref('')
@@ -95,14 +97,18 @@ function pickedDate(id: string, e: Event) {
 </script>
 
 <template>
-  <h1 class="mb-1 text-2xl font-bold">Входящие</h1>
+  <h1 class="mb-1 flex items-center gap-2 text-2xl font-bold">Входящие
+    <button type="button" class="grid h-8 w-8 place-items-center rounded-full text-base font-normal text-mute hover:bg-accent-soft hover:text-accent" aria-label="Поиск задач" title="Поиск по задачам и тегам" data-test="open-search" @click="app.openSearch()">🔍</button>
+  </h1>
   <p class="mb-4 text-sm text-mute">Всё, что не хочется держать в голове. Разберёшь потом.</p>
 
   <form class="mb-5 flex flex-wrap items-start gap-2" @submit.prevent="add">
     <AutoTextarea v-model="text" single-line :maxlength="500" class="!w-auto min-w-[12rem] flex-1" placeholder="Что нужно запомнить?" autofocus @submit="add" />
     <EstimateInput v-model="estimate" />
     <button class="btn-primary shrink-0" :disabled="!text.trim()">Добавить</button>
+    <QuickTags v-model="text" />
   </form>
+  <TagBar />
 
   <div v-if="!app.inbox.length && !app.loading" class="card p-8 text-center text-mute">
     Пусто — отличное состояние ✨

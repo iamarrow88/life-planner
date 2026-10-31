@@ -31,6 +31,10 @@ const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
         <span v-if="sphere" class="inline-flex items-center gap-1">
           <span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}<template v-if="project"> › {{ project.name }}</template>
         </span>
+        <template v-if="task.tags?.length">
+          <button v-for="g in task.tags.slice(0, 2)" :key="g" type="button" class="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent hover:brightness-95" :title="'Все задачи с тегом #' + g" data-test="task-tag" @click="app.openSearch('#' + g + ' ')">#{{ g }}</button>
+          <span v-if="task.tags.length > 2" class="text-[11px]" :title="task.tags.slice(2).map(g => '#' + g).join(' ')">+{{ task.tags.length - 2 }}</span>
+        </template>
         <span v-if="isRunning" class="font-semibold tabular-nums text-accent">⏱ идёт {{ fmtClock(liveSeconds) }}</span>
         <span v-if="task.estimate_minutes">план {{ fmtMinutes(task.estimate_minutes) }}</span>
         <span v-if="totals.week > 0">неделя {{ fmtSec(totals.week) }}</span>

@@ -33,9 +33,9 @@ function names(d: ExportData) {
 export function tasksCsv(d: ExportData): string {
   const { sph } = names(d)
   return toCsv(
-    ['Название', 'Статус', 'Сфера', 'Дата', 'Время начала', 'План, мин', 'Выполнена', 'Создана'],
+    ['Название', 'Статус', 'Сфера', 'Теги', 'Дата', 'Время начала', 'План, мин', 'Выполнена', 'Создана'],
     rows(d, 'tasks').map(t => [
-      str(t.title), STATUS[str(t.status)] ?? str(t.status), sph.get(str(t.sphere_id)) ?? '', str(t.due_date),
+      str(t.title), STATUS[str(t.status)] ?? str(t.status), sph.get(str(t.sphere_id)) ?? '', Array.isArray(t.tags) ? t.tags.map(g => '#' + g).join(' ') : '', str(t.due_date),
       str(t.start_time).slice(0, 5), str(t.estimate_minutes), t.done_at ? dayOf(str(t.done_at)) : '', t.created_at ? dayOf(str(t.created_at)) : '',
     ]),
   )

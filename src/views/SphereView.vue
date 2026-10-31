@@ -9,6 +9,7 @@ import HabitRow from '../components/HabitRow.vue'
 import HabitForm from '../components/HabitForm.vue'
 import RecurrenceForm from '../components/RecurrenceForm.vue'
 import AutoTextarea from '../components/AutoTextarea.vue'
+import QuickTags from '../components/QuickTags.vue'
 import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import ProjectArchive from '../components/ProjectArchive.vue'
@@ -180,6 +181,7 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
         </select>
         <EstimateInput v-model="estimate" />
         <button class="btn-primary shrink-0" :disabled="!text.trim()">+</button>
+        <QuickTags v-model="text" />
       </form>
       <p class="-mt-1 mb-3 text-xs text-mute">Новые задачи без даты лежат во «Входящих» — дату можно поставить в карточке задачи.</p>
 

@@ -4,6 +4,8 @@ import { useApp } from '../stores/app'
 import { fmtSec } from '../lib/time'
 import AutoTextarea from './AutoTextarea.vue'
 import EstimateInput from './EstimateInput.vue'
+import TagInput from './TagInput.vue'
+import { parseTags, uniqTags } from '../lib/tags'
 import { useBackdrop } from '../lib/backdrop'
 import HabitSchedule from './HabitSchedule.vue'
 import { ALL_DAYS, defaultSchedule } from '../lib/habitSchedule'
@@ -17,6 +19,7 @@ const note = ref('')
 const date = ref('')
 const time = ref('')
 const estimate = ref<number | null>(null)
+const tags = ref<string[]>([])
 /** «Без даты»: задача разобрана (есть сфера), но дата не нужна — она уходит из «Входящих» в список «Без даты» */
 const noDate = ref(false)
 const sphereId = ref('')
@@ -50,7 +53,7 @@ const scheduleOf = (r: Recurrence): Schedule => ({
 })
 
 /** Состояние формы: с ним сравниваем, есть ли несохранённые изменения */
-const formState = () => JSON.stringify([title.value, note.value, date.value, time.value, estimate.value, noDate.value, sphereId.value, projectId.value,
+const formState = () => JSON.stringify([title.value, note.value, tags.value, date.value, time.value, estimate.value, noDate.value, sphereId.value, projectId.value,
   remind.value, repeat.value, schedule.value, repeatScope.value, newProject.value])
 let saved = ''
 const bd = useBackdrop(() => app.closeTask(), () => formState() !== saved)
@@ -58,7 +61,7 @@ const bd = useBackdrop(() => app.closeTask(), () => formState() !== saved)
 watch(() => task.value?.id, () => {
   const t = task.value
   if (!t) return
-  title.value = t.title; note.value = t.note ?? ''; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
+  title.value = t.title; note.value = t.note ?? ''; tags.value = [...(t.tags ?? [])]; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
   estimate.value = t.estimate_minutes; noDate.value = t.status === 'planned' && !t.due_date; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
   remind.value = t.remind_before_minutes == null ? '' : String(t.remind_before_minutes); remindTouched.value = false
   repeat.value = !!rule.value; repeatScope.value = 'one'
@@ -92,8 +95,11 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stri
 /** Поля задачи, которые правило копирует в каждую новую задачу */
 function templateFrom(due: string | null): Pick<NewRecurrence, (typeof TEMPLATE_KEYS)[number]> {
   const st = due && time.value ? `${time.value}:00` : null
+  // «#теги», дописанные прямо в название, тоже становятся тегами
+  const p = app.tagsReady ? parseTags(title.value) : { title: title.value.trim(), tags: [] }
   return {
-    title: title.value.trim(), note: note.value.trim() || null, sphere_id: sphereId.value || null,
+    ...(app.tagsReady ? { tags: uniqTags([...tags.value, ...p.tags]) } : {}),
+    title: p.title, note: note.value.trim() || null, sphere_id: sphereId.value || null,
     project_id: sphereId.value && projectId.value ? projectId.value : null, start_time: st, estimate_minutes: estimate.value,
     remind_before_minutes: st && remind.value !== '' ? Number(remind.value) : null,
   }
@@ -172,6 +178,7 @@ async function remove() {
 
       <AutoTextarea v-model="title" single-line :maxlength="500" required placeholder="Название задачи" @submit="save()" />
       <AutoTextarea v-model="note" :min-rows="3" placeholder="Описание задачи" />
+      <TagInput v-if="app.tagsReady" v-model="tags" />
 
       <div class="grid grid-cols-2 gap-2">
         <label class="text-xs text-mute">

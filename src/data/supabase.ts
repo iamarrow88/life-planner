@@ -48,8 +48,15 @@ async function callGoogle(body: Record<string, unknown>): Promise<GoogleStatus> 
   return r.data as GoogleStatus
 }
 
-const TASK_COLS = 'id,title,note,status,sphere_id,project_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
-const REC_COLS = 'id,title,note,sphere_id,project_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
+const TASK_BASE_COLS = 'id,title,note,status,sphere_id,project_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
+const REC_BASE_COLS = 'id,title,note,sphere_id,project_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
+// теги добавляет planner_tags.sql: пока его не выполнили, читаем и пишем задачи без них
+let tagsReady = true
+let TASK_COLS = TASK_BASE_COLS + ',tags'
+let REC_COLS = REC_BASE_COLS + ',tags'
+function noTags() { tagsReady = false; TASK_COLS = TASK_BASE_COLS; REC_COLS = REC_BASE_COLS }
+/** Без колонки тегов в базе поле tags не отправляем (иначе запрос упадёт) */
+const withTags = <T extends object>(o: T): T => { if (tagsReady || !('tags' in o)) return o; const { tags: _, ...rest } = o as T & { tags?: unknown }; return rest as T }
 const SPHERE_COLS = 'id,name,color,weekly_goal_minutes,description'
 const HABIT_BASE_COLS = 'id,name,kind,target_value,sphere_id,created_at,freq,interval_n,mode,weekdays,starts_on,remind_at'
 // окно активности добавляет planner_cycle.sql: пока его не выполнили, читаем привычки без этих полей
@@ -93,7 +100,7 @@ export const supabaseRepo: Repo = {
     const c = db()
     await c.rpc('generate_recurring_tasks') // создаёт задачи по повторам на 30 дней вперёд (безопасно вызывать повторно)
     const ws = weekStartOf(today)
-    const [spheres, archivedSpheres, projects, tasks, habitsRes, he, te, recs, goals, reviews, hs, budget, work, cDays, cSet, cCourses] = await Promise.all([
+    const [spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, cDays, cSet, cCourses] = await Promise.all([
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
       c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
@@ -111,6 +118,14 @@ export const supabaseRepo: Repo = {
       c.from('cycle_settings').select(CYCLE_SETTINGS_COLS).maybeSingle(),
       c.from('pill_courses').select(COURSE_COLS).order('starts_on'),
     ])
+    let tasks = tasksRes, recs = recsRes
+    if (tagsReady && [tasks.error, recs.error].some(e => e?.message.includes('tags'))) {
+      noTags()
+      ;[tasks, recs] = await Promise.all([
+        c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }),
+        c.from('recurrences').select(REC_COLS).order('created_at'),
+      ])
+    }
     let habits = habitsRes
     if (habits.error && HABIT_COLS !== HABIT_BASE_COLS) {
       HABIT_COLS = HABIT_BASE_COLS
@@ -124,8 +139,9 @@ export const supabaseRepo: Repo = {
     }
     const cycleReady = !cycleDays.error && !cSet.error && !cCourses.error
     return {
-      spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as Task[], habits: ok(habits) as unknown as Habit[],
-      habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], recurrences: ok(recs) as Recurrence[],
+      spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as unknown as Task[], habits: ok(habits) as unknown as Habit[],
+      habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], recurrences: ok(recs) as unknown as Recurrence[],
+      tagsReady,
       weekGoals: ok(goals) as WeekGoal[], reviews: ok(reviews) as WeeklyReview[],
       // если состояние привычек не пришло — считаем, что все запланированы на сегодня (список не должен пропасть)
       habitStatus: hs.error ? [] : (hs.data as HabitStatus[]),
@@ -145,10 +161,11 @@ export const supabaseRepo: Repo = {
       title: t.title, note: t.note ?? null, status: t.status, sphere_id: t.sphere_id ?? null, project_id: t.project_id ?? null, due_date: t.due_date ?? null,
       start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null,
       remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null,
-    }).select(TASK_COLS).single()) as Task
+      ...(tagsReady && t.tags?.length ? { tags: t.tags } : {}),
+    }).select(TASK_COLS).single()) as unknown as Task
   },
   async updateTask(id, patch) {
-    return ok(await db().from('tasks').update(patch).eq('id', id).select(TASK_COLS).single()) as Task
+    return ok(await db().from('tasks').update(withTags(patch)).eq('id', id).select(TASK_COLS).single()) as unknown as Task
   },
   async removeTask(id) { ok(await db().from('tasks').delete().eq('id', id)) },
   async addSphere(name, color, goal, description) {
@@ -198,6 +215,7 @@ export const supabaseRepo: Repo = {
       remind_before_minutes: r.start_time ? (r.remind_before_minutes ?? null) : null,
       freq: r.freq, interval_n: r.interval_n, weekdays: r.freq === 'week' ? r.weekdays : null,
       mode: r.mode, starts_on: r.starts_on,
+      ...(tagsReady && r.tags?.length ? { tags: r.tags } : {}),
     }))
     ok(await db().rpc('generate_recurring_tasks'))
   },
@@ -208,6 +226,10 @@ export const supabaseRepo: Repo = {
   },
   async setWeekWork(weekStart, minutes) {
     ok(await db().from('week_work').upsert({ week_start: weekStart, minutes }, { onConflict: 'user_id,week_start' }))
+  },
+  async renameTag(from, to) {
+    if (!tagsReady) throw new Error('Чтобы пользоваться тегами, выполни planner_tags.sql в Supabase (SQL Editor)')
+    ok(await db().rpc('rename_tag', { p_old: from, p_new: to }))
   },
   async setCycleDay(d) {
     if (d.cycle_note && cycleDayCols === CYCLE_DAY_BASE) throw new Error('Чтобы сохранять примечание к циклу, ещё раз выполни planner_cycle.sql в Supabase (SQL Editor)')
@@ -236,7 +258,7 @@ export const supabaseRepo: Repo = {
   async removeRecurrence(id) { ok(await db().rpc('delete_recurrence', { p_id: id })) },
   async attachRecurrence(taskId, r) {
     const rec = ok(await db().from('recurrences').insert({
-      ...templateOf(r), remind_before_minutes: r.start_time ? (r.remind_before_minutes ?? null) : null,
+      ...withTags(templateOf(r)), remind_before_minutes: r.start_time ? (r.remind_before_minutes ?? null) : null,
       freq: r.freq, interval_n: r.interval_n, weekdays: r.weekdays, mode: r.mode, starts_on: r.starts_on,
     }).select('id').single()) as { id: string }
     // задача становится первым разом правила: в тот же день база вторую не создаст (unique по правилу и дате)
@@ -245,8 +267,8 @@ export const supabaseRepo: Repo = {
   },
   async updateRecurrence(id, patch, keep) {
     const ruleChanged = RULE_KEYS.some(k => k in patch)
-    ok(await db().from('recurrences').update({ ...patch, ...(ruleChanged ? { generated_until: null } : {}) }).eq('id', id))
-    const tpl = templateOf(patch)
+    ok(await db().from('recurrences').update(withTags({ ...patch, ...(ruleChanged ? { generated_until: null } : {}) })).eq('id', id))
+    const tpl = withTags(templateOf(patch))
     if (Object.keys(tpl).length) {
       let q = db().from('tasks').update(tpl).eq('recurrence_id', id).neq('status', 'done').gte('due_date', todayStr())
       if (keep) q = q.neq('id', keep)

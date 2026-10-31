@@ -8,6 +8,7 @@ import TimeEditor from './components/TimeEditor.vue'
 import LongTimerFix from './components/LongTimerFix.vue'
 import TaskDetail from './components/TaskDetail.vue'
 import HabitDetail from './components/HabitDetail.vue'
+import TaskSearch from './components/TaskSearch.vue'
 import { repo, supabaseProblems } from './data'
 
 const app = useApp()
@@ -63,6 +64,7 @@ async function logout() { await app.signOut(); router.push('/login') }
       </div>
     </main>
 
+    <TaskSearch />
     <TaskDetail />
     <HabitDetail />
     <TimeEditor />

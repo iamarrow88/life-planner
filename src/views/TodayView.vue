@@ -10,6 +10,8 @@ import AutoTextarea from '../components/AutoTextarea.vue'
 import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import PillCheck from '../components/PillCheck.vue'
+import QuickTags from '../components/QuickTags.vue'
+import TagBar from '../components/TagBar.vue'
 import MonthGrid from '../components/MonthGrid.vue'
 import { GENERATED_DAYS, OVERDUE_COLOR, fmtLoad, monthSummary } from '../lib/monthMarks'
 import { matches } from '../lib/recurrence'
@@ -204,7 +206,9 @@ async function add() {
 <template>
   <div class="mb-4 flex items-start justify-between gap-3">
     <div>
-      <h1 class="text-2xl font-bold">Сегодня</h1>
+      <h1 class="flex items-center gap-2 text-2xl font-bold">Сегодня
+        <button type="button" class="grid h-8 w-8 place-items-center rounded-full text-base font-normal text-mute hover:bg-accent-soft hover:text-accent" aria-label="Поиск задач" title="Поиск по задачам и тегам" data-test="open-search" @click="app.openSearch()">🔍</button>
+      </h1>
       <p class="text-sm text-mute first-letter:uppercase">{{ longDate(app.today) }}</p>
     </div>
     <div class="flex rounded-xl border border-line bg-white p-0.5 text-sm font-medium">
@@ -289,7 +293,9 @@ async function add() {
       <EstimateInput v-model="estimate" />
       <button class="btn-primary shrink-0" :disabled="!text.trim()">+</button>
       <button type="button" class="btn-ghost shrink-0" title="Повторяющаяся задача" @click="showRecForm = !showRecForm">↻</button>
+      <QuickTags v-model="text" />
     </form>
+    <TagBar />
     <RecurrenceForm v-if="showRecForm" class="mb-3" @done="showRecForm = false" />
     <div v-if="list.length" class="card divide-y divide-line">
       <div v-for="t in list" :key="t.id">

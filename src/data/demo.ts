@@ -118,7 +118,7 @@ const emptyCycle = () => ({ days: [], settings: { ...DEFAULT_CYCLE_SETTINGS }, c
 function write(s: Snapshot) { try { localStorage.setItem(KEY, JSON.stringify(s)) } catch { /* ignore */ } }
 
 function newFromRule(r: Recurrence, due: string): Task {
-  return { id: uid(), title: r.title, note: r.note ?? null, status: 'planned', sphere_id: r.sphere_id, project_id: r.project_id ?? null, due_date: due,
+  return { id: uid(), title: r.title, note: r.note ?? null, tags: [...(r.tags ?? [])], status: 'planned', sphere_id: r.sphere_id, project_id: r.project_id ?? null, due_date: due,
     start_time: r.start_time, estimate_minutes: r.estimate_minutes, remind_before_minutes: r.remind_before_minutes ?? null,
     done_at: null, recurrence_id: r.id }
 }
@@ -151,7 +151,7 @@ export const demoRepo: Repo = {
   async load() { const s = read(); generate(s); write(s); return { ...s, habitStatus: habitStatusFor(s, todayStr()) } },
   async addTask(t) {
     const s = read()
-    const task: Task = { id: uid(), title: t.title, note: t.note ?? null, status: t.status, sphere_id: t.sphere_id ?? null, project_id: t.project_id ?? null,
+    const task: Task = { id: uid(), title: t.title, note: t.note ?? null, tags: t.tags ?? [], status: t.status, sphere_id: t.sphere_id ?? null, project_id: t.project_id ?? null,
       due_date: t.due_date ?? null, start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null,
       remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null, done_at: null }
     s.tasks.unshift(task); write(s); return task
@@ -289,6 +289,13 @@ export const demoRepo: Repo = {
   async setWeekWork(weekStart, minutes) {
     const s = read(); const list = (s.weekWork ??= []); const w = list.find(x => x.week_start === weekStart)
     if (w) w.minutes = minutes; else list.push({ week_start: weekStart, minutes })
+    write(s)
+  },
+  async renameTag(from, to) {
+    const s = read()
+    const fix = (tags?: string[]) => [...new Set((tags ?? []).flatMap(x => (x === from ? (to ? [to] : []) : [x])))].sort()
+    for (const t of s.tasks) if (t.tags?.includes(from)) t.tags = fix(t.tags)
+    for (const r of s.recurrences) if (r.tags?.includes(from)) r.tags = fix(r.tags)
     write(s)
   },
   async setCycleDay(d) {

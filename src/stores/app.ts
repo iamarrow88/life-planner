@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { repo } from '../data'
 import type { CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
+import { parseTags, uniqTags } from '../lib/tags'
 import { DEFAULT_CYCLE_SETTINGS, PILL_NAMES, courseFrom, courseOn, cycleDayNo, cycleStarts } from '../lib/cycle'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
@@ -266,7 +267,9 @@ export const useApp = defineStore('app', () => {
     data.value = { spheres: [], projects: [], tasks: [], habits: [], recurrences: [], weekGoals: [], reviews: [], habitEntries: [], timeEntries: [] }
   }
 
+  /** Новая задача: «#теги» из названия становятся тегами (если теги не переданы явно). Пока тегов в базе нет — текст не трогаем */
   async function addTask(t: NewTask) {
+    if (!t.tags && tagsReady.value) { const p = parseTags(t.title); t = { ...t, title: p.title, tags: p.tags } }
     const task = await guard(() => repo.addTask(t)); if (task) { data.value.tasks.unshift(task); syncGoogleSoon() }
   }
   async function updateTask(id: string, patch: Partial<NewTask>) {
@@ -450,6 +453,29 @@ export const useApp = defineStore('app', () => {
     return ok
   }
   const dismissLongStop = () => { longStop.value = null }
+
+  // ---------- Теги и поиск ----------
+  /** false — в Supabase не выполнен planner_tags.sql */
+  const tagsReady = computed(() => data.value.tagsReady !== false)
+  /** Все теги с числом задач (и повторов), самые частые — первыми */
+  const allTags = computed(() => {
+    const n = new Map<string, number>()
+    for (const t of data.value.tasks) for (const g of t.tags ?? []) n.set(g, (n.get(g) ?? 0) + 1)
+    for (const r of data.value.recurrences) for (const g of r.tags ?? []) if (!n.has(g)) n.set(g, 0)
+    return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([tag, count]) => ({ tag, count }))
+  })
+  /** Переименовать / слить с существующим / удалить (to = null) */
+  async function renameTag(from: string, to: string | null) {
+    const target = to === null ? null : (uniqTags([to])[0] ?? null)
+    if (to !== null && !target) { error.value = 'Тег — буквы, цифры, «_» или «-», начинается с буквы'; return false }
+    const ok = await guard(async () => { await repo.renameTag(from, target); return true })
+    if (ok) await load()
+    return !!ok
+  }
+  /** Окно поиска (null — закрыто); открывается с готовым запросом, например «#звонки» */
+  const searchQuery = ref<string | null>(null)
+  const openSearch = (q = '') => { searchQuery.value = q }
+  const closeSearch = () => { searchQuery.value = null }
   const isodow = (d: string) => { const [y, m, dd] = d.split('-').map(Number); return ((new Date(Date.UTC(y, m - 1, dd)).getUTCDay() + 6) % 7) + 1 }
   /**
    * Привычку — в повторяющуюся задачу: правило с тем же расписанием, сфера та же; у привычки с таймером норма становится оценкой времени.
@@ -493,6 +519,7 @@ export const useApp = defineStore('app', () => {
     return !error.value
   }
   async function addRecurrence(r: NewRecurrence) {
+    if (!r.tags && tagsReady.value) { const p = parseTags(r.title); r = { ...r, title: p.title, tags: p.tags } }
     const ok = await guard(async () => { await repo.addRecurrence(r); return true })
     if (ok) { await load(); syncGoogleSoon() }
     return !!ok
@@ -708,6 +735,7 @@ export const useApp = defineStore('app', () => {
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
+    tagsReady, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,

@@ -6,6 +6,7 @@ import { repo } from '../data'
 import { download, habitsCsv, tasksCsv, timeCsv } from '../lib/export'
 import { todayStr } from '../lib/time'
 import type { ExportData } from '../types'
+import { normTag } from '../lib/tags'
 import { captureUrl } from '../data/supabase'
 import type { CaptureInfo } from '../types'
 import { googleClientId, googleRedirectUri, startGoogleLogin, takeGoogleCallback } from '../lib/google'
@@ -33,6 +34,23 @@ async function run(kind: 'json' | 'tasks' | 'time' | 'habits') {
   }
   busy.value = false
 }
+// ---- Теги: переименовать (с существующим — слить), удалить
+const tagMsg = ref('')
+async function renameTag(tag: string) {
+  const to = window.prompt(`Новое название тега #${tag}. Если такой тег уже есть, теги сольются в один.`, tag)
+  if (to === null || normTag(to) === tag) return
+  const target = normTag(to)
+  const merge = app.allTags.some(x => x.tag === target)
+  if (merge && !confirm(`Тег #${target} уже есть. Слить #${tag} с #${target}?`)) return
+  tagMsg.value = ''
+  if (await app.renameTag(tag, to)) tagMsg.value = merge ? `#${tag} слит с #${target}.` : `#${tag} → #${target}`
+}
+async function removeTag(tag: string, count: number) {
+  if (!confirm(`Удалить тег #${tag}? Он пропадёт у ${count} задач, сами задачи останутся.`)) return
+  tagMsg.value = ''
+  if (await app.renameTag(tag, null)) tagMsg.value = `Тег #${tag} удалён.`
+}
+
 // ---- Бюджет времени: сон и текучка (часов в день) — это время не делится между сферами
 const sleepH = ref(app.timeBudget.sleep_minutes_per_day / 60)
 const routineH = ref(app.timeBudget.routine_minutes_per_day / 60)
@@ -146,6 +164,26 @@ async function logout() { await app.signOut(); router.push('/login') }
 
 <template>
   <h1 class="mb-4 text-2xl font-bold">Ещё</h1>
+
+  <section class="mb-6" data-test="tags-settings">
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Теги</h2>
+    <div class="card p-4">
+      <p v-if="!app.tagsReady" class="text-sm text-amber-800">Чтобы пользоваться тегами, выполни <code>planner_tags.sql</code> в Supabase (SQL Editor).</p>
+      <template v-else>
+        <p class="mb-3 text-sm text-mute">Тег ставится прямо в тексте задачи: «Позвонить в банк #звонки». Нажми на тег у задачи — увидишь все задачи с ним.</p>
+        <p v-if="!app.allTags.length" class="text-sm text-mute">Тегов пока нет.</p>
+        <ul v-else class="divide-y divide-line">
+          <li v-for="x in app.allTags" :key="x.tag" class="flex items-center gap-3 py-2 text-sm" data-test="tag-row">
+            <button type="button" class="font-medium text-accent hover:underline" @click="app.openSearch('#' + x.tag + ' ')">#{{ x.tag }}</button>
+            <span class="flex-1 text-xs text-mute">{{ x.count }}</span>
+            <button type="button" class="text-xs font-semibold text-accent" data-test="tag-rename" @click="renameTag(x.tag)">Переименовать</button>
+            <button type="button" class="text-xs text-mute hover:text-red-700" data-test="tag-remove" @click="removeTag(x.tag, x.count)">Удалить</button>
+          </li>
+        </ul>
+        <p v-if="tagMsg" class="mt-2 text-xs text-accent">{{ tagMsg }}</p>
+      </template>
+    </div>
+  </section>
 
   <section class="mb-6">
     <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Бюджет времени</h2>
