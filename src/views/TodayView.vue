@@ -9,6 +9,7 @@ import RecurrenceForm from '../components/RecurrenceForm.vue'
 import AutoTextarea from '../components/AutoTextarea.vue'
 import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
+import PillCheck from '../components/PillCheck.vue'
 import { describe } from '../lib/recurrence'
 import { dragSort } from '../lib/dragSort'
 import { emptyCollapse, nextCollapse, splitHabits, type CollapseState } from '../lib/habitCollapse'
@@ -129,6 +130,23 @@ watch([view, calDay], loadDayHabits)
 watch(() => app.data.timeEntries, loadDayHabits)   // после правки времени данные перезагружаются
 const habitValueText = (h: Habit, d: HabitDay) => (h.kind === 'plain' ? (d.done ? 'сделано' : 'не сделано') : h.kind === 'timer' ? `${d.value} / ${d.target} мин` : `${d.value} / ${d.target}`)
 const showLater = ref(false)
+const showInactive = ref(false)
+/** Отметка привычки без таймера за прошедший день (например, вечерняя таблетка, отмеченная после полуночи) */
+async function toggleDayHabit(h: Habit, d: HabitDay) {
+  if (await app.bumpHabit(h, d.done ? -1 : 1, calDay.value)) await loadDayHabits()
+}
+
+// ---- Строка цикла: «День цикла N» (ведёт в календарь) и «Отметить М»
+const cycleLabel = computed(() => { const n = app.cycleNo(app.today); return n ? `${app.cycleSettings.link_label} ${n}` : app.cycleSettings.link_label })
+const todayPeriod = computed(() => app.cycleDayOf(app.today).period)
+const askStart = ref(false)
+async function toggleM() {
+  const on = !todayPeriod.value
+  if (!(await app.setPeriod(app.today, on))) return
+  // вчера отметки не было — возможно, сегодня начался новый цикл
+  askStart.value = on && !app.cycleDayOf(addDays(app.today, -1)).period && !app.cycleDayOf(app.today).cycle_start
+}
+async function confirmStart() { if (await app.markCycleStart(app.today)) askStart.value = false }
 
 async function add() {
   const title = text.value.trim()
@@ -151,6 +169,18 @@ async function add() {
       <button class="rounded-lg px-3 py-1.5" :class="view === 'cal' ? 'bg-accent text-white' : 'text-mute'" @click="view = 'cal'">Календарь</button>
     </div>
   </div>
+
+  <div class="mb-4 flex flex-wrap items-center gap-2" data-test="cycle-line">
+    <RouterLink to="/today/cycle" class="chip py-1.5 text-sm" data-test="cycle-link">{{ cycleLabel }}</RouterLink>
+    <button v-if="app.cycleReady" type="button" class="chip py-1.5 text-sm" :class="todayPeriod && 'chip-on'" data-test="mark-m" @click="toggleM">{{ todayPeriod ? '✓ М' : 'Отметить М' }}</button>
+    <span v-if="askStart" class="flex items-center gap-2 text-sm" data-test="ask-start">
+      Первый день цикла?
+      <button type="button" class="chip py-1 text-sm hover:chip-on" data-test="ask-start-yes" @click="confirmStart">Да</button>
+      <button type="button" class="chip py-1 text-sm" @click="askStart = false">Нет</button>
+    </span>
+  </div>
+
+  <PillCheck v-if="app.cycleReady" />
 
   <RouterLink v-if="isSunday && !reviewDone" to="/review" class="card mb-4 flex items-center gap-3 border-accent bg-accent-soft p-4">
     <span class="text-2xl">📋</span>
@@ -176,12 +206,18 @@ async function add() {
         </div>
       </div>
     </template>
-    <p v-else-if="!showHabitForm && !app.laterHabits.length" class="text-sm text-mute">Привычек пока нет.</p>
+    <p v-else-if="!showHabitForm && !app.laterHabits.length && !app.inactiveHabits.length" class="text-sm text-mute">Привычек пока нет.</p>
     <p v-else-if="!showHabitForm" class="text-sm text-mute">На сегодня привычек нет.</p>
     <div v-if="app.laterHabits.length" class="mt-2">
       <button type="button" class="text-xs font-semibold text-mute" :aria-expanded="showLater" @click="showLater = !showLater">Не сегодня ({{ app.laterHabits.length }}) {{ showLater ? '▴' : '▾' }}</button>
       <div v-if="showLater" class="card mt-1.5 divide-y divide-line" data-test="later-habits">
         <HabitRow v-for="h in app.laterHabits" :key="h.id" :habit="h" />
+      </div>
+    </div>
+    <div v-if="app.inactiveHabits.length" class="mt-2">
+      <button type="button" class="text-xs font-semibold text-mute" :aria-expanded="showInactive" data-test="inactive-toggle" @click="showInactive = !showInactive">Сейчас не активны ({{ app.inactiveHabits.length }}) {{ showInactive ? '▴' : '▾' }}</button>
+      <div v-if="showInactive" class="card mt-1.5 divide-y divide-line" data-test="inactive-habits">
+        <HabitRow v-for="h in app.inactiveHabits" :key="h.id" :habit="h" />
       </div>
     </div>
   </section>
@@ -233,7 +269,10 @@ async function add() {
       <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-mute">Привычки за день</div>
       <div class="card divide-y divide-line">
         <div v-for="x in dayHabitList" :key="x.h.id" class="flex items-center gap-3 px-3 py-2.5" data-test="day-habit">
-          <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold" :class="x.d.done ? 'bg-accent text-white' : 'bg-accent-soft text-accent'">{{ x.d.done ? '✓' : x.h.kind === 'timer' ? '⏱' : '#' }}</span>
+          <button v-if="x.h.kind === 'plain' && calDay < app.today" type="button" class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 text-xs font-bold transition"
+            :class="x.d.done ? 'border-accent bg-accent text-white' : 'border-line hover:border-accent'" :aria-label="(x.d.done ? 'Снять отметку: ' : 'Отметить: ') + x.h.name"
+            data-test="day-habit-toggle" @click="toggleDayHabit(x.h, x.d)">{{ x.d.done ? '✓' : '' }}</button>
+          <span v-else class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold" :class="x.d.done ? 'bg-accent text-white' : 'bg-accent-soft text-accent'">{{ x.d.done ? '✓' : x.h.kind === 'timer' ? '⏱' : '#' }}</span>
           <div class="min-w-0 flex-1">
             <div class="truncate text-[15px]">{{ x.h.name }}</div>
             <div class="text-xs text-mute"><span v-if="app.sphereById(x.h.sphere_id)" class="mr-1.5 inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full" :style="{ background: app.sphereById(x.h.sphere_id)?.color }"></span>{{ app.sphereById(x.h.sphere_id)?.name }}</span>{{ habitValueText(x.h, x.d) }}</div>

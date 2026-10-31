@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
+import type { CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
+import { DEFAULT_CYCLE_SETTINGS, PILL_NAMES, courseFrom, courseOn, cycleDayNo, cycleStarts } from '../lib/cycle'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
 export const NUDGE_MINUTES = 40
@@ -84,10 +85,29 @@ export const useApp = defineStore('app', () => {
   }
   const reviewFor = (week: string): WeeklyReview | undefined => data.value.reviews.find(r => r.week_start === week)
   const currentReview = computed(() => reviewFor(weekStart(today.value)))
+  // ---- Окно активности привычки: вне его привычка не запланирована (у таблеток окно — курсы из календаря цикла)
+  const pillHabitIds = computed(() => { const s = data.value.cycle?.settings; return [s?.morning_habit_id, s?.evening_habit_id].filter(Boolean) as string[] })
+  const isPillHabit = (id: string) => pillHabitIds.value.includes(id)
+  function habitActiveOn(h: Habit, d: string): boolean {
+    if (isPillHabit(h.id)) return !!courseOn(d, data.value.cycle?.courses ?? [])
+    return (!h.active_from || d >= h.active_from) && (!h.active_until || d <= h.active_until)
+  }
+  /** Ближайший день после d, когда привычка снова станет активной */
+  function nextActive(h: Habit, d: string): string | null {
+    if (isPillHabit(h.id)) return (data.value.cycle?.courses ?? []).map(c => c.starts_on).filter(x => x > d).sort()[0] ?? null
+    return h.active_from && h.active_from > d ? h.active_from : null
+  }
   /** Состояние привычки на сегодня. Если база его не прислала — считаем запланированной */
-  const habitStatusOf = (id: string): HabitStatus => data.value.habitStatus?.find(s => s.habit_id === id) ?? { habit_id: id, scheduled: true, due: null, last_done: null }
-  const dueHabits = computed(() => data.value.habits.filter(h => habitStatusOf(h.id).scheduled))
-  const laterHabits = computed(() => data.value.habits.filter(h => !habitStatusOf(h.id).scheduled))
+  const habitStatusOf = (id: string): HabitStatus => {
+    const st = data.value.habitStatus?.find(s => s.habit_id === id) ?? { habit_id: id, scheduled: true, due: null, last_done: null }
+    const h = data.value.habits.find(x => x.id === id)
+    return !h || habitActiveOn(h, today.value) ? st : { ...st, scheduled: false, due: nextActive(h, today.value) }
+  }
+  const activeToday = (h: Habit) => habitActiveOn(h, today.value)
+  const dueHabits = computed(() => data.value.habits.filter(h => activeToday(h) && habitStatusOf(h.id).scheduled))
+  const laterHabits = computed(() => data.value.habits.filter(h => activeToday(h) && !habitStatusOf(h.id).scheduled))
+  /** Вне окна активности (например, таблетки между курсами) */
+  const inactiveHabits = computed(() => data.value.habits.filter(h => !activeToday(h)))
   /** Выполнена ли привычка сегодня (для таймера — по минутам сегодняшних записей) */
   const habitIsDone = (h: Habit) => {
     const target = h.target_value ?? 1
@@ -383,7 +403,19 @@ export const useApp = defineStore('app', () => {
     if (ok) data.value.habits = data.value.habits.filter(h => h.id !== id)
     return !!ok
   }
-  const habitDays = (from: string, to: string) => guard(() => repo.habitDays(from, to)) as Promise<HabitDay[] | undefined>
+  /**
+   * Дни привычек: база не знает про окно активности, поэтому дни вне окна помечаем незапланированными здесь.
+   * Таблетки (каждый день курса) запланированы во все дни курсов — даже если курс отметили задним числом, раньше создания привычки
+   */
+  async function habitDays(from: string, to: string): Promise<HabitDay[] | undefined> {
+    const r = await guard(() => repo.habitDays(from, to))
+    return r?.map(x => {
+      const h = data.value.habits.find(y => y.id === x.habit_id)
+      if (!h) return x
+      const scheduled = isPillHabit(h.id) ? habitActiveOn(h, x.day) : x.scheduled && habitActiveOn(h, x.day)
+      return scheduled === x.scheduled ? x : { ...x, scheduled }
+    })
+  }
   const titleOfEntry = (r: TimeEntry) =>
     r.task_id ? (data.value.tasks.find(t => t.id === r.task_id)?.title ?? 'Задача')
       : r.habit_id ? (data.value.habits.find(h => h.id === r.habit_id)?.name ?? 'Привычка')
@@ -532,17 +564,152 @@ export const useApp = defineStore('app', () => {
   const removePush = (endpoint: string) => guard(async () => { await repo.removePushSubscription(endpoint); return true }) as Promise<boolean | undefined>
   const exportAll = () => guard(() => repo.exportAll()) as Promise<ExportData | undefined>
 
-  async function bumpHabit(h: Habit, delta: number) {
-    const e = await guard(() => repo.bumpHabit(h.id, delta, today.value)) as HabitEntry | undefined
-    if (!e) return
+  /** Отметка привычки; day — другой день (например, вечерняя таблетка, отмеченная после полуночи) */
+  async function bumpHabit(h: Habit, delta: number, day: string = today.value) {
+    const e = await guard(() => repo.bumpHabit(h.id, delta, day)) as HabitEntry | undefined
+    if (!e) return false
+    if (day !== today.value) return true  // в памяти держим только сегодняшние отметки
     const list = data.value.habitEntries
     const i = list.findIndex(x => x.habit_id === h.id && x.entry_date === today.value)
     if (i >= 0) list[i] = { ...list[i], value: e.value }; else list.push({ habit_id: h.id, entry_date: today.value, value: e.value })
+    return true
+  }
+
+  // ---------- Календарь цикла ----------
+  /** false — в Supabase не выполнен planner_cycle.sql */
+  const cycleReady = computed(() => !!data.value.cycle)
+  const cycleSettings = computed(() => data.value.cycle?.settings ?? DEFAULT_CYCLE_SETTINGS)
+  const cycleCourses = computed(() => [...(data.value.cycle?.courses ?? [])].sort((a, b) => a.starts_on.localeCompare(b.starts_on)))
+  const cycleStartList = computed(() => cycleStarts(data.value.cycle?.days ?? []))
+  /** Начало текущего (последнего, незаконченного) цикла */
+  const currentCycleStart = computed(() => cycleStartList.value.at(-1) ?? null)
+  const cycleDayOf = (d: string): CycleDay => data.value.cycle?.days.find(x => x.day === d) ?? { day: d, period: false, cycle_start: false, note: null }
+  const cycleNo = (d: string) => cycleDayNo(d, cycleStartList.value)
+  const pillCourseOn = (d: string) => courseOn(d, cycleCourses.value)
+
+  async function writeCycleDay(d: CycleDay) {
+    const c = data.value.cycle; if (!c) return false
+    const ok = await guard(async () => { await repo.setCycleDay(d); return true })
+    if (ok) { c.days = c.days.filter(x => x.day !== d.day); if (d.period || d.cycle_start || d.note || d.cycle_note) c.days.push(d) }
+    return !!ok
+  }
+  const setPeriod = (day: string, on: boolean) => writeCycleDay({ ...cycleDayOf(day), period: on })
+  const setCycleNote = (day: string, note: string) => writeCycleDay({ ...cycleDayOf(day), note: note.trim() || null })
+  /** Примечание ко всему циклу: хранится у его первого дня */
+  const setCycleSummary = (start: string, text: string) => writeCycleDay({ ...cycleDayOf(start), cycle_note: text.trim() || null })
+
+  /**
+   * Курс цикла, начавшегося в start: по схеме scheme (у переносимого курса — его собственная), иначе по настройкам.
+   * Курсы прежних циклов, заходящие на новый цикл, обрезаются накануне его начала. existing — курс, который пересчитываем
+   */
+  async function placeCourse(start: string, existing?: PillCourse, scheme?: { from_day: number; days: number }) {
+    const c = data.value.cycle!
+    const next = courseFrom(start, scheme?.from_day ?? cycleSettings.value.course_from_day, scheme?.days ?? cycleSettings.value.course_days)
+    return !!(await guard(async () => {
+      for (const p of c.courses.filter(p => p.id !== existing?.id && p.kind === 'cycle' && (p.cycle_start ?? '') < start && p.ends_on >= start)) {
+        if (p.starts_on >= start) { await repo.removeCourse(p.id); c.courses = c.courses.filter(x => x.id !== p.id) }
+        else { const ends_on = addDays(start, -1); await repo.updateCourse(p.id, { ends_on }); p.ends_on = ends_on }
+      }
+      if (existing) { await repo.updateCourse(existing.id, next); Object.assign(existing, next) }
+      else c.courses.push(await repo.addCourse(next))
+      return true
+    }))
+  }
+  /** Отметить первый день цикла. Если это начало нового (последнего) цикла — для него создаётся курс таблеток */
+  async function markCycleStart(day: string) {
+    const latest = currentCycleStart.value
+    if (!(await writeCycleDay({ ...cycleDayOf(day), cycle_start: true, period: true }))) return false
+    if (!latest || day > latest) { if (!(await placeCourse(day))) return false; return syncPillHabits() }
+    return true
+  }
+  /** Перенести начало текущего цикла на day: курс сдвигается по своей схеме, прошлые отметки приёма не трогаются */
+  async function moveCycleStart(day: string) {
+    const latest = currentCycleStart.value; const c = data.value.cycle
+    if (!latest || !c || day === latest) return false
+    const course = c.courses.find(x => x.cycle_start === latest)
+    const summary = cycleDayOf(latest).cycle_note ?? null  // примечание к циклу переезжает вместе с началом
+    if (!(await writeCycleDay({ ...cycleDayOf(latest), cycle_start: false, cycle_note: null }))) return false
+    if (!(await writeCycleDay({ ...cycleDayOf(day), cycle_start: true, period: true, cycle_note: summary }))) return false
+    if (!(await placeCourse(day, course, course?.from_day && course.days ? { from_day: course.from_day, days: course.days } : undefined))) return false
+    return syncPillHabits()
+  }
+  /** Снять отметку «первый день»: курс этого цикла удаляется */
+  async function unmarkCycleStart(day: string) {
+    const c = data.value.cycle; if (!c) return false
+    if (!(await writeCycleDay({ ...cycleDayOf(day), cycle_start: false, cycle_note: null }))) return false
+    const course = c.courses.find(x => x.cycle_start === day)
+    if (course && !(await guard(async () => { await repo.removeCourse(course.id); return true }))) return false
+    c.courses = c.courses.filter(x => x.id !== course?.id)
+    return syncPillHabits()
+  }
+  /** Пересчитать курс текущего цикла по нынешним настройкам (например, схему поменяли уже после отметки первого дня) */
+  async function recalcCurrentCourse() {
+    const latest = currentCycleStart.value; if (!latest) return false
+    const course = data.value.cycle?.courses.find(x => x.cycle_start === latest)
+    return (await placeCourse(latest, course)) && syncPillHabits()
+  }
+  /** Сфера таблеток: из настроек, иначе «Здоровье», иначе первая */
+  const pillSphereId = () => {
+    const id = cycleSettings.value.sphere_id
+    return (id && sphereById(id)?.id) || data.value.spheres.find(s => s.name.trim().toLowerCase() === 'здоровье')?.id || data.value.spheres[0]?.id || null
+  }
+  /**
+   * Привычки «Таблетка · утро / вечер»: создаются при первом курсе; окно активности — последний курс,
+   * время (для напоминаний) и сфера — из настроек календаря
+   */
+  async function syncPillHabits() {
+    const c = data.value.cycle; const last = cycleCourses.value.at(-1)
+    if (!c || !last) return true
+    const sphereId = pillSphereId()
+    if (!sphereId) { error.value = 'Чтобы таблетки появились в привычках, создай хотя бы одну сферу'; return false }
+    const ids: Partial<CycleSettings> = {}
+    for (const k of ['morning', 'evening'] as const) {
+      const idKey = k === 'morning' ? 'morning_habit_id' : 'evening_habit_id'
+      const want = { active_from: last.starts_on, active_until: last.ends_on, remind_at: c.settings[k === 'morning' ? 'morning_time' : 'evening_time'], sphere_id: sphereId }
+      const h = data.value.habits.find(x => x.id === c.settings[idKey])
+      if (!h) {
+        const x = await guard(() => repo.addHabit({ name: PILL_NAMES[k], kind: 'plain', target_value: null, freq: 'day', interval_n: 1, weekdays: [1, 2, 3, 4, 5, 6, 7], mode: 'schedule', starts_on: null, ...want }))
+        if (!x) return false
+        data.value.habits.push(x); ids[idKey] = x.id
+      } else if ((Object.keys(want) as (keyof typeof want)[]).some(key => (h[key] ?? null) !== want[key])) {
+        const x = await guard(() => repo.updateHabit(h.id, want)); if (!x) return false
+        Object.assign(h, x)
+      }
+    }
+    if (Object.keys(ids).length) {
+      if (!(await guard(async () => { await repo.saveCycleSettings(ids); return true }))) return false
+      Object.assign(c.settings, ids)
+    }
+    await reloadQuietly()
+    return true
+  }
+  /** Отметки таблеток за период: какая доза (утро/вечер) и принята ли */
+  async function pillMarks(from: string, to: string) {
+    const s = cycleSettings.value
+    const ids = [s.morning_habit_id, s.evening_habit_id].filter(Boolean) as string[]
+    const r = await guard(() => repo.pillEntries(from, to, ids, [PILL_NAMES.morning, PILL_NAMES.evening]))
+    return r?.map(e => ({ day: e.entry_date, dose: (e.habit_id === s.morning_habit_id || e.name === PILL_NAMES.morning ? 'morning' : 'evening') as 'morning' | 'evening', taken: e.value >= 1 }))
+  }
+  const fullTime = (t: string) => (t.length === 5 ? t + ':00' : t)
+  async function saveCycleSettings(patch: Partial<CycleSettings>) {
+    const c = data.value.cycle; if (!c) return false
+    const p = { ...patch }
+    if (p.morning_time) p.morning_time = fullTime(p.morning_time)
+    if (p.evening_time) p.evening_time = fullTime(p.evening_time)
+    const scheme = (p.course_from_day !== undefined && p.course_from_day !== c.settings.course_from_day)
+      || (p.course_days !== undefined && p.course_days !== c.settings.course_days)
+    if (!(await guard(async () => { await repo.saveCycleSettings(p); return true }))) return false
+    Object.assign(c.settings, p)
+    // новая схема сразу действует и на текущий (незаконченный) цикл; курсы прошлых циклов не меняются
+    if (scheme && currentCycleStart.value) return recalcCurrentCourse()
+    return syncPillHabits()  // сфера и время таблеток меняются сразу
   }
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
+    cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
+    markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     timeBudget, timeBudgetReady, workFor, hasOwnWork, saveTimeBudget, setWeekWork,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,

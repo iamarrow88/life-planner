@@ -3,6 +3,7 @@ import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry
 import { addDays, dayOf, entrySeconds, todayStr } from '../lib/time'
 import { matches, nextAfter } from '../lib/recurrence'
 import { dueOn, scheduledOn } from '../lib/habitSchedule'
+import { DEFAULT_CYCLE_SETTINGS } from '../lib/cycle'
 
 const KEY = 'planner-demo-v1'
 const uid = () => crypto.randomUUID()
@@ -37,7 +38,7 @@ function seed(): Snapshot {
   const timeEntries = [te(hob, 0, 75), te(zd, 0, 40), te(uch, 1, 50), te(hob, 1, 60)]
   const pr = (sphere: Sphere, name: string): Project => ({ id: uid(), sphere_id: sphere.id, name })
   const projects = [pr(hob, 'Вышивка'), pr(uch, 'Курс по Vue')]
-  return { spheres, projects, tasks, habits, recurrences: [], weekGoals: [], reviews: [], habitEntries: [{ habit_id: habits[0].id, entry_date: t, value: 3 }], timeEntries }
+  return { cycle: emptyCycle(), spheres, projects, tasks, habits, recurrences: [], weekGoals: [], reviews: [], habitEntries: [{ habit_id: habits[0].id, entry_date: t, value: 3 }], timeEntries }
 }
 
 // ---- Привычки: расписание (то же, что habit_days / habit_status в базе)
@@ -109,10 +110,11 @@ function matchTarget(e: TimeEntry, t: EditorTarget): boolean {
 function read(): Snapshot {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) { const s = JSON.parse(raw) as Snapshot; s.projects ??= []; s.recurrences ??= []; s.weekGoals ??= []; s.reviews ??= []; s.archivedSpheres ??= []; s.weekWork ??= []; s.timeBudget ??= { sleep_minutes_per_day: 480, routine_minutes_per_day: 180 }; return s }
+    if (raw) { const s = JSON.parse(raw) as Snapshot; s.projects ??= []; s.recurrences ??= []; s.weekGoals ??= []; s.reviews ??= []; s.archivedSpheres ??= []; s.weekWork ??= []; s.timeBudget ??= { sleep_minutes_per_day: 480, routine_minutes_per_day: 180 }; s.cycle ??= emptyCycle(); return s }
   } catch { /* ignore */ }
   const s = seed(); write(s); return s
 }
+const emptyCycle = () => ({ days: [], settings: { ...DEFAULT_CYCLE_SETTINGS }, courses: [] })
 function write(s: Snapshot) { try { localStorage.setItem(KEY, JSON.stringify(s)) } catch { /* ignore */ } }
 
 function newFromRule(r: Recurrence, due: string): Task {
@@ -289,6 +291,26 @@ export const demoRepo: Repo = {
     if (w) w.minutes = minutes; else list.push({ week_start: weekStart, minutes })
     write(s)
   },
+  async setCycleDay(d) {
+    const s = read(); const c = s.cycle!
+    c.days = c.days.filter(x => x.day !== d.day)
+    if (d.period || d.cycle_start || d.note || d.cycle_note) c.days.push({ ...d })
+    write(s)
+  },
+  async saveCycleSettings(patch) { const s = read(); s.cycle!.settings = { ...s.cycle!.settings, ...patch }; write(s) },
+  async addCourse(c) {
+    const s = read(); const list = s.cycle!.courses
+    if (c.cycle_start && list.some(x => x.cycle_start === c.cycle_start)) throw new Error('Курс для этого цикла уже есть')
+    const x = { ...c, id: uid() }; list.push(x); write(s); return x
+  },
+  async updateCourse(id, patch) { const s = read(); const x = s.cycle!.courses.find(c => c.id === id); if (x) Object.assign(x, patch); write(s) },
+  async pillEntries(from, to, ids, names) {
+    const s = read()
+    const hs = new Map(s.habits.filter(h => ids.includes(h.id) || names.includes(h.name)).map(h => [h.id, h.name]))
+    return s.habitEntries.filter(e => hs.has(e.habit_id) && e.entry_date >= from && e.entry_date <= to)
+      .map(e => ({ habit_id: e.habit_id, name: hs.get(e.habit_id)!, entry_date: e.entry_date, value: e.value }))
+  },
+  async removeCourse(id) { const s = read(); s.cycle!.courses = s.cycle!.courses.filter(c => c.id !== id); write(s) },
   async removeRecurrence(id) {
     const s = read(); const t = todayStr()
     s.tasks = s.tasks.filter(x => !(x.recurrence_id === id && x.status !== 'done' && (x.due_date ?? '') >= t))

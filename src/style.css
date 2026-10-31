@@ -17,3 +17,15 @@ button { @apply cursor-pointer; }
   .chip-on { @apply border-accent bg-accent-soft text-accent; }
 }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Печать истории циклов: на бумагу попадает только блок .print-area, остальное приложение (меню, плашки, календарь) скрыто */
+@media print {
+  html:has(body.print-cycle) { height: auto; }
+  body.print-cycle *:not(:has(.print-area)):not(.print-area):not(.print-area *) { display: none !important; }
+  body.print-cycle, body.print-cycle *:has(.print-area) {
+    height: auto !important; min-height: 0 !important; max-height: none !important; max-width: none !important; overflow: visible !important;
+    position: static !important; padding: 0 !important; margin: 0 !important; background: #fff !important; border: 0 !important;
+  }
+  body.print-cycle .print-area { color: #000; font-size: 12pt; }
+  body.print-cycle .print-area .card { background: #fff; }
+}

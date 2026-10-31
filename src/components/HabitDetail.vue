@@ -4,7 +4,7 @@ import { useApp } from '../stores/app'
 import type { HabitKind, HabitSchedule as Schedule } from '../types'
 import HabitSchedule from './HabitSchedule.vue'
 import { ALL_DAYS, defaultSchedule } from '../lib/habitSchedule'
-import { dayOf } from '../lib/time'
+import { dayOf, shortDate } from '../lib/time'
 import { useBackdrop } from '../lib/backdrop'
 
 const app = useApp()
@@ -18,6 +18,8 @@ const schedule = ref<Schedule>(defaultSchedule())
 let shownStart: string | null = null
 const needDays = computed(() => schedule.value.freq === 'week' && schedule.value.mode === 'schedule')
 const busy = ref(false)
+/** Привычка-таблетка из календаря цикла: расписание и сфера задаются там */
+const pill = computed(() => !!habit.value && app.isPillHabit(habit.value.id))
 const kinds: { v: HabitKind; label: string }[] = [
   { v: 'timer', label: 'Таймер' }, { v: 'plain', label: 'Без таймера' }, { v: 'counter', label: 'Счётчик' },
 ]
@@ -69,7 +71,10 @@ async function toTask() {
 }
 async function remove() {
   const h = habit.value
-  if (h && confirm('Удалить привычку? Она пропадёт из списков, а накопленная история останется в базе.')) { await app.removeHabit(h.id); app.closeHabit() }
+  const msg = pill.value
+    ? 'Удалить привычку? Пока идёт курс таблеток, календарь цикла вернёт её при следующем открытии. Чтобы таблеток не было, сними отметку первого дня цикла.'
+    : 'Удалить привычку? Она пропадёт из списков, а накопленная история останется в базе.'
+  if (h && confirm(msg)) { await app.removeHabit(h.id); app.closeHabit() }
 }
 </script>
 
@@ -91,12 +96,16 @@ async function remove() {
         <input v-model.number="target" type="number" min="1" class="input !w-24" />
       </label>
 
-      <label class="text-xs text-mute">Сфера
+      <p v-if="pill" class="rounded-xl bg-accent-soft px-3 py-2 text-sm" data-test="pill-note">
+        Дни приёма задаёт курс из календаря цикла<template v-if="habit.active_from && habit.active_until">: {{ shortDate(habit.active_from) }} – {{ shortDate(habit.active_until) }}</template>.
+        Время и сферу меняют в <RouterLink to="/today/cycle" class="font-semibold text-accent" @click="app.closeHabit()">его настройках</RouterLink>.
+      </p>
+      <label v-if="!pill" class="text-xs text-mute">Сфера
         <select v-model="sphereId" class="input mt-1" required><option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option></select>
       </label>
 
-      <HabitSchedule v-model="schedule" start-open />
-      <button type="button" class="btn-ghost" :disabled="busy" data-test="habit-to-task" title="Привычка станет повторяющейся задачей с тем же расписанием" @click="toTask">↻ Сделать задачей</button>
+      <HabitSchedule v-if="!pill" v-model="schedule" start-open />
+      <button v-if="!pill" type="button" class="btn-ghost" :disabled="busy" data-test="habit-to-task" title="Привычка станет повторяющейся задачей с тем же расписанием" @click="toTask">↻ Сделать задачей</button>
 
       <button v-if="habit.kind === 'timer'" type="button" class="btn-ghost" data-test="habit-time" @click="app.openEditor({ habit_id: habit.id }, habit.name)">⏱ Затраченное время</button>
 

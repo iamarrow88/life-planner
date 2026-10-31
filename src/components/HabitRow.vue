@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useApp } from '../stores/app'
 import type { Habit } from '../types'
-import { entrySeconds, shortDate } from '../lib/time'
+import { entrySeconds, hhmm, shortDate } from '../lib/time'
 import { describeHabit } from '../lib/habitSchedule'
 
 const props = defineProps<{ habit: Habit; sortable?: boolean }>()
@@ -27,6 +27,7 @@ const status = computed(() => app.habitStatusOf(props.habit.id))
 /** Подпись про расписание: когда следующий раз или с какого дня привычка ждёт */
 const note = computed(() => {
   const st = status.value
+  if (!app.habitActiveOn(props.habit, app.today)) return st.due ? `с ${shortDate(st.due)}` : 'сейчас не активна'
   if (!st.scheduled) return st.due ? `следующий раз: ${shortDate(st.due)}` : ''
   if (props.habit.mode === 'after_completion' && st.due && st.due < app.today && !done.value) return `ждёт с ${shortDate(st.due)}`
   return ''
@@ -53,6 +54,7 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
       <button type="button" class="block max-w-full truncate text-left text-[15px] hover:text-accent" :class="done && 'text-mute line-through'" title="Редактировать привычку" :aria-label="'Редактировать привычку: ' + habit.name" @click="app.openHabit(habit.id)">{{ habit.name }}</button>
       <div class="mt-0.5 flex items-center gap-2 text-xs text-mute">
         <span v-if="sphere" class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}</span>
+        <span v-if="habit.remind_at" data-test="habit-time">{{ hhmm(habit.remind_at) }}</span>
         <span v-if="custom" data-test="habit-repeat">↻ {{ describeHabit(habit) }}</span>
         <span v-if="note" :class="late && 'text-amber-700'" data-test="habit-note">{{ note }}</span>
         <span v-if="habit.kind === 'counter'">{{ value }} / {{ target }}</span>

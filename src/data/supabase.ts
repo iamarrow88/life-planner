@@ -1,7 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
+import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
 import { todayStr, weekStart as weekStartOf } from '../lib/time'
+import { DEFAULT_CYCLE_SETTINGS } from '../lib/cycle'
 
 const env = import.meta.env as Record<string, string | undefined>
 const clean = (v?: string) => v?.trim().replace(/^["']|["']$/g, '') || undefined
@@ -50,7 +51,13 @@ async function callGoogle(body: Record<string, unknown>): Promise<GoogleStatus> 
 const TASK_COLS = 'id,title,note,status,sphere_id,project_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
 const REC_COLS = 'id,title,note,sphere_id,project_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
 const SPHERE_COLS = 'id,name,color,weekly_goal_minutes,description'
-const HABIT_COLS = 'id,name,kind,target_value,sphere_id,created_at,freq,interval_n,mode,weekdays,starts_on'
+const HABIT_BASE_COLS = 'id,name,kind,target_value,sphere_id,created_at,freq,interval_n,mode,weekdays,starts_on,remind_at'
+// окно активности добавляет planner_cycle.sql: пока его не выполнили, читаем привычки без этих полей
+let HABIT_COLS = HABIT_BASE_COLS + ',active_from,active_until'
+const CYCLE_SETTINGS_COLS = 'link_label,sphere_id,course_from_day,course_days,morning_time,evening_time,morning_habit_id,evening_habit_id'
+const CYCLE_DAY_BASE = 'day,period,cycle_start,note'
+let cycleDayCols = CYCLE_DAY_BASE + ',cycle_note'
+const COURSE_COLS = 'id,kind,cycle_start,from_day,days,starts_on,ends_on'
 const TE_COLS = 'id,task_id,habit_id,sphere_id,started_at,ended_at,source'
 
 /** Поля шаблона правила в виде записи задачи */
@@ -86,7 +93,7 @@ export const supabaseRepo: Repo = {
     const c = db()
     await c.rpc('generate_recurring_tasks') // создаёт задачи по повторам на 30 дней вперёд (безопасно вызывать повторно)
     const ws = weekStartOf(today)
-    const [spheres, archivedSpheres, projects, tasks, habits, he, te, recs, goals, reviews, hs, budget, work] = await Promise.all([
+    const [spheres, archivedSpheres, projects, tasks, habitsRes, he, te, recs, goals, reviews, hs, budget, work, cDays, cSet, cCourses] = await Promise.all([
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
       c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
@@ -100,9 +107,24 @@ export const supabaseRepo: Repo = {
       c.rpc('habit_status', { p_day: today }),
       c.from('user_settings').select('sleep_minutes_per_day,routine_minutes_per_day').maybeSingle(),
       c.from('week_work').select('week_start,minutes').order('week_start'),
+      c.from('cycle_days').select(cycleDayCols).order('day'),
+      c.from('cycle_settings').select(CYCLE_SETTINGS_COLS).maybeSingle(),
+      c.from('pill_courses').select(COURSE_COLS).order('starts_on'),
     ])
+    let habits = habitsRes
+    if (habits.error && HABIT_COLS !== HABIT_BASE_COLS) {
+      HABIT_COLS = HABIT_BASE_COLS
+      habits = await c.from('habits').select(HABIT_COLS).is('archived_at', null).order('position').order('created_at')
+    }
+    let cycleDays = cDays
+    if (cDays.error && cycleDayCols !== CYCLE_DAY_BASE) {
+      // примечание к циклу добавлено в planner_cycle.sql позже: пока его не перевыполнили, читаем без него
+      cycleDayCols = CYCLE_DAY_BASE
+      cycleDays = await c.from('cycle_days').select(cycleDayCols).order('day')
+    }
+    const cycleReady = !cycleDays.error && !cSet.error && !cCourses.error
     return {
-      spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as Task[], habits: ok(habits) as Habit[],
+      spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as Task[], habits: ok(habits) as unknown as Habit[],
       habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], recurrences: ok(recs) as Recurrence[],
       weekGoals: ok(goals) as WeekGoal[], reviews: ok(reviews) as WeeklyReview[],
       // если состояние привычек не пришло — считаем, что все запланированы на сегодня (список не должен пропасть)
@@ -110,6 +132,12 @@ export const supabaseRepo: Repo = {
       // бюджет времени — отдельный патч базы: если его ещё не выполнили, экран просто подскажет это
       timeBudget: budget.error || work.error ? null : ((budget.data as TimeBudget | null) ?? { sleep_minutes_per_day: 480, routine_minutes_per_day: 180 }),
       weekWork: work.error ? [] : (work.data as WeekWork[]),
+      // календарь цикла — тоже отдельный патч (planner_cycle.sql)
+      cycle: cycleReady ? {
+        days: cycleDays.data as unknown as CycleDay[],
+        settings: { ...DEFAULT_CYCLE_SETTINGS, ...((cSet.data as CycleSettings | null) ?? {}) },
+        courses: cCourses.data as PillCourse[],
+      } : null,
     }
   },
   async addTask(t) {
@@ -181,6 +209,30 @@ export const supabaseRepo: Repo = {
   async setWeekWork(weekStart, minutes) {
     ok(await db().from('week_work').upsert({ week_start: weekStart, minutes }, { onConflict: 'user_id,week_start' }))
   },
+  async setCycleDay(d) {
+    if (d.cycle_note && cycleDayCols === CYCLE_DAY_BASE) throw new Error('Чтобы сохранять примечание к циклу, ещё раз выполни planner_cycle.sql в Supabase (SQL Editor)')
+    if (d.period || d.cycle_start || d.note || d.cycle_note) ok(await db().from('cycle_days').upsert({
+      day: d.day, period: d.period, cycle_start: d.cycle_start, note: d.note || null,
+      ...(cycleDayCols !== CYCLE_DAY_BASE ? { cycle_note: d.cycle_note || null } : {}),
+    }, { onConflict: 'user_id,day' }))
+    else ok(await db().from('cycle_days').delete().eq('day', d.day))
+  },
+  async saveCycleSettings(patch) { ok(await db().from('cycle_settings').upsert(patch, { onConflict: 'user_id' })) },
+  async addCourse(c) { return ok(await db().from('pill_courses').insert(c).select(COURSE_COLS).single()) as PillCourse },
+  async updateCourse(id, patch) { ok(await db().from('pill_courses').update(patch).eq('id', id)) },
+  async pillEntries(from, to, ids, names) {
+    // архивные (удалённые) привычки тоже: их отметки остаются в истории
+    const [byName, byId] = await Promise.all([
+      db().from('habits').select('id,name').in('name', names),
+      ids.length ? db().from('habits').select('id,name').in('id', ids) : Promise.resolve({ data: [], error: null }),
+    ])
+    const hs = new Map([...(ok(byName) as { id: string; name: string }[]), ...(ok(byId) as { id: string; name: string }[])].map(h => [h.id, h.name]))
+    if (!hs.size) return []
+    const es = ok(await db().from('habit_entries').select('habit_id,entry_date,value').in('habit_id', [...hs.keys()])
+      .gte('entry_date', from).lte('entry_date', to)) as Omit<PillEntry, 'name'>[]
+    return es.map(e => ({ ...e, name: hs.get(e.habit_id)! }))
+  },
+  async removeCourse(id) { ok(await db().from('pill_courses').delete().eq('id', id)) },
   async removeRecurrence(id) { ok(await db().rpc('delete_recurrence', { p_id: id })) },
   async attachRecurrence(taskId, r) {
     const rec = ok(await db().from('recurrences').insert({

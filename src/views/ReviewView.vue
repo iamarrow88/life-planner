@@ -25,7 +25,6 @@ const range = computed(() => `${shortDate(ws.value)} – ${shortDate(addDays(ws.
 const history = computed(() => app.data.reviews.filter(r => r.completed_at).sort((a, b) => b.week_start.localeCompare(a.week_start)))
 
 const diff = computed(() => (data.value ? data.value.total_minutes - data.value.prev_total_minutes : 0))
-const habitPct = computed(() => (data.value?.habit_days_total ? Math.round((data.value.habit_days_done / data.value.habit_days_total) * 100) : null))
 const pct = (m: number, goal: number) => (goal ? Math.min(100, Math.round((m / goal) * 100)) : 0)
 const sphereColor = (id: string | null) => app.sphereById(id)?.color ?? '#B9B4A8'
 
@@ -86,7 +85,7 @@ async function complete() {
   <div v-if="loading && !data" class="card p-8 text-center text-mute">Считаю…</div>
   <template v-else-if="data">
     <!-- Главные цифры -->
-    <div class="mb-4 grid grid-cols-3 gap-2">
+    <div class="mb-4 grid grid-cols-2 gap-2">
       <div class="card p-3">
         <div class="text-xs text-mute">Время</div>
         <div class="mt-1 text-lg font-bold leading-tight" data-test="total">{{ fmtMinutes(data.total_minutes) }}</div>
@@ -98,11 +97,6 @@ async function complete() {
         <div class="text-xs text-mute">Задачи</div>
         <div class="mt-1 text-lg font-bold leading-tight" data-test="tasks">{{ data.tasks_done }}</div>
         <div class="mt-1 text-[11px] text-mute">выполнено за неделю</div>
-      </div>
-      <div class="card p-3">
-        <div class="text-xs text-mute">Привычки</div>
-        <div class="mt-1 text-lg font-bold leading-tight" data-test="habits">{{ habitPct === null ? '—' : habitPct + '%' }}</div>
-        <div class="mt-1 text-[11px] text-mute">норма выполнена {{ data.habit_days_done }} из {{ data.habit_days_total }} раз</div>
       </div>
     </div>
 

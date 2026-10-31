@@ -29,9 +29,7 @@ const rows = computed(() => app.data.habits.map(h => {
     const state: State = d > app.today ? 'future' : value >= target ? 'done' : !scheduled ? 'before' : value > 0 ? 'part' : 'none'
     return { day: d, value, state, scheduled }
   })
-  // в итог входят только запланированные дни, которые уже наступили
-  const counted = cells.filter(c => c.scheduled && c.day <= app.today)
-  return { habit: h, target, cells, done: counted.filter(c => c.state === 'done').length, passed: counted.length }
+  return { habit: h, target, cells }
 }))
 const unit = (h: Habit) => (h.kind === 'timer' ? ' мин' : '')
 const label = (h: Habit, c: Cell, target: number) => {
@@ -53,7 +51,6 @@ const label = (h: Habit, c: Cell, target: number) => {
       <div v-for="r in rows" :key="r.habit.id" class="px-4 py-3" data-test="habit-row">
         <div class="mb-2 flex items-baseline gap-2">
           <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ r.habit.name }}<span v-if="r.habit.kind !== 'plain'" class="ml-1.5 text-[11px] font-normal text-mute">{{ r.target }}{{ r.habit.kind === 'timer' ? ' мин' : ' раз' }} в день</span></span>
-          <span class="shrink-0 text-xs font-semibold" :class="r.done === r.passed && r.passed > 0 ? 'text-accent' : 'text-ink'">{{ r.done }}/{{ r.passed }}</span>
         </div>
         <div class="grid grid-cols-7">
           <span v-for="c in r.cells" :key="c.day" class="grid place-items-center">

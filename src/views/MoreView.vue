@@ -15,11 +15,15 @@ const app = useApp()
 const router = useRouter()
 const busy = ref(false)
 const done = ref('')
+const withCycle = ref(false)
 
 async function run(kind: 'json' | 'tasks' | 'time' | 'habits') {
   busy.value = true; done.value = ''
   const d: ExportData | undefined = await app.exportAll()
   if (d) {
+    // данные цикла — только по галочке
+    const c = app.data.cycle
+    if (withCycle.value && c) Object.assign(d, { cycle_days: c.days, pill_courses: c.courses, cycle_settings: c.settings })
     const day = todayStr()
     if (kind === 'json') download(`planner-${day}.json`, JSON.stringify(d, null, 2), 'application/json')
     else if (kind === 'tasks') download(`planner-tasks-${day}.csv`, tasksCsv(d), 'text/csv')
@@ -166,6 +170,7 @@ async function logout() { await app.signOut(); router.push('/login') }
       <div>
         <button class="btn-primary w-full" :disabled="busy" @click="run('json')">Скачать всё · JSON</button>
         <p class="mt-1 text-xs text-mute">Полная копия: сферы, задачи, повторы, привычки, время, цели и итоги недель. Подходит для резервной копии.</p>
+        <label class="mt-2 flex items-center gap-2 text-sm"><input v-model="withCycle" type="checkbox" data-test="export-cycle" /> Включить календарь цикла</label>
       </div>
       <div>
         <div class="mb-1.5 text-sm font-medium">Таблицы · CSV (открываются в Excel и Google Таблицах)</div>

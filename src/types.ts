@@ -36,6 +36,10 @@ export interface Habit extends Partial<HabitSchedule> {
   /** когда создана: дни до этого в трекере не считаются */
   created_at?: string
   id: string; name: string; kind: HabitKind; target_value: number | null; sphere_id: string
+  /** окно активности: вне его привычка не запланирована (null — без ограничения) */
+  active_from?: string | null; active_until?: string | null
+  /** время дня (для напоминания), 'HH:MM:SS' */
+  remind_at?: string | null
 }
 /** День привычки: значение, норма, выполнена ли и запланирована ли на этот день */
 export interface HabitDay { habit_id: string; day: string; value: number; target: number; done: boolean; scheduled: boolean }
@@ -79,6 +83,7 @@ export interface Snapshot {
   habitStatus?: HabitStatus[]  // состояние привычек на сегодня (считает база)
   timeBudget?: TimeBudget | null // null — в базе ещё нет этих полей (не выполнен planner_time_budget.sql)
   weekWork?: WeekWork[]
+  cycle?: CycleData | null      // null — в базе ещё нет таблиц цикла (не выполнен planner_cycle.sql)
 }
 export interface NewTask {
   title: string; status: TaskStatus; sphere_id?: string | null; project_id?: string | null
@@ -86,7 +91,33 @@ export interface NewTask {
   remind_before_minutes?: number | null
   note?: string | null
 }
-export interface NewHabit extends Partial<HabitSchedule> { name: string; kind: HabitKind; target_value: number | null; sphere_id: string }
+export interface NewHabit extends Partial<HabitSchedule> {
+  name: string; kind: HabitKind; target_value: number | null; sphere_id: string
+  active_from?: string | null; active_until?: string | null; remind_at?: string | null
+}
+// ---- Календарь цикла
+/** Отмеченный день: менструация, первый день цикла, заметка */
+export interface CycleDay {
+  day: string; period: boolean; cycle_start: boolean; note: string | null
+  cycle_note?: string | null   // примечание ко всему циклу — у первого дня цикла
+}
+export interface CycleSettings {
+  link_label: string                 // подпись строки на «Сегодня»: «<подпись> <номер дня>»
+  sphere_id: string | null           // сфера привычек-таблеток (null — «Здоровье» или первая)
+  course_from_day: number            // курс начинается с этого дня цикла (1 — с первого)
+  course_days: number                // длина курса, дней
+  morning_time: string; evening_time: string
+  morning_habit_id: string | null; evening_habit_id: string | null
+}
+/** Курс таблеток: отдельная запись на каждый цикл; схема копируется в запись, чтобы смена настроек не меняла прошлые курсы */
+export interface PillCourse {
+  id: string; kind: 'cycle' | 'fixed'; cycle_start: string | null; from_day: number | null; days: number | null
+  starts_on: string; ends_on: string
+}
+export type NewPillCourse = Omit<PillCourse, 'id'>
+/** Отметка привычки-таблетки за день (для истории циклов; включая удалённые привычки) */
+export interface PillEntry { habit_id: string; name: string; entry_date: string; value: number }
+export interface CycleData { days: CycleDay[]; settings: CycleSettings; courses: PillCourse[] }
 export interface TimerTarget { task_id?: string; habit_id?: string; sphere_id?: string }
 export interface EditorTarget { task_id?: string; habit_id?: string; sphere_id?: string }
 export interface PushSub { endpoint: string; p256dh: string; auth_key: string; user_agent: string }
@@ -159,6 +190,14 @@ export interface Repo {
   setWeekGoal(sphereId: string, weekStart: string, minutes: number, makeDefault: boolean): Promise<void>
   saveTimeBudget(patch: Partial<TimeBudget>): Promise<void>
   setWeekWork(weekStart: string, minutes: number): Promise<void>
+  /** Записать день цикла целиком; пустой день (без отметок и заметки) удаляется */
+  setCycleDay(d: CycleDay): Promise<void>
+  saveCycleSettings(patch: Partial<CycleSettings>): Promise<void>
+  addCourse(c: NewPillCourse): Promise<PillCourse>
+  updateCourse(id: string, patch: Partial<NewPillCourse>): Promise<void>
+  removeCourse(id: string): Promise<void>
+  /** Отметки таблеток за период: привычки с такими id или названиями, в том числе удалённые */
+  pillEntries(from: string, to: string, ids: string[], names: string[]): Promise<PillEntry[]>
   saveReview(weekStart: string, input: ReviewInput, snapshot: WeekData | null, complete: boolean): Promise<void>
   exportAll(): Promise<ExportData>
   savePushSubscription(sub: PushSub): Promise<void>
