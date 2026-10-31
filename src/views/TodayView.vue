@@ -10,6 +10,10 @@ import AutoTextarea from '../components/AutoTextarea.vue'
 import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import PillCheck from '../components/PillCheck.vue'
+import MonthGrid from '../components/MonthGrid.vue'
+import { GENERATED_DAYS, OVERDUE_COLOR, fmtLoad, monthSummary } from '../lib/monthMarks'
+import { matches } from '../lib/recurrence'
+import { dragToDay } from '../lib/dragToDay'
 import { describe } from '../lib/recurrence'
 import { dragSort } from '../lib/dragSort'
 import { emptyCollapse, nextCollapse, splitHabits, type CollapseState } from '../lib/habitCollapse'
@@ -23,6 +27,45 @@ const filters: { v: Filter; label: string }[] = [
 const view = ref<'list' | 'cal'>('list')
 const filter = ref<Filter>('today')
 const calDay = ref(app.today)
+// ---- Календарь: день (часовая сетка) или месяц целиком. Выбранный вид помним на этом устройстве
+const CAL_MODE_KEY = 'planner-cal-mode'
+const calMode = ref<'day' | 'month'>((() => { try { return localStorage.getItem(CAL_MODE_KEY) === 'month' ? 'month' : 'day' } catch { return 'day' } })())
+const calMonth = ref(app.today.slice(0, 7))
+function setCalMode(m: 'day' | 'month') {
+  if (m === 'month') { calMonth.value = calDay.value.slice(0, 7); monthSel.value = calDay.value } // месяц открывается на том дне, который смотрели
+  calMode.value = m
+  try { localStorage.setItem(CAL_MODE_KEY, m) } catch { /* не страшно */ }
+}
+/** Нажали на день в месяце — открываем его часовую сетку */
+function openDay(d: string) { calDay.value = d; setCalMode('day') }
+// ---- Выбранный день месяца: его задачи под сеткой, их можно перетащить на другой день
+const monthSel = ref(app.today)
+/** Первое нажатие выбирает день, повторное — открывает его часовую сетку */
+function pickDay(d: string) { moveMsg.value = ''; if (monthSel.value === d) openDay(d); else monthSel.value = d }
+const selTasks = computed(() => planned.value.filter(t => t.due_date === monthSel.value).sort(sortTasks))
+/** Дела по повторам, которые на этот день ещё не созданы (дальше 30 дней) — перетащить их нельзя */
+const selVirtual = computed(() => monthSel.value <= addDays(app.today, GENERATED_DAYS) ? [] : app.data.recurrences
+  .filter(r => r.mode === 'schedule' && matches(r, monthSel.value) && !selTasks.value.some(t => t.recurrence_id === r.id)))
+const monthGrid = ref<{ shift(n: number): void } | null>(null)
+const moveMsg = ref('')
+async function moveTask(id: string, day: string) {
+  const t = app.data.tasks.find(x => x.id === id)
+  if (!t || t.due_date === day) return
+  if (t.recurrence_id && app.data.tasks.some(x => x.recurrence_id === t.recurrence_id && x.due_date === day)) {
+    moveMsg.value = `В этот день уже есть «${t.title}» по тому же повтору.`; return
+  }
+  // со «Входящих» задача с датой уходит в план
+  await app.updateTask(id, { due_date: day, ...(t.status === 'inbox' ? { status: 'planned' as const } : {}) })
+  if (!app.error) { moveMsg.value = `«${t.title}» → ${shortDate(day)}`; monthSel.value = day }
+}
+const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
+  mounted(el) { el._dd = dragToDay(el, () => ({ drop: moveTask, shiftMonth: n => monthGrid.value?.shift(n) })) },
+  unmounted(el) { el._dd?.() },
+}
+/** Дни вокруг месяца с запасом: сетка начинается не раньше чем за 6 дней до 1-го и занимает не больше 6 недель */
+const monthDays = computed(() => Array.from({ length: 49 }, (_, i) => addDays(calMonth.value + '-01', i - 7)))
+const summary = computed(() => monthSummary(monthDays.value, app.today, app.data.tasks, app.data.recurrences, app.spheres))
+const MAX_MARKS = 3
 const text = ref('')
 const estimate = ref<number | null>(null)
 const showHabitForm = ref(false)
@@ -188,8 +231,21 @@ async function add() {
     <span class="text-accent">›</span>
   </RouterLink>
 
+  <!-- Календарь: переключатели вида и дней — всегда над привычками, чтобы не прыгали при переходе на сегодня -->
+  <template v-if="view === 'cal'">
+      <div class="mb-3 flex gap-2" data-test="cal-mode">
+        <button type="button" class="chip py-1.5 text-sm" :class="calMode === 'day' && 'chip-on'" data-test="cal-mode-day" @click="setCalMode('day')">День</button>
+        <button type="button" class="chip py-1.5 text-sm" :class="calMode === 'month' && 'chip-on'" data-test="cal-mode-month" @click="setCalMode('month')">Месяц</button>
+      </div>
+    <div v-if="calMode === 'day'" class="mb-3 flex items-center justify-between" data-test="day-nav">
+      <button class="btn-ghost !px-3" aria-label="Предыдущий день" @click="calDay = addDays(calDay, -1)">‹</button>
+      <button class="text-sm font-semibold first-letter:uppercase" @click="calDay = app.today">{{ longDate(calDay) }}</button>
+      <button class="btn-ghost !px-3" aria-label="Следующий день" @click="calDay = addDays(calDay, 1)">›</button>
+    </div>
+  </template>
+
   <!-- Привычки на сегодня -->
-  <section v-if="view === 'list' || calDay === app.today" class="mb-6">
+  <section v-if="view === 'list' || (calMode === 'day' && calDay === app.today)" class="mb-6">
     <div class="mb-2 flex items-center justify-between">
       <h2 class="text-sm font-semibold uppercase tracking-wide text-mute">Привычки</h2>
       <button class="text-sm font-semibold text-accent" @click="showHabitForm = !showHabitForm">{{ showHabitForm ? 'Закрыть' : '+ Привычка' }}</button>
@@ -260,11 +316,57 @@ async function add() {
 
   <!-- Календарь дня: сверху задачи без времени, ниже сетка часов -->
   <template v-else>
-    <div class="mb-3 flex items-center justify-between">
-      <button class="btn-ghost !px-3" @click="calDay = addDays(calDay, -1)">‹</button>
-      <button class="text-sm font-semibold first-letter:uppercase" @click="calDay = app.today">{{ longDate(calDay) }}</button>
-      <button class="btn-ghost !px-3" @click="calDay = addDays(calDay, 1)">›</button>
-    </div>
+    <!-- Месяц: кружки по сферам, нажатие на день открывает его часовую сетку -->
+    <template v-if="calMode === 'month'">
+      <MonthGrid ref="monthGrid" v-model="calMonth" :today="app.today" data-test="task-month">
+        <template #day="{ d, inMonth }">
+          <button type="button" :data-day="d"
+            class="flex min-h-[4rem] flex-col items-center gap-0.5 rounded-xl px-0.5 pb-1 pt-1 text-sm transition hover:ring-2 hover:ring-accent/40"
+            :class="[!inMonth && d !== monthSel && 'opacity-35', d === app.today ? 'bg-accent-soft font-bold text-accent' : 'bg-white', d === monthSel && 'ring-2 ring-accent']"
+            :aria-pressed="d === monthSel" :aria-label="longDate(d) + (summary.get(d)?.label ? ': ' + summary.get(d)!.label : '')" @click="pickDay(d)">
+            <span class="leading-none">{{ Number(d.slice(8)) }}</span>
+            <span class="flex flex-wrap justify-center gap-0.5">
+              <span v-for="m in (summary.get(d)?.marks ?? []).slice(0, MAX_MARKS)" :key="m.key" :data-kind="m.kind"
+                class="grid h-[18px] min-w-[18px] place-items-center rounded-full border-[1.5px] bg-white px-[3px] text-[10px] font-semibold leading-none"
+                :class="[m.kind === 'done' && 'opacity-40', m.kind === 'virtual' && 'border-dashed']"
+                :style="{ borderColor: m.color, color: m.color }" data-test="day-mark">{{ m.count }}</span>
+              <span v-if="(summary.get(d)?.marks.length ?? 0) > MAX_MARKS" class="text-[10px] font-semibold leading-[18px] text-mute">+{{ summary.get(d)!.marks.length - MAX_MARKS }}</span>
+            </span>
+            <span v-if="(summary.get(d)?.minutes ?? 0) >= 30" class="text-[9px] font-normal leading-none text-mute" data-test="day-load">≈{{ fmtLoad(summary.get(d)!.minutes) }}</span>
+          </button>
+        </template>
+      </MonthGrid>
+      <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-mute">
+        <span class="inline-flex items-center gap-1"><span class="grid h-4 min-w-4 place-items-center rounded-full border-[1.5px] border-accent px-1 text-[9px] font-semibold text-accent">2</span>дела по сфере</span>
+        <span class="inline-flex items-center gap-1"><span class="grid h-4 min-w-4 place-items-center rounded-full border-[1.5px] border-accent px-1 text-[9px] font-semibold text-accent opacity-40">2</span>выполнено</span>
+        <span class="inline-flex items-center gap-1"><span class="grid h-4 min-w-4 place-items-center rounded-full border-[1.5px] px-1 text-[9px] font-semibold" :style="{ borderColor: OVERDUE_COLOR, color: OVERDUE_COLOR }">1</span>просрочено</span>
+        <span class="inline-flex items-center gap-1"><span class="grid h-4 min-w-4 place-items-center rounded-full border-[1.5px] border-dashed border-accent px-1 text-[9px] font-semibold text-accent">1</span>повтор (ещё не создан)</span>
+        <span>≈ ч — по оценкам времени</span>
+      </div>
+
+      <!-- Задачи выбранного дня: за ⋮⋮ их можно перетащить на другой день (подержать над ‹ › — листается месяц) -->
+      <section class="mt-4" data-test="month-day">
+        <div class="mb-1.5 flex items-center justify-between gap-2">
+          <h2 class="text-sm font-semibold first-letter:uppercase">{{ longDate(monthSel) }}</h2>
+          <button type="button" class="text-sm font-semibold text-accent" data-test="month-open-day" @click="openDay(monthSel)">Открыть день ›</button>
+        </div>
+        <p v-if="moveMsg" class="mb-1.5 text-xs text-accent" data-test="move-msg">{{ moveMsg }}</p>
+        <div v-if="selTasks.length" v-drag-to-day class="card divide-y divide-line" data-test="month-day-tasks">
+          <div v-for="t in selTasks" :key="t.id" :data-task-id="t.id" class="flex items-center">
+            <span data-drag-handle class="shrink-0 cursor-grab touch-none select-none py-3 pl-2 text-base leading-none text-mute/70 hover:text-accent" role="button"
+              aria-label="Перетащить задачу на другой день" title="Перетащи на другой день календаря">⋮⋮</span>
+            <TaskRow :task="t" class="min-w-0 flex-1"><span v-if="t.start_time" class="shrink-0 text-xs text-mute">{{ timeRange(t) }}</span></TaskRow>
+          </div>
+        </div>
+        <p v-else-if="!selVirtual.length" class="text-sm text-mute">На этот день задач нет.</p>
+        <ul v-if="selVirtual.length" class="mt-1.5 space-y-1 text-sm text-mute" data-test="month-day-virtual">
+          <li v-for="r in selVirtual" :key="r.id">↻ {{ r.title }} <span class="text-xs">— по повтору, задача появится ближе к дате</span></li>
+        </ul>
+        <p v-if="selTasks.length" class="mt-1.5 text-xs text-mute">Перетащи задачу за ⋮⋮ на другой день. Чтобы перейти в другой месяц, подержи её над стрелкой ‹ или ›.</p>
+      </section>
+    </template>
+
+    <template v-else>
     <section v-if="calDay !== app.today && dayHabitList.length" class="mb-3" data-test="day-habits">
       <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-mute">Привычки за день</div>
       <div class="card divide-y divide-line">
@@ -300,5 +402,6 @@ async function add() {
         </div>
       </div>
     </div>
+    </template>
   </template>
 </template>

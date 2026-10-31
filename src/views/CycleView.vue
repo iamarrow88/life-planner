@@ -6,27 +6,11 @@ import { daysBetween } from '../lib/cycle'
 import { useBackdrop } from '../lib/backdrop'
 import AutoTextarea from '../components/AutoTextarea.vue'
 import CycleHistory from '../components/CycleHistory.vue'
+import MonthGrid from '../components/MonthGrid.vue'
 
 const app = useApp()
-const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-const isodow = (d: string) => { const [y, m, dd] = d.split('-').map(Number); return ((new Date(Date.UTC(y, m - 1, dd)).getUTCDay() + 6) % 7) + 1 }
-
 // ---- Месяц
 const month = ref(app.today.slice(0, 7)) // 'YYYY-MM'
-const monthTitle = computed(() => { const [y, m] = month.value.split('-').map(Number); return new Date(y, m - 1, 1).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }) })
-function shiftMonth(n: number) {
-  const [y, m] = month.value.split('-').map(Number)
-  month.value = new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7)
-}
-const cells = computed(() => {
-  const first = month.value + '-01'
-  const lead = isodow(first) - 1
-  const [y, m] = month.value.split('-').map(Number)
-  const len = new Date(Date.UTC(y, m, 0)).getUTCDate()
-  const start = addDays(first, -lead)
-  return Array.from({ length: Math.ceil((lead + len) / 7) * 7 }, (_, i) => addDays(start, i))
-})
-const inMonth = (d: string) => d.startsWith(month.value)
 
 // ---- Текущий курс
 const course = computed(() => app.pillCourseOn(app.today))
@@ -123,20 +107,12 @@ const linkPreview = computed(() => `${form.value.link_label.trim() || 'День 
       <div v-else class="text-mute">Отметь первый день цикла — курс таблеток посчитается по схеме из настроек.</div>
     </div>
 
-    <div class="mb-2 flex items-center justify-between">
-      <button class="btn-ghost !px-3" aria-label="Предыдущий месяц" @click="shiftMonth(-1)">‹</button>
-      <button class="text-sm font-semibold first-letter:uppercase" @click="month = app.today.slice(0, 7)">{{ monthTitle }}</button>
-      <button class="btn-ghost !px-3" aria-label="Следующий месяц" @click="shiftMonth(1)">›</button>
-    </div>
-    <div class="card p-2" data-test="cycle-calendar">
-      <div class="mb-1 grid grid-cols-7 text-center text-[11px] text-mute">
-        <span v-for="w in WD" :key="w">{{ w }}</span>
-      </div>
-      <div class="grid grid-cols-7 gap-1">
-        <button v-for="d in cells" :key="d" type="button" :data-day="d"
+    <MonthGrid v-model="month" :today="app.today" data-test="cycle-calendar">
+      <template #day="{ d, inMonth }">
+        <button type="button" :data-day="d"
           class="relative flex h-11 flex-col items-center justify-center rounded-xl text-sm transition hover:ring-2 hover:ring-accent/40"
           :class="[
-            !inMonth(d) && 'opacity-35',
+            !inMonth && 'opacity-35',
             app.cycleDayOf(d).period ? 'bg-rose-400 text-white' : 'bg-white',
             app.cycleDayOf(d).cycle_start && 'ring-2 ring-rose-700',
             d === app.today && 'font-bold underline underline-offset-2',
@@ -146,8 +122,8 @@ const linkPreview = computed(() => `${form.value.link_label.trim() || 'День 
           <span v-if="app.pillCourseOn(d)" class="absolute right-0.5 top-0 text-[9px] leading-none" data-test="pill-mark">💊</span>
           <span v-if="app.cycleDayOf(d).note" class="absolute bottom-1 h-1.5 w-1.5 rounded-full" :class="app.cycleDayOf(d).period ? 'bg-white' : 'bg-accent'" data-test="note-mark"></span>
         </button>
-      </div>
-    </div>
+      </template>
+    </MonthGrid>
     <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-mute">
       <span class="inline-flex items-center gap-1"><span class="h-3 w-3 rounded bg-rose-400"></span>менструация</span>
       <span class="inline-flex items-center gap-1"><span class="h-3 w-3 rounded ring-2 ring-rose-700"></span>первый день цикла</span>

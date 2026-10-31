@@ -16,6 +16,8 @@ button { @apply cursor-pointer; }
   .chip { @apply inline-flex items-center rounded-full border border-line bg-white px-3 py-1 text-xs font-medium text-mute transition; }
   .chip-on { @apply border-accent bg-accent-soft text-accent; }
 }
+/* День календаря, над которым держат перетаскиваемую задачу */
+[data-drop-target] { @apply ring-2 ring-accent bg-accent-soft; }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 
 /* Печать истории циклов: на бумагу попадает только блок .print-area, остальное приложение (меню, плашки, календарь) скрыто */
