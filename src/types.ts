@@ -12,6 +12,7 @@ export interface Task {
   note?: string | null                    // описание задачи
   remind_before_minutes?: number | null   // null — не напоминать; 0 — в момент начала
   tags?: string[]                         // теги: строчными, без «#»
+  budget?: number | null                  // бюджет, BYN (null — не задан)
 }
 export type RecurrenceFreq = 'day' | 'week' | 'month' | 'year'
 export type RecurrenceMode = 'schedule' | 'after_completion'
@@ -21,12 +22,13 @@ export interface Recurrence {
   weekdays: number[] | null; month_day: number | null; mode: RecurrenceMode
   starts_on: string; ends_on: string | null
   tags?: string[]
+  budget?: number | null
 }
 export type NewRecurrence = Omit<Recurrence, 'id' | 'month_day' | 'ends_on'>
 /** Правка правила: поля расписания (freq…starts_on) пересоздают будущие задачи, поля шаблона (title…) переносятся в будущие невыполненные */
 export type RecurrencePatch = Partial<NewRecurrence>
 export const RULE_KEYS = ['freq', 'interval_n', 'weekdays', 'mode', 'starts_on'] as const
-export const TEMPLATE_KEYS = ['title', 'note', 'sphere_id', 'project_id', 'start_time', 'estimate_minutes', 'remind_before_minutes', 'tags'] as const
+export const TEMPLATE_KEYS = ['title', 'note', 'sphere_id', 'project_id', 'start_time', 'estimate_minutes', 'remind_before_minutes', 'tags', 'budget'] as const
 /** Расписание привычки: как часто и от какой даты отсчитывать (как у повторяющихся задач) */
 export interface HabitSchedule {
   freq: RecurrenceFreq; interval_n: number; weekdays: number[]
@@ -87,6 +89,7 @@ export interface Snapshot {
   weekWork?: WeekWork[]
   cycle?: CycleData | null      // null — в базе ещё нет таблиц цикла (не выполнен planner_cycle.sql)
   tagsReady?: boolean           // false — в базе ещё нет тегов (не выполнен planner_tags.sql)
+  budgetReady?: boolean         // false — в базе ещё нет бюджета задач (не выполнен planner_budget.sql)
 }
 export interface NewTask {
   title: string; status: TaskStatus; sphere_id?: string | null; project_id?: string | null
@@ -94,6 +97,7 @@ export interface NewTask {
   remind_before_minutes?: number | null
   note?: string | null
   tags?: string[]
+  budget?: number | null
 }
 export interface NewHabit extends Partial<HabitSchedule> {
   name: string; kind: HabitKind; target_value: number | null; sphere_id: string

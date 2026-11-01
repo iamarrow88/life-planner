@@ -20,6 +20,8 @@ const date = ref('')
 const time = ref('')
 const estimate = ref<number | null>(null)
 const tags = ref<string[]>([])
+/** Бюджет, BYN (пусто — не задан) */
+const budget = ref<number | null>(null)
 /** «Без даты»: задача разобрана (есть сфера), но дата не нужна — она уходит из «Входящих» в список «Без даты» */
 const noDate = ref(false)
 const sphereId = ref('')
@@ -53,7 +55,7 @@ const scheduleOf = (r: Recurrence): Schedule => ({
 })
 
 /** Состояние формы: с ним сравниваем, есть ли несохранённые изменения */
-const formState = () => JSON.stringify([title.value, note.value, tags.value, date.value, time.value, estimate.value, noDate.value, sphereId.value, projectId.value,
+const formState = () => JSON.stringify([title.value, note.value, tags.value, budget.value, date.value, time.value, estimate.value, noDate.value, sphereId.value, projectId.value,
   remind.value, repeat.value, schedule.value, repeatScope.value, newProject.value])
 let saved = ''
 const bd = useBackdrop(() => app.closeTask(), () => formState() !== saved)
@@ -62,7 +64,7 @@ watch(() => task.value?.id, () => {
   const t = task.value
   if (!t) return
   title.value = t.title; note.value = t.note ?? ''; tags.value = [...(t.tags ?? [])]; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
-  estimate.value = t.estimate_minutes; noDate.value = t.status === 'planned' && !t.due_date; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
+  estimate.value = t.estimate_minutes; budget.value = t.budget == null ? null : Number(t.budget); noDate.value = t.status === 'planned' && !t.due_date; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
   remind.value = t.remind_before_minutes == null ? '' : String(t.remind_before_minutes); remindTouched.value = false
   repeat.value = !!rule.value; repeatScope.value = 'one'
   schedule.value = rule.value ? scheduleOf(rule.value) : defaultSchedule(t.due_date ?? app.today)
@@ -99,6 +101,7 @@ function templateFrom(due: string | null): Pick<NewRecurrence, (typeof TEMPLATE_
   const p = app.tagsReady ? parseTags(title.value) : { title: title.value.trim(), tags: [] }
   return {
     ...(app.tagsReady ? { tags: uniqTags([...tags.value, ...p.tags]) } : {}),
+    ...(app.budgetReady ? { budget: budget.value == null || (budget.value as unknown) === '' || !(Number(budget.value) > 0) ? null : Math.round(Number(budget.value) * 100) / 100 } : {}),
     title: p.title, note: note.value.trim() || null, sphere_id: sphereId.value || null,
     project_id: sphereId.value && projectId.value ? projectId.value : null, start_time: st, estimate_minutes: estimate.value,
     remind_before_minutes: st && remind.value !== '' ? Number(remind.value) : null,
@@ -210,6 +213,10 @@ async function remove() {
           <button v-if="estimate" type="button" class="text-xs text-mute" @click="estimate = null">сбросить</button>
         </div>
       </div>
+
+      <label v-if="app.budgetReady" class="text-xs text-mute" data-test="task-budget">Бюджет, BYN (необязательно)
+        <input v-model.number="budget" type="number" min="0" step="0.01" inputmode="decimal" class="input mt-1 !w-40" placeholder="например, 1500" aria-label="Бюджет задачи, рублей" />
+      </label>
 
       <label class="text-xs text-mute">Сфера
         <select v-model="sphereId" class="input mt-1" @change="projectId = ''"><option value="">Без сферы</option><option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option></select>

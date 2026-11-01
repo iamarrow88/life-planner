@@ -15,6 +15,7 @@ import TagBar from '../components/TagBar.vue'
 import MonthGrid from '../components/MonthGrid.vue'
 import { GENERATED_DAYS, OVERDUE_COLOR, fmtLoad, monthSummary } from '../lib/monthMarks'
 import { matches } from '../lib/recurrence'
+import { budgetSum, fmtMoney } from '../lib/budget'
 import { dragToDay } from '../lib/dragToDay'
 import { describe } from '../lib/recurrence'
 import { dragSort } from '../lib/dragSort'
@@ -68,6 +69,26 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
 const monthDays = computed(() => Array.from({ length: 49 }, (_, i) => addDays(calMonth.value + '-01', i - 7)))
 const summary = computed(() => monthSummary(monthDays.value, app.today, app.data.tasks, app.data.recurrences, app.spheres))
 const MAX_MARKS = 3
+
+// ---- Бюджет за период, который сейчас выбран: Сегодня / Завтра / Неделя / Без даты; в календаре — день или месяц
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
+const MONTHS_NOM = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь']
+const budgetPeriod = computed((): { range: { from: string; to: string } | 'nodate'; label: string } => {
+  const t = app.today
+  if (view.value === 'list') {
+    if (filter.value === 'tomorrow') return { range: { from: addDays(t, 1), to: addDays(t, 1) }, label: 'на завтра' }
+    if (filter.value === 'week') return { range: { from: t, to: addDays(t, 7) }, label: `на неделю (${shortDate(t)} – ${shortDate(addDays(t, 7))})` }
+    if (filter.value === 'nodate') return { range: 'nodate', label: 'без даты' }
+    return { range: { from: t, to: t }, label: 'на сегодня' }
+  }
+  if (calMode.value === 'day') return { range: { from: calDay.value, to: calDay.value }, label: calDay.value === t ? 'на сегодня' : `на ${shortDate(calDay.value)}` }
+  // месяц: текущий — от сегодня до конца месяца, другие — целиком
+  const [y, m] = calMonth.value.split('-').map(Number)
+  const last = `${calMonth.value}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`
+  if (calMonth.value === t.slice(0, 7)) return { range: { from: t, to: last }, label: `до конца ${MONTHS_GEN[m - 1]} (${shortDate(t)} – ${shortDate(last)})` }
+  return { range: { from: calMonth.value + '-01', to: last }, label: `на ${MONTHS_NOM[m - 1]}${y !== Number(t.slice(0, 4)) ? ' ' + y : ''}` }
+})
+const budget = computed(() => app.budgetReady ? budgetSum(app.data.tasks, app.data.recurrences, app.today, budgetPeriod.value.range) : null)
 const text = ref('')
 const estimate = ref<number | null>(null)
 const showHabitForm = ref(false)
@@ -246,6 +267,13 @@ async function add() {
       <button class="text-sm font-semibold first-letter:uppercase" @click="calDay = app.today">{{ longDate(calDay) }}</button>
       <button class="btn-ghost !px-3" aria-label="Следующий день" @click="calDay = addDays(calDay, 1)">›</button>
     </div>
+    <div v-if="budget && (budget.count || budget.overdue)" class="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-xl bg-accent-soft px-3 py-2 text-sm" data-test="budget-sum">
+      <span class="text-mute">Бюджет {{ budgetPeriod.label }}:</span>
+      <span class="font-semibold text-accent">{{ fmtMoney(budget.total) }}</span>
+      <span v-if="budget.left !== budget.total" class="text-xs text-mute">осталось {{ fmtMoney(budget.left) }}</span>
+      <span v-if="budget.virtual" class="text-xs text-mute">· из них по повторам {{ fmtMoney(budget.virtual) }}</span>
+      <span v-if="budget.overdue" class="text-xs text-amber-700">· ещё просрочено {{ fmtMoney(budget.overdue) }}</span>
+    </div>
   </template>
 
   <!-- Привычки на сегодня -->
@@ -286,6 +314,13 @@ async function add() {
   <template v-if="view === 'list'">
     <div class="mb-3 flex flex-wrap gap-2">
       <button v-for="f in filters" :key="f.v" class="chip py-1.5 text-sm" :class="filter === f.v && 'chip-on'" @click="filter = f.v">{{ f.label }}</button>
+    </div>
+    <div v-if="budget && (budget.count || budget.overdue)" class="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-xl bg-accent-soft px-3 py-2 text-sm" data-test="budget-sum">
+      <span class="text-mute">Бюджет {{ budgetPeriod.label }}:</span>
+      <span class="font-semibold text-accent">{{ fmtMoney(budget.total) }}</span>
+      <span v-if="budget.left !== budget.total" class="text-xs text-mute">осталось {{ fmtMoney(budget.left) }}</span>
+      <span v-if="budget.virtual" class="text-xs text-mute">· из них по повторам {{ fmtMoney(budget.virtual) }}</span>
+      <span v-if="budget.overdue" class="text-xs text-amber-700">· ещё просрочено {{ fmtMoney(budget.overdue) }}</span>
     </div>
     <p v-if="filter === 'today' && overdueCount" class="mb-2 text-xs text-amber-700">Просрочено: {{ overdueCount }} — они показаны вверху списка.</p>
     <form class="mb-3 flex flex-wrap items-start gap-2" @submit.prevent="add">

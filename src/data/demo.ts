@@ -118,7 +118,7 @@ const emptyCycle = () => ({ days: [], settings: { ...DEFAULT_CYCLE_SETTINGS }, c
 function write(s: Snapshot) { try { localStorage.setItem(KEY, JSON.stringify(s)) } catch { /* ignore */ } }
 
 function newFromRule(r: Recurrence, due: string): Task {
-  return { id: uid(), title: r.title, note: r.note ?? null, tags: [...(r.tags ?? [])], status: 'planned', sphere_id: r.sphere_id, project_id: r.project_id ?? null, due_date: due,
+  return { id: uid(), title: r.title, note: r.note ?? null, tags: [...(r.tags ?? [])], budget: r.budget ?? null, status: 'planned', sphere_id: r.sphere_id, project_id: r.project_id ?? null, due_date: due,
     start_time: r.start_time, estimate_minutes: r.estimate_minutes, remind_before_minutes: r.remind_before_minutes ?? null,
     done_at: null, recurrence_id: r.id }
 }
@@ -151,7 +151,7 @@ export const demoRepo: Repo = {
   async load() { const s = read(); generate(s); write(s); return { ...s, habitStatus: habitStatusFor(s, todayStr()) } },
   async addTask(t) {
     const s = read()
-    const task: Task = { id: uid(), title: t.title, note: t.note ?? null, tags: t.tags ?? [], status: t.status, sphere_id: t.sphere_id ?? null, project_id: t.project_id ?? null,
+    const task: Task = { id: uid(), title: t.title, note: t.note ?? null, tags: t.tags ?? [], budget: t.budget ?? null, status: t.status, sphere_id: t.sphere_id ?? null, project_id: t.project_id ?? null,
       due_date: t.due_date ?? null, start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null,
       remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null, done_at: null }
     s.tasks.unshift(task); write(s); return task

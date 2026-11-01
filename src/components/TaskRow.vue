@@ -4,6 +4,7 @@ import { useApp } from '../stores/app'
 import type { Task } from '../types'
 import { fmtClock, fmtSec, hhmm } from '../lib/time'
 import { fmtMinutes } from '../lib/time'
+import { fmtMoney } from '../lib/budget'
 
 const props = defineProps<{ task: Task }>()
 const app = useApp()
@@ -37,6 +38,7 @@ const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
         </template>
         <span v-if="isRunning" class="font-semibold tabular-nums text-accent">⏱ идёт {{ fmtClock(liveSeconds) }}</span>
         <span v-if="task.estimate_minutes">план {{ fmtMinutes(task.estimate_minutes) }}</span>
+        <span v-if="Number(task.budget) > 0" class="font-medium text-ink/70" data-test="task-budget">{{ fmtMoney(Number(task.budget)) }}</span>
         <span v-if="totals.week > 0">неделя {{ fmtSec(totals.week) }}</span>
         <span v-if="totals.month > 0">месяц {{ fmtSec(totals.month) }}</span>
       </div>

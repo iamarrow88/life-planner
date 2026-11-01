@@ -457,6 +457,8 @@ export const useApp = defineStore('app', () => {
   // ---------- Теги и поиск ----------
   /** false — в Supabase не выполнен planner_tags.sql */
   const tagsReady = computed(() => data.value.tagsReady !== false)
+  /** false — в Supabase не выполнен planner_budget.sql */
+  const budgetReady = computed(() => data.value.budgetReady !== false)
   /** Все теги с числом задач (и повторов), самые частые — первыми */
   const allTags = computed(() => {
     const n = new Map<string, number>()
@@ -735,7 +737,7 @@ export const useApp = defineStore('app', () => {
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
-    tagsReady, allTags, renameTag, searchQuery, openSearch, closeSearch,
+    tagsReady, budgetReady, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
