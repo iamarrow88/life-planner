@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApp, NUDGE_MINUTES } from '../stores/app'
 import { fmtClock } from '../lib/time'
@@ -12,6 +12,15 @@ const showNudge = computed(() => !!app.running && step.value > ackStep.value)
 watch(() => app.running?.id, () => { ackStep.value = 0 })
 const router = useRouter()
 /** Клик по баннеру: открыть то, на что идёт таймер — карточку задачи, привычки или страницу сферы */
+/** Высота баннера → CSS-переменная --timer-h: другие липкие блоки (полоска дней в планировании) встают под ним */
+const bar = ref<HTMLElement | null>(null)
+const ro = new ResizeObserver(([e]) => setTimerH(e.target.getBoundingClientRect().height))
+function setTimerH(h: number) { document.documentElement.style.setProperty('--timer-h', h + 'px') }
+watch(bar, (el, old) => {
+  if (old) ro.unobserve(old)
+  if (el) ro.observe(el); else setTimerH(0)
+})
+onBeforeUnmount(() => { ro.disconnect(); setTimerH(0) })
 function openRunning() {
   const r = app.running; if (!r) return
   if (r.task_id) app.openTask(r.task_id)
@@ -21,7 +30,7 @@ function openRunning() {
 </script>
 
 <template>
-  <div v-if="app.running" class="sticky top-0 z-10">
+  <div v-if="app.running" ref="bar" class="sticky top-0 z-20">
     <div class="flex items-center gap-3 bg-accent px-4 py-2.5 text-white">
       <span class="relative flex h-2.5 w-2.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/70"></span><span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-white"></span></span>
       <button type="button" class="min-w-0 flex-1 truncate text-left text-sm font-medium hover:underline" :title="'Открыть: ' + app.runningTitle" data-test="timer-open" @click="openRunning">{{ app.runningTitle }} <span class="opacity-70">›</span></button>
