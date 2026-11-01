@@ -8,6 +8,7 @@ import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import QuickTags from '../components/QuickTags.vue'
 import TagBar from '../components/TagBar.vue'
+import { vDragSort } from '../lib/dragSort'
 
 const app = useApp()
 const text = ref('')
@@ -113,9 +114,9 @@ function pickedDate(id: string, e: Event) {
   <div v-if="!app.inbox.length && !app.loading" class="card p-8 text-center text-mute">
     Пусто — отличное состояние ✨
   </div>
-  <ul v-else class="space-y-3">
-    <li v-for="t in app.inbox" :key="t.id" class="card">
-      <TaskRow :task="t" />
+  <ul v-else v-drag-sort="(ids: string[]) => app.reorderTasks(ids)" class="space-y-3" data-test="inbox-list">
+    <li v-for="t in app.inbox" :key="t.id" :data-id="t.id" class="card">
+      <TaskRow :task="t" sortable />
       <div class="flex flex-wrap items-center gap-2 border-t border-line px-3 py-2">
         <button data-quick class="chip hover:chip-on" :class="choosing?.id === t.id && choosing.date === app.today && 'chip-on'" @click="choose(t.id, app.today)">Сегодня</button>
         <button data-quick class="chip hover:chip-on" :class="choosing?.id === t.id && choosing.date === addDays(app.today, 1) && 'chip-on'" @click="choose(t.id, addDays(app.today, 1))">Завтра</button>

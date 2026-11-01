@@ -226,6 +226,9 @@ export const demoRepo: Repo = {
     if (!h) throw new Error('Привычка не найдена')
     Object.assign(h, patch); write(s); return { ...h }
   },
+  async reorderTasks(ids) {
+    const s = read(); ids.forEach((id, i) => { const t = s.tasks.find(x => x.id === id); if (t) t.position = i }); write(s)
+  },
   async reorderHabits(ids) {
     const s = read(); const rank = new Map(ids.map((id, i) => [id, i]))
     s.habits.sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9)); write(s)

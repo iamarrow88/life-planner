@@ -9,6 +9,8 @@ import HabitRow from '../components/HabitRow.vue'
 import HabitForm from '../components/HabitForm.vue'
 import RecurrenceForm from '../components/RecurrenceForm.vue'
 import AutoTextarea from '../components/AutoTextarea.vue'
+import { vDragSort } from '../lib/dragSort'
+import { byPosition } from '../lib/taskOrder'
 import QuickTags from '../components/QuickTags.vue'
 import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
@@ -37,9 +39,12 @@ const timerOn = computed(() => app.running?.sphere_id === id.value && !app.runni
 const byDate = (a: Task, b: Task) =>
   (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || (a.start_time ?? '99').localeCompare(b.start_time ?? '99')
 const projects = computed(() => app.projectsOf(id.value))
-const tasksOf = (projectId: string | null) => openTasks.value.filter(t => (t.project_id ?? null) === projectId).sort(byDate)
+/** Свой порядок (перетаскиванием) важнее даты; задачи, которые не двигали, — по дате */
+const byOrder = (a: Task, b: Task) => byPosition(a, b) || byDate(a, b)
+const onTaskSort = (ids: string[]) => { void app.reorderTasks(ids) }
+const tasksOf = (projectId: string | null) => openTasks.value.filter(t => (t.project_id ?? null) === projectId).sort(byOrder)
 /** Задачи из архивных проектов (их могли оставить там при архивации) показываем вместе с задачами без проекта */
-const looseTasks = computed(() => openTasks.value.filter(t => !t.project_id || !projects.value.some(p => p.id === t.project_id)).sort(byDate))
+const looseTasks = computed(() => openTasks.value.filter(t => !t.project_id || !projects.value.some(p => p.id === t.project_id)).sort(byOrder))
 const collapsed = ref<Record<string, boolean>>({})
 const dateClass = (d: string) => (d < app.today ? 'text-amber-700' : 'text-mute')
 const dateLabel = (d: string) => (d === app.today ? 'сегодня' : shortDate(d))
@@ -191,8 +196,8 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
           <span class="flex-1">Без проекта <span class="font-normal text-mute">· {{ looseTasks.length }}</span></span>
           <span class="text-mute">{{ collapsed[''] ? '▾' : '▴' }}</span>
         </button>
-        <div v-if="!collapsed['']" class="card divide-y divide-line">
-          <TaskRow v-for="t in looseTasks" :key="t.id" :task="t">
+        <div v-if="!collapsed['']" v-drag-sort="onTaskSort" class="card divide-y divide-line">
+          <TaskRow v-for="t in looseTasks" :key="t.id" :data-id="t.id" :task="t" sortable>
             <span v-if="t.due_date" class="shrink-0 text-xs" :class="dateClass(t.due_date)">{{ dateLabel(t.due_date) }}</span>
           </TaskRow>
           <p v-if="!looseTasks.length" class="px-3 py-2.5 text-sm text-mute">Пусто</p>
@@ -225,8 +230,8 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
             </button>
           </div>
         </div>
-        <div v-if="!collapsed[p.id]" class="card divide-y divide-line">
-          <TaskRow v-for="t in tasksOf(p.id)" :key="t.id" :task="t">
+        <div v-if="!collapsed[p.id]" v-drag-sort="onTaskSort" class="card divide-y divide-line">
+          <TaskRow v-for="t in tasksOf(p.id)" :key="t.id" :data-id="t.id" :task="t" sortable>
             <span v-if="t.due_date" class="shrink-0 text-xs" :class="dateClass(t.due_date)">{{ dateLabel(t.due_date) }}</span>
           </TaskRow>
           <form class="flex gap-2 px-3 py-2" @submit.prevent="addTo(p.id)">

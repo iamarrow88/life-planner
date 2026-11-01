@@ -13,6 +13,7 @@ export interface Task {
   remind_before_minutes?: number | null   // null — не напоминать; 0 — в момент начала
   tags?: string[]                         // теги: строчными, без «#»
   budget?: number | null                  // бюджет, BYN (null — не задан)
+  position?: number | null                // место в списке, заданное перетаскиванием (null — не двигали)
 }
 export type RecurrenceFreq = 'day' | 'week' | 'month' | 'year'
 export type RecurrenceMode = 'schedule' | 'after_completion'
@@ -90,6 +91,7 @@ export interface Snapshot {
   cycle?: CycleData | null      // null — в базе ещё нет таблиц цикла (не выполнен planner_cycle.sql)
   tagsReady?: boolean           // false — в базе ещё нет тегов (не выполнен planner_tags.sql)
   budgetReady?: boolean         // false — в базе ещё нет бюджета задач (не выполнен planner_budget.sql)
+  orderReady?: boolean          // false — в базе ещё нет порядка задач (не выполнен planner_task_order.sql)
 }
 export interface NewTask {
   title: string; status: TaskStatus; sphere_id?: string | null; project_id?: string | null
@@ -176,6 +178,8 @@ export interface Repo {
   archiveHabit(id: string): Promise<void>
   /** Сохранить порядок привычек: id всех привычек в нужном порядке */
   reorderHabits(ids: string[]): Promise<void>
+  /** Свой порядок задач списка: id в нужном порядке (position = номер в списке) */
+  reorderTasks(ids: string[]): Promise<void>
   /** Все дни диапазона по каждой привычке: значение, выполнена ли, запланирована ли */
   habitDays(from: string, to: string): Promise<HabitDay[]>
   habitStatus(day: string): Promise<HabitStatus[]>

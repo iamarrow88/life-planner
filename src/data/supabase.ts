@@ -50,15 +50,17 @@ async function callGoogle(body: Record<string, unknown>): Promise<GoogleStatus> 
 
 const TASK_BASE_COLS = 'id,title,note,status,sphere_id,project_id,due_date,start_time,estimate_minutes,remind_before_minutes,done_at,recurrence_id'
 const REC_BASE_COLS = 'id,title,note,sphere_id,project_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
-// Необязательные колонки задач и повторов: их добавляют отдельные SQL-патчи (planner_tags.sql, planner_budget.sql).
+// Необязательные колонки задач и повторов: их добавляют отдельные SQL-патчи (planner_tags.sql, planner_budget.sql, planner_task_order.sql).
 // Пока патч не выполнен, колонку не читаем и не пишем — приложение работает без неё
-const optional = { tags: true, budget: true }
+const optional = { tags: true, budget: true, position: true }
 type Opt = keyof typeof optional
 const OPTS = Object.keys(optional) as Opt[]
-const optCols = () => OPTS.filter(k => optional[k]).map(k => ',' + k).join('')
-let TASK_COLS = TASK_BASE_COLS + optCols()
-let REC_COLS = REC_BASE_COLS + optCols()
-function dropOpt(k: Opt) { optional[k] = false; TASK_COLS = TASK_BASE_COLS + optCols(); REC_COLS = REC_BASE_COLS + optCols() }
+/** position есть только у задач */
+const REC_OPTS: Opt[] = ['tags', 'budget']
+const optCols = (keys: Opt[]) => keys.filter(k => optional[k]).map(k => ',' + k).join('')
+let TASK_COLS = TASK_BASE_COLS + optCols(OPTS)
+let REC_COLS = REC_BASE_COLS + optCols(REC_OPTS)
+function dropOpt(k: Opt) { optional[k] = false; TASK_COLS = TASK_BASE_COLS + optCols(OPTS); REC_COLS = REC_BASE_COLS + optCols(REC_OPTS) }
 /** Убрать из записи поля колонок, которых в базе нет (иначе запрос упадёт) */
 const withOpt = <T extends object>(o: T): T => { const r = { ...o } as Record<string, unknown>; for (const k of OPTS) if (!optional[k]) delete r[k]; return r as T }
 /** Необязательные поля новой записи: только заданные и только если колонка есть */
@@ -152,7 +154,7 @@ export const supabaseRepo: Repo = {
     return {
       spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as unknown as Task[], habits: ok(habits) as unknown as Habit[],
       habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], recurrences: ok(recs) as unknown as Recurrence[],
-      tagsReady: optional.tags, budgetReady: optional.budget,
+      tagsReady: optional.tags, budgetReady: optional.budget, orderReady: optional.position,
       weekGoals: ok(goals) as WeekGoal[], reviews: ok(reviews) as WeeklyReview[],
       // если состояние привычек не пришло — считаем, что все запланированы на сегодня (список не должен пропасть)
       habitStatus: hs.error ? [] : (hs.data as HabitStatus[]),
@@ -207,6 +209,11 @@ export const supabaseRepo: Repo = {
   // project_id сбрасываем: у привычки/правила с проектом сфера всегда равна сфере проекта, и смена одной сферы не сработала бы
   async moveHabit(id, sphereId) { ok(await db().from('habits').update({ sphere_id: sphereId, project_id: null }).eq('id', id)) },
   async moveRecurrence(id, sphereId) { ok(await db().from('recurrences').update({ sphere_id: sphereId, project_id: null }).eq('id', id)) },
+  async reorderTasks(ids) {
+    if (!optional.position) throw new Error('Чтобы менять порядок задач, выполни planner_task_order.sql в Supabase (SQL Editor)')
+    const rs = await Promise.all(ids.map((id, i) => db().from('tasks').update({ position: i }).eq('id', id)))
+    for (const r of rs) if (r.error) throw new Error(r.error.message)
+  },
   async reorderHabits(ids) {
     const rs = await Promise.all(ids.map((id, i) => db().from('habits').update({ position: i }).eq('id', id)))
     for (const r of rs) if (r.error) throw new Error(r.error.message)

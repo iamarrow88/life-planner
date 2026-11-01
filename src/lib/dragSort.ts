@@ -1,3 +1,5 @@
+import type { Directive } from 'vue'
+
 // Перетаскивание элементов списка за «ручку» (мышь и палец), без внешних библиотек.
 // Контейнер: прямые потомки с data-id; ручка внутри потомка: любой элемент с data-drag-handle.
 export function dragSort(container: HTMLElement, getCb: () => ((ids: string[]) => void) | undefined): () => void {
@@ -58,4 +60,11 @@ export function dragSort(container: HTMLElement, getCb: () => ((ids: string[]) =
   function cancel() { end() }
   container.addEventListener('pointerdown', down)
   return () => { container.removeEventListener('pointerdown', down); end() }
+}
+
+/** v-drag-sort="cb": перетаскивание за ручку; cb(ids) получает id в новом порядке (колбэк берётся свежий при каждом обновлении) */
+export const vDragSort: Directive<HTMLElement & { _ds?: () => void; _cb?: (ids: string[]) => void }, (ids: string[]) => void> = {
+  mounted(el, b) { el._cb = b.value; el._ds = dragSort(el, () => el._cb) },
+  updated(el, b) { el._cb = b.value },
+  unmounted(el) { el._ds?.() },
 }

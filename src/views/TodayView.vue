@@ -19,6 +19,7 @@ import { budgetSum, fmtMoney } from '../lib/budget'
 import { dragToDay } from '../lib/dragToDay'
 import { describe } from '../lib/recurrence'
 import { dragSort } from '../lib/dragSort'
+import { byPosition } from '../lib/taskOrder'
 import { emptyCollapse, nextCollapse, splitHabits, type CollapseState } from '../lib/habitCollapse'
 import type { Habit, HabitDay, Task } from '../types'
 
@@ -100,16 +101,20 @@ const showRules = ref(false)
 const planned = computed(() => app.data.tasks.filter(t => t.status !== 'inbox'))
 /** Невыполненные: выполненные уезжают в блок «Выполнено» внизу */
 const pending = computed(() => planned.value.filter(t => t.status !== 'done'))
+/** Внутри дня — свой порядок (перетаскиванием), а задачи, которые не двигали, — по времени начала */
 const sortTasks = (a: Task, b: Task) =>
   Number(a.status === 'done') - Number(b.status === 'done') ||
   (a.due_date ?? '').localeCompare(b.due_date ?? '') ||
+  byPosition(a, b) ||
   (a.start_time ?? '99').localeCompare(b.start_time ?? '99')
+/** Перетащили задачу в списке — запоминаем новый порядок */
+const onTaskSort = (ids: string[]) => { void app.reorderTasks(ids) }
 
 const list = computed(() => {
   const t = app.today
   const week = addDays(t, 7)
   // «Без даты»: сначала разобранные задачи без срока, за ними — неразобранные из «Входящих» (у них даты тоже нет)
-  if (filter.value === 'nodate') return [...pending.value.filter(x => !x.due_date).sort(sortTasks), ...app.inbox]
+  if (filter.value === 'nodate') return [...pending.value.filter(x => !x.due_date), ...app.inbox].sort(byPosition)
   return pending.value.filter(x => {
     if (filter.value === 'today') return x.due_date === t || (!!x.due_date && x.due_date < t)
     if (filter.value === 'tomorrow') return x.due_date === addDays(t, 1)
@@ -332,9 +337,9 @@ async function add() {
     </form>
     <TagBar />
     <RecurrenceForm v-if="showRecForm" class="mb-3" @done="showRecForm = false" />
-    <div v-if="list.length" class="card divide-y divide-line">
-      <div v-for="t in list" :key="t.id">
-        <TaskRow :task="t">
+    <div v-if="list.length" v-drag-sort="onTaskSort" class="card divide-y divide-line" data-test="task-list">
+      <div v-for="t in list" :key="t.id" :data-id="t.id">
+        <TaskRow :task="t" sortable>
           <span v-if="t.due_date && (filter === 'week' || t.due_date < app.today)" class="shrink-0 text-xs" :class="t.due_date < app.today ? 'text-amber-700' : 'text-mute'">{{ shortDate(t.due_date) }}</span>
           <RouterLink v-else-if="t.status === 'inbox'" to="/inbox" class="shrink-0 text-xs text-mute hover:text-accent" title="Задача ещё не разобрана — лежит во «Входящих»" data-test="from-inbox">во входящих</RouterLink>
         </TaskRow>
@@ -426,8 +431,8 @@ async function add() {
     </section>
     <div v-if="untimedOnDay.length" class="mb-3">
       <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-mute">Без времени</div>
-      <div class="card divide-y divide-line">
-        <TaskRow v-for="t in untimedOnDay" :key="t.id" :task="t" />
+      <div v-drag-sort="onTaskSort" class="card divide-y divide-line">
+        <TaskRow v-for="t in untimedOnDay" :key="t.id" :data-id="t.id" :task="t" sortable />
       </div>
     </div>
     <div class="card divide-y divide-line">

@@ -6,7 +6,8 @@ import { fmtClock, fmtSec, hhmm } from '../lib/time'
 import { fmtMinutes } from '../lib/time'
 import { fmtMoney } from '../lib/budget'
 
-const props = defineProps<{ task: Task }>()
+/** sortable — показать ручку ⋮⋮ для перетаскивания (список с v-drag-sort) */
+const props = defineProps<{ task: Task; sortable?: boolean }>()
 const app = useApp()
 const sphere = computed(() => app.sphereById(props.task.sphere_id))
 const project = computed(() => app.projectById(props.task.project_id))
@@ -18,6 +19,7 @@ const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
 
 <template>
   <div class="flex items-center gap-3 px-3 py-2.5">
+    <span v-if="sortable && app.orderReady" data-drag-handle class="-ml-1 -mr-1.5 shrink-0 cursor-grab touch-none select-none px-1 text-base leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить задачу" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
     <button class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition"
       :class="done ? 'border-accent bg-accent text-white' : 'border-line hover:border-accent'"
       :aria-label="done ? 'Вернуть в работу' : 'Выполнено'" @click="app.toggleDone(task)">

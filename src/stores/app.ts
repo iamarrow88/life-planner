@@ -4,6 +4,7 @@ import { repo } from '../data'
 import type { CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
 import { parseTags, uniqTags } from '../lib/tags'
+import { byPosition } from '../lib/taskOrder'
 import { DEFAULT_CYCLE_SETTINGS, PILL_NAMES, courseFrom, courseOn, cycleDayNo, cycleStarts } from '../lib/cycle'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
@@ -32,7 +33,8 @@ export const useApp = defineStore('app', () => {
   const longStop = ref<{ id: string; title: string; started_at: string; seconds: number } | null>(null)
 
   const spheres = computed(() => data.value.spheres)
-  const inbox = computed(() => data.value.tasks.filter(t => t.status === 'inbox'))
+  /** «Входящие»: в своём порядке (перетаскиванием), задачи, которые не двигали, — сверху, новые первыми */
+  const inbox = computed(() => data.value.tasks.filter(t => t.status === 'inbox').sort(byPosition))
   const archivedSpheres = computed(() => data.value.archivedSpheres ?? [])
   const sphereById = (id: string | null) => data.value.spheres.find(s => s.id === id) ?? null
   const projectById = (id: string | null | undefined) => data.value.projects.find(p => p.id === id) ?? null
@@ -128,6 +130,15 @@ export const useApp = defineStore('app', () => {
     data.value.habits = next.map(id => byId.get(id)!)
     const ok = await guard(async () => { await repo.reorderHabits(next); return true })
     if (!ok) data.value.habits = before
+    return !!ok
+  }
+  /** Свой порядок задач списка (ids — задачи в новом порядке). Сразу на экране, потом в базе; при ошибке — как было */
+  const orderReady = computed(() => data.value.orderReady !== false)
+  async function reorderTasks(ids: string[]) {
+    const before = new Map(data.value.tasks.map(t => [t.id, t.position]))
+    ids.forEach((id, i) => { const t = data.value.tasks.find(x => x.id === id); if (t) t.position = i })
+    const ok = await guard(async () => { await repo.reorderTasks(ids); return true })
+    if (!ok) for (const t of data.value.tasks) t.position = before.get(t.id) ?? null
     return !!ok
   }
   const habitValue = (id: string) => data.value.habitEntries.find(e => e.habit_id === id && e.entry_date === today.value)?.value ?? 0
@@ -737,7 +748,7 @@ export const useApp = defineStore('app', () => {
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
-    tagsReady, budgetReady, allTags, renameTag, searchQuery, openSearch, closeSearch,
+    tagsReady, budgetReady, orderReady, reorderTasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
