@@ -8,7 +8,7 @@ import TaskRow from './TaskRow.vue'
 const PAGE = 20
 /** since — первый день периода (например, начало недели): более ранние выполненные скрыты, их можно показать кнопкой */
 const props = defineProps<{ tasks: Task[]; since?: string }>()
-const open = ref(true)
+const open = ref(false) // по умолчанию свёрнуто: раскрывается по заголовку
 const shown = ref(PAGE)
 
 /** Когда выполнена: done_at, а у старых записей без него — дата задачи */
@@ -26,7 +26,7 @@ const doneDay = (t: { done_at: string | null }) => (t.done_at ? shortDate(dayOf(
 
 <template>
   <section v-if="all.length" class="mt-6" data-testid="done-block">
-    <button class="mb-2 flex w-full items-center justify-between text-left" @click="open = !open">
+    <button class="mb-2 flex w-full items-center justify-between text-left" data-testid="done-toggle" :aria-expanded="open" @click="open = !open">
       <span class="text-sm font-semibold uppercase tracking-wide text-mute">Выполнено · {{ recent.length }}</span>
       <span class="text-lg text-mute">{{ open ? '▴' : '▾' }}</span>
     </button>
