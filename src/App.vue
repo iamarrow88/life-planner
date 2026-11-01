@@ -2,6 +2,8 @@
 import { computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { useApp } from './stores/app'
+/** Логотип из public/ (учитывает папку сайта, например /life-planner/) */
+const logo = import.meta.env.BASE_URL + 'icon.svg'
 import NavIcon from './components/NavIcon.vue'
 import TimerBar from './components/TimerBar.vue'
 import TimeEditor from './components/TimeEditor.vue'
@@ -33,7 +35,7 @@ async function logout() { await app.signOut(); router.push('/login') }
     <!-- Боковое меню на ПК -->
     <aside class="hidden w-60 shrink-0 flex-col border-r border-line bg-white/60 p-4 md:flex">
       <div class="mb-6 flex items-center gap-2 px-2 text-lg font-bold text-accent">
-        <span class="grid h-8 w-8 place-items-center rounded-lg bg-accent text-white">◔</span> My life planner
+        <img :src="logo" alt="" class="h-8 w-8" /> KolaApp
       </div>
       <nav class="flex flex-col gap-1">
         <RouterLink v-for="t in tabs" :key="t.to" :to="t.to"

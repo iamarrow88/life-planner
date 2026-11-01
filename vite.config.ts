@@ -22,10 +22,10 @@ export default defineConfig(({ mode }) => {
       registerType: 'autoUpdate',
       injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png}'] },
       devOptions: { enabled: true, type: 'module' }, // service worker и в npm run dev, чтобы проверять уведомления
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'My life planner',
-        short_name: 'My life planner',
+        name: 'KolaApp',
+        short_name: 'KolaApp',
         lang: 'ru',
         display: 'standalone',
         background_color: '#F6F4EF',
@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => {
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' },
         ],
       },

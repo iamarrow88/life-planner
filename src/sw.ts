@@ -23,7 +23,7 @@ self.addEventListener('activate', (event: { waitUntil(p: Promise<unknown>): void
 self.addEventListener('push', (event: { data?: { json(): unknown; text(): string }; waitUntil(p: Promise<unknown>): void }) => {
   let data: { title?: string; body?: string; url?: string; tag?: string } = {}
   try { data = (event.data?.json() as typeof data) ?? {} } catch { data = { body: event.data?.text() } }
-  event.waitUntil(self.registration.showNotification(data.title || 'My life planner', {
+  event.waitUntil(self.registration.showNotification(data.title || 'KolaApp', {
     body: data.body,
     icon: inApp('icon-192.png'),
     badge: inApp('icon-192.png'),

@@ -1,4 +1,4 @@
-# Планировщик (Vue 3 + Supabase, PWA)
+# KolaApp — планировщик (Vue 3 + Supabase, PWA)
 
 ## Запуск
 ```

@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApp } from '../stores/app'
+/** Логотип из public/ (учитывает папку сайта, например /life-planner/) */
+const logo = import.meta.env.BASE_URL + 'icon.svg'
 
 const app = useApp()
 const router = useRouter()
@@ -28,8 +30,8 @@ async function submit() {
   <div class="grid min-h-full place-items-center p-6">
     <form class="card w-full max-w-sm space-y-4 p-6" @submit.prevent="submit">
       <div class="text-center">
-        <div class="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-accent text-2xl text-white">◔</div>
-        <h1 class="text-xl font-bold">My life planner</h1>
+        <img :src="logo" alt="" class="mx-auto mb-3 h-14 w-14" />
+        <h1 class="text-xl font-bold">KolaApp</h1>
       </div>
       <div class="flex rounded-xl border border-line bg-bg p-0.5 text-sm font-semibold">
         <button type="button" class="flex-1 rounded-lg py-2 transition" :class="mode === 'in' ? 'bg-accent text-white' : 'text-mute'" @click="mode = 'in'">Войти</button>
