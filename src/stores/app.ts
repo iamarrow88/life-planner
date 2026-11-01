@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
+import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
 import { googleClientId } from '../lib/google'
 import { parseTags, uniqTags } from '../lib/tags'
 import { byPosition } from '../lib/taskOrder'
@@ -33,6 +33,20 @@ export const useApp = defineStore('app', () => {
   const longStop = ref<{ id: string; title: string; started_at: string; seconds: number } | null>(null)
 
   const spheres = computed(() => data.value.spheres)
+  // ---- Отложено без даты: разобранные задачи (есть сфера), но без даты. Если не трогали staleDays дней — «пора решить»
+  const STALE_KEY = 'planner-stale-days'
+  const staleDays = ref((() => { try { const n = Number(localStorage.getItem(STALE_KEY)); return n >= 1 ? n : 30 } catch { return 30 } })())
+  function setStaleDays(n: number) {
+    staleDays.value = Math.min(365, Math.max(1, Math.round(n || 30)))
+    try { localStorage.setItem(STALE_KEY, String(staleDays.value)) } catch { /* не страшно */ }
+  }
+  const isStale = (t: Task) => !!t.updated_at && dayOf(t.updated_at) <= addDays(today.value, -staleDays.value)
+  const deferred = computed(() => data.value.tasks.filter(t => t.status === 'planned' && !t.due_date).sort(byPosition))
+  /** Залежались: возвращаются в основной список «Входящих» с вопросом «решить?» */
+  const staleDeferred = computed(() => deferred.value.filter(isStale))
+  const freshDeferred = computed(() => deferred.value.filter(t => !isStale(t)))
+  /** «Ещё отложить»: задача остаётся без даты, счётчик дней начинается заново */
+  const snoozeTask = (id: string) => updateTask(id, { status: 'planned' })
   /** «Входящие»: в своём порядке (перетаскиванием), задачи, которые не двигали, — сверху, новые первыми */
   const inbox = computed(() => data.value.tasks.filter(t => t.status === 'inbox').sort(byPosition))
   const archivedSpheres = computed(() => data.value.archivedSpheres ?? [])
@@ -134,6 +148,17 @@ export const useApp = defineStore('app', () => {
   }
   /** Свой порядок задач списка (ids — задачи в новом порядке). Сразу на экране, потом в базе; при ошибке — как было */
   const orderReady = computed(() => data.value.orderReady !== false)
+  /** false — в Supabase не выполнен planner_subtasks.sql */
+  const subtasksReady = computed(() => data.value.subtasksReady !== false)
+  /** Подзадачи сохраняются сразу (отметили, добавили, переставили); на экране — до ответа базы, при ошибке — как было */
+  async function setSubtasks(taskId: string, list: Subtask[]) {
+    const t = data.value.tasks.find(x => x.id === taskId); if (!t) return false
+    const before = t.subtasks
+    t.subtasks = list
+    await updateTask(taskId, { subtasks: list })
+    if (error.value) { const x = data.value.tasks.find(y => y.id === taskId); if (x) x.subtasks = before; return false }
+    return true
+  }
   async function reorderTasks(ids: string[]) {
     const before = new Map(data.value.tasks.map(t => [t.id, t.position]))
     ids.forEach((id, i) => { const t = data.value.tasks.find(x => x.id === id); if (t) t.position = i })
@@ -293,7 +318,7 @@ export const useApp = defineStore('app', () => {
       syncGoogleSoon()
     }
   }
-  /** Вернуть в работу: с датой или разобранную по сфере («Без даты») — в план, иначе во «Входящие» */
+  /** Вернуть в работу: с датой — в план; без даты — в «Отложено», если задача уже была разобрана по сфере, иначе во «Входящие» */
   async function toggleDone(t: Task) {
     await updateTask(t.id, { status: t.status === 'done' ? (t.due_date || t.sphere_id ? 'planned' : 'inbox') : 'done' })
   }
@@ -748,7 +773,8 @@ export const useApp = defineStore('app', () => {
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
-    tagsReady, budgetReady, orderReady, reorderTasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
+    staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
+    tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
     init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,

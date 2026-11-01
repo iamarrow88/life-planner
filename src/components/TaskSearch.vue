@@ -20,7 +20,7 @@ const results = computed(() => {
   if (!tags.length && !words.length) return []
   return app.data.tasks.filter(t => {
     if (!tags.every(g => t.tags?.includes(g))) return false
-    const hay = (t.title + ' ' + (t.note ?? '')).toLowerCase()
+    const hay = [t.title, t.note ?? '', ...(t.subtasks ?? []).map(s => s.title)].join(' ').toLowerCase()
     return words.every(w => hay.includes(w))
   })
 })

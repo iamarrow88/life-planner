@@ -5,6 +5,7 @@ import { fmtSec } from '../lib/time'
 import AutoTextarea from './AutoTextarea.vue'
 import EstimateInput from './EstimateInput.vue'
 import TagInput from './TagInput.vue'
+import SubtaskList from './SubtaskList.vue'
 import { parseTags, uniqTags } from '../lib/tags'
 import { useBackdrop } from '../lib/backdrop'
 import HabitSchedule from './HabitSchedule.vue'
@@ -22,7 +23,7 @@ const estimate = ref<number | null>(null)
 const tags = ref<string[]>([])
 /** Бюджет, BYN (пусто — не задан) */
 const budget = ref<number | null>(null)
-/** «Без даты»: задача разобрана (есть сфера), но дата не нужна — она уходит из «Входящих» в список «Без даты» */
+/** «Без даты»: задачу разобрала, но когда ею заняться — пока не знаю; уходит из «Входящих» в «Отложено без даты» (сфера не обязательна) */
 const noDate = ref(false)
 const sphereId = ref('')
 const projectId = ref('')
@@ -108,10 +109,14 @@ function templateFrom(due: string | null): Pick<NewRecurrence, (typeof TEMPLATE_
   }
 }
 /** Поменяли ли в этот раз что-то из шаблона (название, описание, сферу, время…) */
+/** Подзадачи для шаблона повтора: те же пункты, все невыполненные */
+const freshSubtasks = () => (task.value?.subtasks ?? []).map(s => ({ ...s, done: false }))
+const subtasksDiffer = computed(() => !same((task.value?.subtasks ?? []).map(s => s.title), (rule.value?.subtasks ?? []).map(s => s.title)))
 const templateChanged = computed(() => {
   const t = task.value; if (!t) return false
   const tpl = templateFrom(date.value || t.due_date)
-  return TEMPLATE_KEYS.some(k => !same(tpl[k], t[k]))
+  // подзадачи сохраняются сразу, а в шаблон повтора попадают, если их состав отличается от правила
+  return TEMPLATE_KEYS.some(k => k !== 'subtasks' && !same(tpl[k], t[k])) || (!!rule.value && subtasksDiffer.value)
 })
 // Пользователь впервые поставил время начала задаче без времени — предлагаем напомнить за 10 минут
 function onTimeInput() {
@@ -125,8 +130,8 @@ function toggleNoDate() {
   noDate.value = !noDate.value
   if (noDate.value) { date.value = ''; time.value = ''; remind.value = ''; remindTouched.value = true }
 }
-/** Задача без даты уходит из «Входящих», только если выбрана сфера (проект — по желанию) */
-const keepsOutOfInbox = computed(() => noDate.value && !date.value && !!sphereId.value)
+/** Явно нажато «Без даты» — задача уходит из «Входящих» в «Отложено без даты» */
+const keepsOutOfInbox = computed(() => noDate.value && !date.value)
 
 /** markDone — «Выполнено»: сохраняем правки, останавливаем таймер этой задачи и закрываем её */
 async function save(markDone = false) {
@@ -143,12 +148,12 @@ async function save(markDone = false) {
   if (markDone && isRunning.value) await app.stopTimer()
   await app.updateTask(t.id, { ...tpl, due_date: due, status: markDone || t.status === 'done' ? 'done' : due || keepsOutOfInbox.value ? 'planned' : 'inbox' })
   if (!app.error) {
-    if (wantRepeat && !r) await app.attachRecurrence(t.id, { ...tpl, ...fields })
+    if (wantRepeat && !r) await app.attachRecurrence(t.id, { ...tpl, ...fields, ...(app.subtasksReady ? { subtasks: freshSubtasks() } : {}) })
     else if (!wantRepeat && r) await app.detachRecurrence(r.id, t.id)
     else if (wantRepeat && r) {
       const patch: RecurrencePatch = {}
       if (RULE_KEYS.some(k => !same(fields[k], r[k]))) Object.assign(patch, fields)
-      if (scope === 'all' && changedTpl) Object.assign(patch, tpl)
+      if (scope === 'all' && changedTpl) Object.assign(patch, tpl, app.subtasksReady ? { subtasks: freshSubtasks() } : {})
       if (Object.keys(patch).length) await app.updateRecurrence(r.id, patch, t.id)
     }
   }
@@ -182,6 +187,7 @@ async function remove() {
       <AutoTextarea v-model="title" single-line :maxlength="500" required placeholder="Название задачи" @submit="save()" />
       <AutoTextarea v-model="note" :min-rows="3" placeholder="Описание задачи" />
       <TagInput v-if="app.tagsReady" v-model="tags" />
+      <SubtaskList v-if="app.subtasksReady" :task="task" />
 
       <div class="grid grid-cols-2 gap-2">
         <label class="text-xs text-mute">
@@ -193,8 +199,7 @@ async function remove() {
 
       <div v-if="task.status !== 'done'" class="-mt-1 flex flex-wrap items-center gap-2 text-xs text-mute">
         <button type="button" class="chip py-1" :class="noDate && 'chip-on'" :aria-pressed="noDate" data-test="no-date" @click="toggleNoDate">Без даты</button>
-        <span v-if="keepsOutOfInbox">Задача уйдёт из «Входящих» в список «Без даты» на экране «Сегодня».</span>
-        <span v-else-if="noDate">Чтобы убрать задачу из «Входящих», выбери сферу ниже.</span>
+        <span v-if="keepsOutOfInbox">Задача уйдёт из «Входящих» в «Отложено без даты» (и в список «Без даты» на «Сегодня»).</span>
         <span v-else-if="!date">Без даты задача лежит во «Входящих».</span>
       </div>
 

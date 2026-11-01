@@ -4,6 +4,7 @@ import { useApp } from '../stores/app'
 import type { WeekData } from '../types'
 import { addDays, fmtMinutes, shortDate, weekStart } from '../lib/time'
 import HabitTracker from '../components/HabitTracker.vue'
+import TaskRow from '../components/TaskRow.vue'
 
 const app = useApp()
 const ws = ref(weekStart(app.today))
@@ -101,6 +102,18 @@ async function complete() {
     </div>
 
     <HabitTracker :week-start="ws" />
+
+    <!-- Отложено без даты: раз в неделю пробежаться глазами -->
+    <section v-if="app.deferred.length" class="mb-4" data-test="review-deferred">
+      <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Отложено без даты</h2>
+      <div class="card p-4 text-sm">
+        <p>Без даты: <b>{{ app.deferred.length }}</b><template v-if="app.staleDeferred.length">, из них давно не трогала ({{ app.staleDays }}+ дн.): <b class="text-amber-800">{{ app.staleDeferred.length }}</b></template></p>
+        <div v-if="app.staleDeferred.length" class="mt-2 divide-y divide-line rounded-xl border border-line">
+          <TaskRow v-for="t in app.staleDeferred" :key="t.id" :task="t" />
+        </div>
+        <RouterLink to="/inbox" class="mt-2 inline-block font-semibold text-accent">Разобрать во «Входящих» ›</RouterLink>
+      </div>
+    </section>
 
     <!-- Сферы против целей -->
     <section class="mb-4">

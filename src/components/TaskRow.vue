@@ -5,6 +5,8 @@ import type { Task } from '../types'
 import { fmtClock, fmtSec, hhmm } from '../lib/time'
 import { fmtMinutes } from '../lib/time'
 import { fmtMoney } from '../lib/budget'
+import { ref } from 'vue'
+import SubtaskList from './SubtaskList.vue'
 
 /** sortable — показать ручку ⋮⋮ для перетаскивания (список с v-drag-sort) */
 const props = defineProps<{ task: Task; sortable?: boolean }>()
@@ -14,10 +16,13 @@ const project = computed(() => app.projectById(props.task.project_id))
 const isRunning = computed(() => app.running?.task_id === props.task.id)
 const done = computed(() => props.task.status === 'done')
 const totals = computed(() => app.taskTotals[props.task.id] ?? { week: 0, month: 0 })
+const subs = computed(() => props.task.subtasks ?? [])
+const showSubs = ref(false)
 const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
 </script>
 
 <template>
+  <div>
   <div class="flex items-center gap-3 px-3 py-2.5">
     <span v-if="sortable && app.orderReady" data-drag-handle class="-ml-1 -mr-1.5 shrink-0 cursor-grab touch-none select-none px-1 text-base leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить задачу" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
     <button class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition"
@@ -29,6 +34,8 @@ const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
       <button class="block w-full truncate text-left text-[15px] hover:text-accent" :class="done && 'text-mute line-through'" @click="app.openTask(task.id)">{{ task.title }}</button>
       <div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-mute">
         <span v-if="task.recurrence_id" title="Повторяющаяся" class="font-semibold text-accent">↻</span>
+        <button v-if="subs.length" type="button" class="font-medium hover:text-accent" :class="subs.every(s => s.done) && 'text-accent'" :aria-expanded="showSubs"
+          :title="showSubs ? 'Скрыть подзадачи' : 'Показать подзадачи'" data-test="subtask-progress" @click="showSubs = !showSubs">☑ {{ subs.filter(s => s.done).length }}/{{ subs.length }}</button>
         <span v-if="task.note" title="Есть описание" class="font-semibold">≡</span>
         <span v-if="task.start_time" class="font-medium text-ink/70">{{ hhmm(task.start_time) }}<span v-if="task.remind_before_minutes != null" title="Напомнит"> 🔔</span></span>
         <span v-if="sphere" class="inline-flex items-center gap-1">
@@ -54,5 +61,7 @@ const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
       <svg v-if="isRunning" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2" /></svg>
       <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z" /></svg>
     </button>
+  </div>
+  <SubtaskList v-if="showSubs && subs.length" :task="task" compact />
   </div>
 </template>

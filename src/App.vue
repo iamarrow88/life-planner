@@ -22,7 +22,7 @@ const tabs = [
   { to: '/more', label: 'Ещё', icon: 'more' },
 ] as const
 const showShell = computed(() => !!app.user && route.path !== '/login')
-const badge = computed(() => app.inbox.length)
+const badge = computed(() => app.inbox.length + app.staleDeferred.length)
 async function logout() { await app.signOut(); router.push('/login') }
 </script>
 

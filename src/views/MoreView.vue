@@ -165,6 +165,17 @@ async function logout() { await app.signOut(); router.push('/login') }
 <template>
   <h1 class="mb-4 text-2xl font-bold">Ещё</h1>
 
+  <section class="mb-6" data-test="stale-settings">
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Отложенные задачи</h2>
+    <div class="card space-y-2 p-4">
+      <label class="flex items-center justify-between gap-3 text-sm">Возвращать во «Входящие», если не трогала, дней
+        <input type="number" min="1" max="365" class="input !w-24" :value="app.staleDays" aria-label="Через сколько дней отложенная задача возвращается во «Входящие»"
+          data-test="stale-days" @change="app.setStaleDays(Number(($event.target as HTMLInputElement).value))" />
+      </label>
+      <p class="text-xs text-mute">Задачи со сферой, но без даты лежат во «Входящих» в свёрнутом блоке «Отложено». Залежавшиеся поднимаются наверх с вопросом «решить?». Настройка хранится на этом устройстве.</p>
+    </div>
+  </section>
+
   <section class="mb-6" data-test="tags-settings">
     <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Теги</h2>
     <div class="card p-4">
