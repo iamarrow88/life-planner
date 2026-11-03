@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => {
   base,
   plugins: [
     vue(),
+    // Сборка для телефона (vite build --mode android): без viewport-fit=cover — Android сам оставляет место
+    // под строку состояния и полосу навигации, и шапка не заходит под часы
+    mode === 'android' && { name: 'android-viewport', transformIndexHtml: (html: string) => html.replace(', viewport-fit=cover', '') },
     VitePWA({
       strategies: 'injectManifest', // свой service worker (src/sw.ts) — нужен для push
       srcDir: 'src',

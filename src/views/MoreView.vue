@@ -11,6 +11,8 @@ import { captureUrl } from '../data/supabase'
 import type { CaptureInfo } from '../types'
 import { googleClientId, googleRedirectUri, startGoogleLogin, takeGoogleCallback } from '../lib/google'
 import { getPushState, showTestNotification, subscribePush, unsubscribePush, type PushState } from '../lib/push'
+import { isNative } from '../lib/native'
+import NativeNotifications from '../components/NativeNotifications.vue'
 
 const app = useApp()
 const router = useRouter()
@@ -89,7 +91,7 @@ async function testPush() {
   pushMsg.value = ''
   try { await showTestNotification(); pushMsg.value = 'Тестовое уведомление отправлено на это устройство.' } catch (e) { pushMsg.value = (e as Error).message }
 }
-onMounted(refreshPush)
+onMounted(() => { if (!isNative) void refreshPush() })
 
 // ---- Google Календарь
 const gMsg = ref('')
@@ -235,7 +237,9 @@ async function logout() { await app.signOut(); router.push('/login') }
 
   <section class="mb-6">
     <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Уведомления</h2>
-    <div class="card space-y-3 p-4 text-sm">
+    <!-- В приложении для телефона — системные напоминания, на сайте — web-push -->
+    <NativeNotifications v-if="isNative" />
+    <div v-else class="card space-y-3 p-4 text-sm">
       <p class="text-mute">Это устройство получит: напоминания о задачах со временем (за выбранное время до начала), напоминание, пока идёт таймер (раз в 40 минут), и итог недели в воскресенье.</p>
       <p v-if="repo.mode === 'demo'" class="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">Уведомления доступны после подключения Supabase (демо-режим их не поддерживает).</p>
       <p v-else-if="push === 'loading'" class="text-mute">Проверяю…</p>
@@ -297,7 +301,9 @@ async function logout() { await app.signOut(); router.push('/login') }
         </template>
         <template v-else>
           <p v-if="!g.configured" class="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">На сервере не заданы ключи Google. Выполни шаг 3 из GOOGLE.md.</p>
-          <button class="btn-primary w-full" :disabled="app.googleBusy || gWorking" @click="connectGoogleNow">{{ app.googleBusy || gWorking ? 'Подключаю…' : 'Подключить Google Календарь' }}</button>
+          <!-- Google не пускает вход внутри приложений, поэтому подключение — в браузере; синхронизация потом идёт на сервере и для телефона тоже -->
+          <p v-if="isNative" class="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">Подключить Google Календарь можно в веб-версии KolaApp (в браузере). После этого синхронизация будет работать и в приложении.</p>
+          <button v-else class="btn-primary w-full" :disabled="app.googleBusy || gWorking" @click="connectGoogleNow">{{ app.googleBusy || gWorking ? 'Подключаю…' : 'Подключить Google Календарь' }}</button>
         </template>
       </template>
       <p v-if="app.googleError && gStatus !== 'not-deployed'" class="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">{{ app.googleError }}</p>

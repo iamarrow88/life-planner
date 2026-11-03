@@ -2,8 +2,6 @@
 import { computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { useApp } from './stores/app'
-/** Логотип из public/ (учитывает папку сайта, например /life-planner/) */
-const logo = import.meta.env.BASE_URL + 'icon.svg'
 import NavIcon from './components/NavIcon.vue'
 import TimerBar from './components/TimerBar.vue'
 import TimeEditor from './components/TimeEditor.vue'
@@ -12,10 +10,16 @@ import TaskDetail from './components/TaskDetail.vue'
 import HabitDetail from './components/HabitDetail.vue'
 import TaskSearch from './components/TaskSearch.vue'
 import { repo, supabaseProblems } from './data'
+import { initNative } from './lib/native'
+
+/** Логотип из public/ (учитывает папку сайта, например /life-planner/) */
+const logo = import.meta.env.BASE_URL + 'icon.svg'
 
 const app = useApp()
 const route = useRoute()
 const router = useRouter()
+// приложение для телефона: системные напоминания, кнопка «Назад», статус-бар
+void initNative(app, router)
 const tabs = [
   { to: '/inbox', label: 'Входящие', icon: 'inbox' },
   { to: '/today', label: 'Сегодня', icon: 'today' },
