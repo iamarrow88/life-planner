@@ -28,18 +28,28 @@ const noDate = ref(false)
 const sphereId = ref('')
 const projectId = ref('')
 const newProject = ref('')
+/** Поле «новый проект» открывается пунктом «＋ Новый проект…» в списке проектов */
+const addingProject = ref(false)
+const NEW_PROJECT = '__new'
+function onProjectPick() {
+  if (projectId.value !== NEW_PROJECT) return
+  projectId.value = ''; addingProject.value = true
+}
 /** Новый проект прямо из карточки: создаём в выбранной сфере и сразу выбираем */
 async function createProject() {
   const name = newProject.value.trim(); if (!name || !sphereId.value) return
   const p = await app.addProject(sphereId.value, name)
-  if (p) { projectId.value = p.id; newProject.value = '' }
+  if (p) { projectId.value = p.id; newProject.value = ''; addingProject.value = false }
 }
 /** '' — не напоминать, иначе число минут до начала ('0' — в момент начала) */
 const remind = ref('')
 const remindTouched = ref(false)
-const remindOptions = [['', 'Не напоминать'], ['0', 'В момент начала'], ['5', 'За 5 минут'], ['10', 'За 10 минут'], ['15', 'За 15 минут'], ['30', 'За 30 минут'], ['60', 'За 1 час']]
+// коротко: список стоит в одной строке с датой и временем
+const remindOptions = [['', 'нет'], ['0', 'в начале'], ['5', 'за 5 мин'], ['10', 'за 10 мин'], ['15', 'за 15 мин'], ['30', 'за 30 мин'], ['60', 'за 1 час']]
 const busy = ref(false)
-const presets = [15, 30, 45, 60, 90, 120]
+/** Длительность по умолчанию — 15 минут (её отдельной кнопки нет), кнопки начинаются с 30 */
+const DEFAULT_ESTIMATE = 15
+const presets = [30, 45, 60, 90, 120]
 const isRunning = computed(() => !!task.value && app.running?.task_id === task.value.id)
 const totals = computed(() => (task.value ? app.taskTotal(task.value.id) : undefined))
 
@@ -65,11 +75,12 @@ watch(() => task.value?.id, () => {
   const t = task.value
   if (!t) return
   title.value = t.title; note.value = t.note ?? ''; tags.value = [...(t.tags ?? [])]; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
-  estimate.value = t.estimate_minutes; budget.value = t.budget == null ? null : Number(t.budget); noDate.value = t.status === 'planned' && !t.due_date; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
+  // у задачи по повтору длительность берётся из правила — 15 по умолчанию не подставляем, чтобы не менять правило
+  estimate.value = t.estimate_minutes ?? (t.recurrence_id ? null : DEFAULT_ESTIMATE); budget.value = t.budget == null ? null : Number(t.budget); noDate.value = t.status === 'planned' && !t.due_date; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
   remind.value = t.remind_before_minutes == null ? '' : String(t.remind_before_minutes); remindTouched.value = false
   repeat.value = !!rule.value; repeatScope.value = 'one'
   schedule.value = rule.value ? scheduleOf(rule.value) : defaultSchedule(t.due_date ?? app.today)
-  newProject.value = ''
+  newProject.value = ''; addingProject.value = false
   saved = formState()
 }, { immediate: true })
 function toggleRepeat() {
@@ -185,60 +196,71 @@ async function remove() {
       </div>
 
       <AutoTextarea v-model="title" single-line :maxlength="500" required placeholder="Название задачи" @submit="save()" />
-      <AutoTextarea v-model="note" :min-rows="3" placeholder="Описание задачи" />
+      <AutoTextarea v-model="note" :min-rows="2" placeholder="Описание задачи" />
       <TagInput v-if="app.tagsReady" v-model="tags" />
       <SubtaskList v-if="app.subtasksReady" :task="task" />
 
-      <div class="grid grid-cols-2 gap-2">
-        <label class="text-xs text-mute">
-          <span class="flex items-center justify-between">Дата<button v-if="date" type="button" class="font-semibold text-accent" aria-label="Сбросить дату" title="Убрать дату: задача вернётся во «Входящие»" @click="resetDate">сбросить</button></span>
-          <input v-model="date" type="date" class="input mt-1" @input="date && (noDate = false)" />
-        </label>
-        <label class="text-xs text-mute">Время начала<input v-model="time" type="time" class="input mt-1" :disabled="!date" @input="onTimeInput" @change="onTimeInput" /></label>
-      </div>
-
-      <div v-if="task.status !== 'done'" class="-mt-1 flex flex-wrap items-center gap-2 text-xs text-mute">
-        <button type="button" class="chip py-1" :class="noDate && 'chip-on'" :aria-pressed="noDate" data-test="no-date" @click="toggleNoDate">Без даты</button>
-        <span v-if="keepsOutOfInbox">Задача уйдёт из «Входящих» в «Отложено без даты» (и в список «Без даты» на «Сегодня»).</span>
-        <span v-else-if="!date">Без даты задача лежит во «Входящих».</span>
-      </div>
-
-      <label class="text-xs text-mute">Напоминание
-        <select v-model="remind" class="input mt-1" :disabled="!date || !time" @change="remindTouched = true">
-          <option v-for="o in remindOptions" :key="o[0]" :value="o[0]">{{ o[1] }}</option>
-        </select>
-        <span v-if="!date || !time" class="mt-1 block">Чтобы напомнить, задай дату и время начала.</span>
-      </label>
-
+      <!-- Когда: дата, время начала и напоминание — одной строкой -->
       <div>
-        <div class="mb-1.5 text-xs text-mute">Сколько времени займёт (необязательно)</div>
-        <div class="flex flex-wrap items-center gap-1.5">
-          <EstimateInput v-model="estimate" />
-          <button v-for="p in presets" :key="p" type="button" class="chip py-1.5" :class="estimate === p && 'chip-on'" @click="estimate = estimate === p ? null : p">{{ p }}</button>
-          <button v-if="estimate" type="button" class="text-xs text-mute" @click="estimate = null">сбросить</button>
+        <div class="grid grid-cols-[1.4fr_1fr_1fr] gap-2">
+          <label class="min-w-0 text-xs text-mute">Дата
+            <input v-model="date" type="date" class="input mt-1 !px-2" @input="date && (noDate = false)" />
+          </label>
+          <label class="min-w-0 text-xs text-mute">Время
+            <input v-model="time" type="time" class="input mt-1 !px-2" :disabled="!date" @input="onTimeInput" @change="onTimeInput" />
+          </label>
+          <label class="min-w-0 text-xs text-mute">Напомнить
+            <select v-model="remind" class="input mt-1 !px-2" :disabled="!date || !time" :title="!date || !time ? 'Чтобы напомнить, задай дату и время начала' : undefined" @change="remindTouched = true">
+              <option v-for="o in remindOptions" :key="o[0]" :value="o[0]">{{ o[1] }}</option>
+            </select>
+          </label>
+        </div>
+        <div v-if="task.status !== 'done' || date" class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-mute">
+          <button v-if="task.status !== 'done'" type="button" class="chip py-1" :class="noDate && 'chip-on'" :aria-pressed="noDate" data-test="no-date" @click="toggleNoDate">Без даты</button>
+          <button v-if="date" type="button" class="font-semibold text-accent" aria-label="Сбросить дату" title="Убрать дату: задача вернётся во «Входящие»" @click="resetDate">сбросить дату</button>
+          <span v-if="keepsOutOfInbox">Уйдёт в «Отложено без даты».</span>
+          <span v-else-if="!date && task.status !== 'done'">Без даты задача лежит во «Входящих».</span>
         </div>
       </div>
 
-      <label v-if="app.budgetReady" class="text-xs text-mute" data-test="task-budget">Бюджет, BYN (необязательно)
-        <input v-model.number="budget" type="number" min="0" step="0.01" inputmode="decimal" class="input mt-1 !w-40" placeholder="например, 1500" aria-label="Бюджет задачи, рублей" />
-      </label>
+      <!-- Сколько займёт: по умолчанию 15 минут, кнопки — для остальных частых значений -->
+      <div>
+        <div class="mb-1 text-xs text-mute">Займёт, минут</div>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <EstimateInput v-model="estimate" width="!w-20 !px-2" />
+          <button v-for="p in presets" :key="p" type="button" class="chip px-2.5 py-1.5" :class="estimate === p && 'chip-on'" @click="estimate = estimate === p ? DEFAULT_ESTIMATE : p">{{ p }}</button>
+          <button v-if="estimate" type="button" class="px-1 text-base leading-none text-mute hover:text-accent" aria-label="Без оценки времени" title="Без оценки времени" @click="estimate = null">×</button>
+        </div>
+      </div>
 
-      <label class="text-xs text-mute">Сфера
-        <select v-model="sphereId" class="input mt-1" @change="projectId = ''"><option value="">Без сферы</option><option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option></select>
-      </label>
-      <div v-if="sphereId" class="text-xs text-mute">
-        <label>Проект
-          <select v-model="projectId" class="input mt-1"><option value="">Без проекта</option><option v-for="p in app.projectsOf(sphereId)" :key="p.id" :value="p.id">{{ p.name }}</option><option v-if="projectId && app.projectById(projectId)?.status === 'archived'" :value="projectId">{{ app.projectById(projectId)?.name }} (в архиве)</option></select>
-        </label>
-        <form class="mt-1.5 flex gap-1.5" @submit.prevent="createProject">
-          <input v-model="newProject" class="input min-w-0 flex-1 !py-1.5 text-sm" maxlength="80" placeholder="＋ Новый проект в этой сфере" aria-label="Новый проект" />
+      <!-- Сфера и проект — одной строкой; новый проект — последним пунктом списка -->
+      <div>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="min-w-0 text-xs text-mute">Сфера
+            <select v-model="sphereId" class="input mt-1 !px-2" @change="projectId = ''; addingProject = false"><option value="">Без сферы</option><option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option></select>
+          </label>
+          <label class="min-w-0 text-xs text-mute">Проект
+            <select v-model="projectId" class="input mt-1 !px-2" :disabled="!sphereId" :title="!sphereId ? 'Сначала выбери сферу' : undefined" @change="onProjectPick">
+              <option value="">Без проекта</option>
+              <option v-for="p in app.projectsOf(sphereId)" :key="p.id" :value="p.id">{{ p.name }}</option>
+              <option v-if="projectId && app.projectById(projectId)?.status === 'archived'" :value="projectId">{{ app.projectById(projectId)?.name }} (в архиве)</option>
+              <option :value="NEW_PROJECT">＋ Новый проект…</option>
+            </select>
+          </label>
+        </div>
+        <form v-if="addingProject && sphereId" class="mt-1.5 flex gap-1.5" @submit.prevent="createProject">
+          <input v-model="newProject" class="input min-w-0 flex-1 !py-1.5 text-sm" maxlength="80" placeholder="Название нового проекта" aria-label="Новый проект" autofocus />
           <button class="btn-ghost shrink-0 !py-1.5" :disabled="!newProject.trim()" aria-label="Добавить проект">Добавить</button>
+          <button type="button" class="shrink-0 px-1 text-mute" aria-label="Не добавлять проект" @click="addingProject = false; newProject = ''">×</button>
         </form>
       </div>
 
-      <!-- Повтор -->
+      <!-- Бюджет и повтор -->
       <div class="space-y-2" data-test="task-repeat">
         <div class="flex flex-wrap items-center gap-2 text-xs text-mute">
+          <label v-if="app.budgetReady" class="flex items-center gap-1.5" data-test="task-budget">Бюджет
+            <input v-model.number="budget" type="number" min="0" step="0.01" inputmode="decimal" class="input !w-28 !px-2 !py-1.5 text-sm" placeholder="BYN" aria-label="Бюджет задачи, BYN" />
+          </label>
           <button type="button" class="chip py-1" :class="repeat && 'chip-on'" :aria-pressed="repeat" data-test="repeat-toggle" @click="toggleRepeat">↻ Повторять</button>
           <span v-if="repeat && !rule && !date">Дата задачи — первый день по расписанию.</span>
           <span v-if="!repeat && rule">Повтор отключится: будущие задачи по нему удалятся, эта останется.</span>
@@ -257,18 +279,19 @@ async function remove() {
         </div>
       </div>
 
-      <div v-if="task.status !== 'done'" class="flex items-center gap-2">
-        <button type="button" class="btn-ghost flex-1" @click="isRunning ? app.stopTimer() : app.startTimer({ task_id: task.id })">
-          {{ isRunning ? '■ Остановить таймер' : '▶ Запустить таймер' }}
+      <!-- Таймер и потраченное время — одной строкой -->
+      <div class="flex flex-wrap items-center gap-2 text-xs text-mute">
+        <button v-if="task.status !== 'done'" type="button" class="chip py-1" :class="isRunning && 'chip-on'" @click="isRunning ? app.stopTimer() : app.startTimer({ task_id: task.id })">
+          {{ isRunning ? '■ Стоп' : '▶ Таймер' }}
         </button>
-        <button type="button" class="btn-ghost" @click="app.openEditor({ task_id: task.id }, task.title)">⏱ Время</button>
+        <button type="button" class="chip py-1" @click="app.openEditor({ task_id: task.id }, task.title)">⏱ Время</button>
+        <span v-if="totals && totals.month > 0">потрачено: неделя {{ fmtSec(totals.week) }} · месяц {{ fmtSec(totals.month) }}</span>
       </div>
-      <p v-if="totals && totals.month > 0" class="text-xs text-mute">Потрачено: неделя {{ fmtSec(totals.week) }} · месяц {{ fmtSec(totals.month) }}</p>
 
       <div class="flex gap-2">
         <button class="btn-primary flex-1" :disabled="busy || needDays">Сохранить</button>
-        <button v-if="task.status !== 'done'" type="button" class="btn-ghost" :disabled="busy || needDays" data-test="task-done" :title="isRunning ? 'Остановить таймер и отметить выполненной' : 'Отметить выполненной'" @click="save(true)">✓ Выполнено</button>
-        <button type="button" class="btn-ghost !text-red-700" @click="remove">Удалить</button>
+        <button v-if="task.status !== 'done'" type="button" class="btn-ghost whitespace-nowrap !px-3" :disabled="busy || needDays" data-test="task-done" :title="isRunning ? 'Остановить таймер и отметить выполненной' : 'Отметить выполненной'" @click="save(true)">✓ Выполнено</button>
+        <button type="button" class="btn-ghost !px-3 !text-red-700" @click="remove">Удалить</button>
       </div>
     </form>
   </div>
