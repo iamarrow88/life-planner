@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { useApp } from './stores/app'
 import NavIcon from './components/NavIcon.vue'
@@ -9,6 +9,7 @@ import LongTimerFix from './components/LongTimerFix.vue'
 import TaskDetail from './components/TaskDetail.vue'
 import HabitDetail from './components/HabitDetail.vue'
 import TaskSearch from './components/TaskSearch.vue'
+import PullToRefresh from './components/PullToRefresh.vue'
 import { repo, supabaseProblems } from './data'
 import { initNative } from './lib/native'
 
@@ -29,6 +30,8 @@ const tabs = [
 ] as const
 const showShell = computed(() => !!app.user && route.path !== '/login')
 const badge = computed(() => app.inbox.length + app.staleDeferred.length)
+/** Прокручиваемая часть экрана: на ней работает «потяни вниз — обновится» */
+const mainEl = ref<HTMLElement | null>(null)
 async function logout() { await app.signOut(); router.push('/login') }
 </script>
 
@@ -57,7 +60,8 @@ async function logout() { await app.signOut(); router.push('/login') }
       </div>
     </aside>
 
-    <main class="relative min-h-0 flex-1 overflow-y-auto">
+    <main ref="mainEl" class="relative min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+      <PullToRefresh :target="mainEl" />
       <TimerBar />
       <div v-if="repo.mode === 'demo'" class="bg-amber-50 px-4 py-2 text-xs text-amber-900">
         <b>Демо-режим:</b> данные хранятся только в этом браузере, входа и регистрации нет.

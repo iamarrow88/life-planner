@@ -285,6 +285,14 @@ export const useApp = defineStore('app', () => {
     await guard(async () => { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0]); lastLoad = Date.now() })
     loading.value = false
   }
+  /** «Потянуть вниз»: свежие данные с сервера (Google — в фоне). refreshTick — сигнал экранам, которые грузят что-то сами (итог недели) */
+  const refreshTick = ref(0)
+  async function refresh() {
+    if (!user.value) return
+    void syncGoogle()
+    await load()
+    refreshTick.value++
+  }
   async function signIn(email: string, password: string) {
     const u = await guard(() => repo.signIn(email, password))
     if (u) { user.value = u; await load(); startClock(); void startGoogle() }
@@ -777,7 +785,7 @@ export const useApp = defineStore('app', () => {
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
-    init, load, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
+    init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     timeBudget, timeBudgetReady, workFor, hasOwnWork, saveTimeBudget, setWeekWork,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,

@@ -85,6 +85,11 @@ async function loadWeek() {
   loading.value = false
 }
 watch(ws, loadWeek, { immediate: true })
+// потянули вниз — обновить цифры недели (ответы в полях не трогаем)
+watch(() => app.refreshTick, async () => {
+  if (saved.value?.completed_at && !isCurrent.value) return
+  data.value = (await app.weekData(ws.value)) ?? data.value
+})
 
 const input = () => ({ went_well: wentWell.value.trim(), got_in_way: gotInWay.value.trim(), to_change: toChange.value.trim(), focus_sphere_id: focus.value || null })
 
