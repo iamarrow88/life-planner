@@ -172,6 +172,8 @@ export interface Repo {
   renameProject(id: string, name: string): Promise<void>
   /** Перенос проекта в другую сферу; задачи, привычки и время переезжают вместе с ним (триггер в базе) */
   moveProject(id: string, sphereId: string): Promise<void>
+  /** Сфера становится проектом в сфере targetId (всё её содержимое — туда же); возвращает id нового проекта */
+  sphereToProject(id: string, targetId: string): Promise<string>
   archiveSphere(id: string): Promise<void>
   restoreSphere(id: string, newName?: string): Promise<void>
   moveHabit(id: string, sphereId: string): Promise<void>

@@ -203,6 +203,25 @@ export const demoRepo: Repo = {
     for (const e of s.timeEntries) if (e.task_id && ids.has(e.task_id)) e.sphere_id = sphereId
     write(s)
   },
+  async sphereToProject(id, targetId) {
+    // то же, что sphere_to_project в базе (planner_sphere_to_project.sql)
+    const s = read()
+    const src = s.spheres.find(x => x.id === id), dst = s.spheres.find(x => x.id === targetId)
+    if (!src || !dst || id === targetId) throw new Error('Сфера не найдена')
+    const project: Project = { id: uid(), sphere_id: targetId, name: src.name, status: 'active' }
+    const own = s.projects.filter(p => p.sphere_id === id)
+    s.projects = [...s.projects.filter(p => p.sphere_id !== id), project, ...own.map(p => ({ ...p, sphere_id: targetId }))]
+    for (const t of s.tasks) if (t.sphere_id === id) { t.sphere_id = targetId; t.project_id ??= project.id }
+    for (const r of s.recurrences) if (r.sphere_id === id) { r.sphere_id = targetId; r.project_id ??= project.id }
+    for (const h of s.habits) if (h.sphere_id === id) h.sphere_id = targetId
+    for (const e of s.timeEntries) if (e.sphere_id === id) e.sphere_id = targetId
+    s.weekGoals = s.weekGoals.filter(g => g.sphere_id !== id)
+    for (const r of s.reviews) if (r.focus_sphere_id === id) r.focus_sphere_id = targetId
+    if (s.cycle?.settings?.sphere_id === id) s.cycle.settings.sphere_id = targetId
+    s.spheres = s.spheres.filter(x => x.id !== id)
+    write(s)
+    return project.id
+  },
   async archiveSphere(id) {
     const s = read(); const i = s.spheres.findIndex(x => x.id === id)
     if (i >= 0) { (s.archivedSpheres ??= []).unshift(s.spheres[i]); s.spheres.splice(i, 1) }

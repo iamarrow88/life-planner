@@ -204,6 +204,12 @@ export const supabaseRepo: Repo = {
   },
   async renameProject(id, name) { ok(await db().from('projects').update({ name }).eq('id', id)) },
   async moveProject(id, sphereId) { ok(await db().from('projects').update({ sphere_id: sphereId }).eq('id', id)) },
+  async sphereToProject(id, targetId) {
+    const r = await db().rpc('sphere_to_project', { p_sphere: id, p_target: targetId })
+    if (r.error && (r.error.code === 'PGRST202' || r.error.message.includes('sphere_to_project')))
+      throw new Error('Чтобы сделать сферу проектом, выполни planner_sphere_to_project.sql в Supabase (SQL Editor)')
+    return ok(r) as unknown as string
+  },
   async archiveProject(id) { ok(await db().from('projects').update({ status: 'archived' }).eq('id', id)) },
   async restoreProject(id) { ok(await db().from('projects').update({ status: 'active' }).eq('id', id)) },
   async removeProject(id) { ok(await db().from('projects').delete().eq('id', id)) },

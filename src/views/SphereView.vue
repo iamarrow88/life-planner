@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Карточка сферы: подробности, задачи по проектам, привычки и повторы этой сферы — всё можно править прямо здесь
 import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useApp } from '../stores/app'
 import type { Task } from '../types'
 import TaskRow from '../components/TaskRow.vue'
@@ -124,6 +124,27 @@ async function saveEdit() {
   })
   if (ok) editing.value = false
 }
+// ---- Сфера → проект в другой сфере
+const router = useRouter()
+const toProject = ref(false)
+const merging = ref(false)
+async function makeProjectOf(targetId: string) {
+  const s = sphere.value, t = app.sphereById(targetId); if (!s || !t) return
+  const n = app.projectsOf(s.id).length
+  const ok = window.confirm(`Сделать сферу «${s.name}» проектом в сфере «${t.name}»?
+
+• задачи, повторы и привычки без проекта попадут в новый проект «${s.name}»;
+${n ? `• проекты сферы (${n}) станут проектами «${t.name}»;
+` : ''}• учтённое время перейдёт в «${t.name}»;
+• цели сферы по неделям удалятся, а сама сфера исчезнет.
+
+Отменить это нельзя.`)
+  if (!ok) return
+  merging.value = true
+  const projectId = await app.sphereToProject(s.id, targetId)
+  merging.value = false
+  if (projectId) void router.push('/spheres/' + targetId)
+}
 const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id === id.value && g.week_start === weekStart(app.today)))
 </script>
 
@@ -157,6 +178,18 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
         <div class="flex gap-2">
           <button class="btn-primary flex-1" :disabled="!eName.trim()">Сохранить</button>
           <button type="button" class="btn-ghost" @click="editing = false">Отмена</button>
+        </div>
+        <!-- Сфера → проект другой сферы: её задачи, проекты, привычки и время переезжают туда -->
+        <div v-if="app.spheres.length > 1" class="border-t border-line pt-3 text-sm" data-test="sphere-to-project">
+          <button type="button" class="text-xs font-semibold text-mute hover:text-accent" :aria-expanded="toProject" @click="toProject = !toProject">Сделать проектом другой сферы {{ toProject ? '▴' : '▾' }}</button>
+          <div v-if="toProject" class="mt-2">
+            <div class="mb-1.5 text-xs text-mute">В какую сферу добавить «{{ sphere.name }}» как проект:</div>
+            <div class="flex flex-wrap gap-1.5">
+              <button v-for="t in app.spheres.filter(x => x.id !== sphere!.id)" :key="t.id" type="button" class="chip gap-1.5 py-1 text-xs hover:chip-on" :disabled="merging" @click="makeProjectOf(t.id)">
+                <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ background: t.color }"></span>{{ t.name }}
+              </button>
+            </div>
+          </div>
         </div>
       </form>
 

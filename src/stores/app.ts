@@ -497,6 +497,12 @@ export const useApp = defineStore('app', () => {
     await reloadQuietly()
     return true
   }
+  /** Сфера → проект в другой сфере: всё переносит база одной транзакцией, потом перечитываем данные */
+  async function sphereToProject(id: string, targetId: string) {
+    const projectId = await guard(() => repo.sphereToProject(id, targetId))
+    if (projectId) await load()
+    return projectId ?? null
+  }
   async function restoreProject(id: string) {
     const ok = await guard(async () => { await repo.restoreProject(id); return true })
     if (ok) { const p = data.value.projects.find(x => x.id === id); if (p) p.status = 'active' }
@@ -849,7 +855,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
