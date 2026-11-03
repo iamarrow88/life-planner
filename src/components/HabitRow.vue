@@ -65,7 +65,6 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
       </div>
     </div>
 
-    <button v-if="habit.kind === 'timer'" class="shrink-0 text-xs font-semibold text-mute hover:text-accent" @click="app.openEditor({ habit_id: habit.id }, habit.name)">⏱ время</button>
     <div v-if="habit.kind === 'counter'" class="flex items-center gap-1">
       <button class="grid h-8 w-8 place-items-center rounded-full bg-accent-soft text-lg text-accent disabled:opacity-40" :disabled="value <= 0" @click="app.bumpHabit(habit, -1)">−</button>
       <button class="grid h-8 w-8 place-items-center rounded-full bg-accent text-lg text-white disabled:opacity-40" :disabled="done" @click="app.bumpHabit(habit, 1)">+</button>

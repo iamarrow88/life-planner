@@ -437,7 +437,6 @@ async function add() {
             <div class="truncate text-[15px]">{{ x.h.name }}</div>
             <div class="text-xs text-mute"><span v-if="app.sphereById(x.h.sphere_id)" class="mr-1.5 inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full" :style="{ background: app.sphereById(x.h.sphere_id)?.color }"></span>{{ app.sphereById(x.h.sphere_id)?.name }}</span>{{ habitValueText(x.h, x.d) }}</div>
           </div>
-          <button v-if="x.h.kind === 'timer' && calDay < app.today" class="shrink-0 text-xs font-semibold text-mute hover:text-accent" @click="app.openEditor({ habit_id: x.h.id }, x.h.name, calDay)">⏱ время</button>
         </div>
       </div>
     </section>

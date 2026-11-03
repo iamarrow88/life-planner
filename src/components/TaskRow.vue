@@ -9,7 +9,8 @@ import { ref } from 'vue'
 import SubtaskList from './SubtaskList.vue'
 
 /** sortable — показать ручку ⋮⋮ для перетаскивания (список с v-drag-sort) */
-/** noTimer — без кнопок «⏱ время» и таймера (например, в планировании недели, где важнее название) */
+// затраченное время правится в карточке задачи (⏱ Время), отдельной кнопки в строке нет
+/** noTimer — без кнопки таймера (например, в планировании недели, где важнее название) */
 const props = defineProps<{ task: Task; sortable?: boolean; noTimer?: boolean }>()
 const app = useApp()
 const sphere = computed(() => app.sphereById(props.task.sphere_id))
@@ -54,7 +55,6 @@ const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
       </div>
     </div>
     <slot />
-    <button v-if="!noTimer" class="shrink-0 text-xs font-semibold text-mute hover:text-accent" title="Затраченное время" @click="app.openEditor({ task_id: task.id }, task.title)">⏱ время</button>
     <button v-if="!done && !noTimer" class="grid h-9 w-9 shrink-0 place-items-center rounded-full transition"
       :class="isRunning ? 'bg-accent text-white' : 'bg-accent-soft text-accent hover:brightness-95'"
       :aria-label="isRunning ? 'Остановить таймер' : 'Запустить таймер'"
