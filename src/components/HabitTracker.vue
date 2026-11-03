@@ -30,7 +30,10 @@ const rows = computed(() => app.data.habits.map(h => {
     return { day: d, value, state, scheduled }
   })
   return { habit: h, target, cells }
-}))
+})
+  // привычки, которые на этой неделе не были запланированы ни на один день (вне курса, другая неделя по расписанию)
+  // и не выполнялись, в отчёт не попадают
+  .filter(r => r.cells.some(c => c.scheduled || c.value > 0)))
 const unit = (h: Habit) => (h.kind === 'timer' ? ' мин' : '')
 const label = (h: Habit, c: Cell, target: number) => {
   const st = c.state === 'done' ? (c.scheduled ? 'выполнено' : 'выполнено (в этот день не было запланировано)')
