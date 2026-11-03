@@ -229,6 +229,14 @@ export const supabaseRepo: Repo = {
     const rs = await Promise.all(ids.map((id, i) => db().from('habits').update({ position: i }).eq('id', id)))
     for (const r of rs) if (r.error) throw new Error(r.error.message)
   },
+  async reorderSpheres(ids) {
+    const rs = await Promise.all(ids.map((id, i) => db().from('spheres').update({ position: i }).eq('id', id)))
+    for (const r of rs) if (r.error) throw new Error(r.error.message)
+  },
+  async reorderProjects(ids) {
+    const rs = await Promise.all(ids.map((id, i) => db().from('projects').update({ position: i }).eq('id', id)))
+    for (const r of rs) if (r.error) throw new Error(r.error.message)
+  },
   async archiveHabit(id) { ok(await db().from('habits').update({ archived_at: new Date().toISOString() }).eq('id', id)) },
   async habitDays(from, to) { return ok(await db().rpc('habit_days', { p_from: from, p_to: to })) as HabitDay[] },
   async habitStatus(day) { return ok(await db().rpc('habit_status', { p_day: day })) as HabitStatus[] },

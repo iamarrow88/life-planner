@@ -234,6 +234,15 @@ export const demoRepo: Repo = {
     const s = read(); const rank = new Map(ids.map((id, i) => [id, i]))
     s.habits.sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9)); write(s)
   },
+  async reorderSpheres(ids) {
+    const s = read(); const rank = new Map(ids.map((id, i) => [id, i]))
+    s.spheres.sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9)); write(s)
+  },
+  async reorderProjects(ids) {
+    // проекты одной сферы встают в новом порядке на свои же места в общем списке
+    const s = read(); const set = new Set(ids); const byId = new Map(s.projects.map(p => [p.id, p])); let k = 0
+    s.projects = s.projects.map(p => (set.has(p.id) ? byId.get(ids[k++])! : p)); write(s)
+  },
   async archiveHabit(id) { const s = read(); s.habits = s.habits.filter(h => h.id !== id); write(s) },
   async habitDays(from, to) { return habitDaysFor(read(), from, to) },
   async habitStatus(day) { return habitStatusFor(read(), day) },

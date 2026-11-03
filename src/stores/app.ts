@@ -164,6 +164,25 @@ export const useApp = defineStore('app', () => {
     if (!ok) data.value.habits = before
     return !!ok
   }
+  /** Свой порядок сфер: сразу на экране, потом в базе; при ошибке — как было */
+  async function reorderSpheres(ids: string[]) {
+    const before = data.value.spheres
+    const byId = new Map(before.map(s => [s.id, s]))
+    data.value.spheres = [...ids.map(id => byId.get(id)!).filter(Boolean), ...before.filter(s => !ids.includes(s.id))]
+    const ok = await guard(async () => { await repo.reorderSpheres(ids); return true })
+    if (!ok) data.value.spheres = before
+    return !!ok
+  }
+  /** Свой порядок проектов одной сферы: в общем списке они встают на свои же места */
+  async function reorderProjects(ids: string[]) {
+    const before = data.value.projects
+    const set = new Set(ids); let k = 0
+    const byId = new Map(before.map(p => [p.id, p]))
+    data.value.projects = before.map(p => (set.has(p.id) ? byId.get(ids[k++])! : p))
+    const ok = await guard(async () => { await repo.reorderProjects(ids); return true })
+    if (!ok) data.value.projects = before
+    return !!ok
+  }
   /** Свой порядок задач списка (ids — задачи в новом порядке). Сразу на экране, потом в базе; при ошибке — как было */
   const orderReady = computed(() => data.value.orderReady !== false)
   /** false — в Supabase не выполнен planner_subtasks.sql */
@@ -830,7 +849,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

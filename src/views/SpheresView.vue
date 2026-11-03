@@ -5,6 +5,7 @@ import { useApp } from '../stores/app'
 import AutoTextarea from '../components/AutoTextarea.vue'
 import { fmtMinutes, shortDate, weekStart, addDays, monthStart } from '../lib/time'
 import { budgetRing, type Arc } from '../lib/timeBudget'
+import { vDragSort } from '../lib/dragSort'
 
 const app = useApp()
 const COLORS = ['#3E8E5F', '#7B5CC4', '#D9783A', '#2F6DB3', '#C0475F', '#B58B1F']
@@ -181,9 +182,11 @@ async function save() {
     </div>
   </div>
 
-  <ul class="space-y-3">
-    <li v-for="s in app.spheres" :key="s.id" class="card p-4">
+  <!-- Порядок сфер меняется перетаскиванием за ⋮⋮ — он же везде: в итоге недели, планировании, выборе сферы -->
+  <ul v-drag-sort="(ids: string[]) => app.reorderSpheres(ids)" class="space-y-3" data-test="sphere-list">
+    <li v-for="s in app.spheres" :key="s.id" :data-id="s.id" class="card p-4">
       <div class="flex items-center gap-3">
+        <span data-drag-handle class="-ml-1 -mr-1 shrink-0 cursor-grab touch-none select-none px-1 text-base leading-none text-mute/70 hover:text-accent" role="button" :aria-label="'Перетащить сферу ' + s.name" title="Перетащи, чтобы изменить порядок сфер">⋮⋮</span>
         <span class="h-3 w-3 shrink-0 rounded-full" :style="{ background: s.color }"></span>
         <RouterLink :to="'/spheres/' + s.id" class="min-w-0 flex-1 truncate font-semibold hover:text-accent" :title="'Открыть сферу ' + s.name">{{ s.name }} <span class="text-mute">›</span></RouterLink>
         <button class="text-xs font-semibold text-mute hover:text-accent" @click="app.openEditor({ sphere_id: s.id }, s.name)">Править время</button>

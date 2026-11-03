@@ -185,6 +185,9 @@ export interface Repo {
   archiveHabit(id: string): Promise<void>
   /** Сохранить порядок привычек: id всех привычек в нужном порядке */
   reorderHabits(ids: string[]): Promise<void>
+  /** Свой порядок сфер / проектов одной сферы: id в нужном порядке (position = номер в списке) */
+  reorderSpheres(ids: string[]): Promise<void>
+  reorderProjects(ids: string[]): Promise<void>
   /** Свой порядок задач списка: id в нужном порядке (position = номер в списке) */
   reorderTasks(ids: string[]): Promise<void>
   /** Все дни диапазона по каждой привычке: значение, выполнена ли, запланирована ли */

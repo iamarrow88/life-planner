@@ -204,9 +204,11 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
         </div>
       </div>
 
-      <!-- Проекты -->
-      <div v-for="p in projects" :key="p.id" class="mb-3" data-test="sphere-project">
+      <!-- Проекты: порядок меняется перетаскиванием за ⋮⋮ -->
+      <div v-drag-sort="(ids: string[]) => app.reorderProjects(ids)" data-test="project-list">
+      <div v-for="p in projects" :key="p.id" :data-id="p.id" class="mb-3 rounded-2xl" data-test="sphere-project">
         <div class="mb-1.5 flex flex-wrap items-center gap-2 text-sm">
+          <span data-drag-handle class="-ml-1 -mr-1 shrink-0 cursor-grab touch-none select-none px-1 text-base leading-none text-mute/70 hover:text-accent" role="button" :aria-label="'Перетащить проект ' + p.name" title="Перетащи, чтобы изменить порядок проектов">⋮⋮</span>
           <form v-if="editingProject === p.id" class="flex flex-1 items-center gap-2" @submit.prevent="saveRename(p.id)">
             <input v-model="editProjectName" class="input !py-1.5" maxlength="120" required autofocus aria-label="Название проекта" @keydown.esc="editingProject = null" />
             <button class="text-xs font-semibold text-accent">OK</button>
@@ -239,6 +241,7 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
             <button class="btn-ghost shrink-0 !px-3 !py-1.5" :disabled="!(quick[p.id] ?? '').trim()">+</button>
           </form>
         </div>
+      </div>
       </div>
 
       <form class="mt-2 flex gap-2" @submit.prevent="addProject">
