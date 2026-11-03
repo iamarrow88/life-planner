@@ -41,7 +41,7 @@ const remindOptions = [['', 'Не напоминать'], ['0', 'В момент
 const busy = ref(false)
 const presets = [15, 30, 45, 60, 90, 120]
 const isRunning = computed(() => !!task.value && app.running?.task_id === task.value.id)
-const totals = computed(() => (task.value ? app.taskTotals[task.value.id] : undefined))
+const totals = computed(() => (task.value ? app.taskTotal(task.value.id) : undefined))
 
 // ---- Повтор: правило, по которому создаются следующие задачи (как расписание у привычки)
 const rule = computed(() => app.data.recurrences.find(r => r.id === task.value?.recurrence_id) ?? null)

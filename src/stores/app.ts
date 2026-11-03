@@ -71,30 +71,48 @@ export const useApp = defineStore('app', () => {
     return sphereById(r.sphere_id)?.name ?? 'Без названия'
   })
 
-  /** минуты по сферам с даты from (включая идущий таймер) */
-  function sphereMinutesSince(from: string) {
+  // ---- Учтённое время. Законченные записи считаются один раз (от часов не зависят), а живые секунды идущего таймера
+  // добавляются отдельно — иначе каждую секунду пересчитывались бы все записи и перерисовывались все строки задач
+  /** минуты по сферам с даты from — только законченные записи */
+  function closedSphereMinutesSince(from: string) {
     const res: Record<string, number> = {}
     for (const e of data.value.timeEntries) {
-      if (!e.sphere_id || dayOf(e.started_at) < from) continue
-      res[e.sphere_id] = (res[e.sphere_id] ?? 0) + entrySeconds(e, now.value) / 60
+      if (!e.ended_at || !e.sphere_id || dayOf(e.started_at) < from) continue
+      res[e.sphere_id] = (res[e.sphere_id] ?? 0) + entrySeconds(e) / 60
     }
     return res
   }
-  const weekMinutes = computed(() => sphereMinutesSince(weekStart(today.value)))
-  const monthMinutes = computed(() => sphereMinutesSince(monthStart(today.value)))
-  /** секунды по задачам: за неделю и за месяц (живое время идущего таймера учитывается) */
-  const taskTotals = computed(() => {
+  /** + идущий таймер, если он начат не раньше from */
+  function withRunning(closed: Record<string, number>, from: string) {
+    const r = running.value
+    if (!r?.sphere_id || dayOf(r.started_at) < from) return closed
+    return { ...closed, [r.sphere_id]: (closed[r.sphere_id] ?? 0) + runningSeconds.value / 60 }
+  }
+  const closedWeekMinutes = computed(() => closedSphereMinutesSince(weekStart(today.value)))
+  const closedMonthMinutes = computed(() => closedSphereMinutesSince(monthStart(today.value)))
+  const weekMinutes = computed(() => withRunning(closedWeekMinutes.value, weekStart(today.value)))
+  const monthMinutes = computed(() => withRunning(closedMonthMinutes.value, monthStart(today.value)))
+  /** секунды по задачам за неделю и за месяц — только законченные записи */
+  const closedTaskTotals = computed(() => {
     const w = weekStart(today.value), m = monthStart(today.value)
     const res: Record<string, { week: number; month: number }> = {}
     for (const e of data.value.timeEntries) {
-      if (!e.task_id) continue
-      const d = dayOf(e.started_at), sec = entrySeconds(e, now.value)
+      if (!e.task_id || !e.ended_at) continue
+      const d = dayOf(e.started_at), sec = entrySeconds(e)
       const r = (res[e.task_id] ??= { week: 0, month: 0 })
       if (d >= w) r.week += sec
       if (d >= m) r.month += sec
     }
     return res
   })
+  /** Время задачи за неделю и месяц; живые секунды читает только строка задачи, на которую идёт таймер */
+  function taskTotal(id: string): { week: number; month: number } {
+    const base = closedTaskTotals.value[id] ?? { week: 0, month: 0 }
+    const r = running.value
+    if (r?.task_id !== id) return base
+    const d = dayOf(r.started_at), sec = runningSeconds.value
+    return { week: base.week + (d >= weekStart(today.value) ? sec : 0), month: base.month + (d >= monthStart(today.value) ? sec : 0) }
+  }
   /** Цель сферы на неделю: цель именно этой недели или значение по умолчанию */
   function goalFor(sphereId: string, week: string = weekStart(today.value)): number {
     const g = data.value.weekGoals.find(x => x.sphere_id === sphereId && x.week_start === week)
@@ -237,7 +255,7 @@ export const useApp = defineStore('app', () => {
   let lastLoad = Date.now()
   async function reloadQuietly() {
     if (!user.value || loading.value) return
-    try { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0]); lastLoad = Date.now() } catch { /* оставляем то, что есть */ }
+    try { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0]); lastLoad = Date.now(); saveCache() } catch { /* оставляем то, что есть */ }
   }
   function onShow() {
     if (document.visibilityState === 'visible' && Date.now() - lastLoad > 30_000) void reloadQuietly()
@@ -260,7 +278,9 @@ export const useApp = defineStore('app', () => {
   function startClock() {
     stopClock()
     tick = window.setInterval(() => {
-      now.value = Date.now()
+      // каждую секунду часы нужны только идущему таймеру; без него хватит раза в 30 секунд (меньше пересчётов, меньше расход батареи)
+      const t0 = Date.now()
+      if (running.value || t0 - now.value >= 30_000) now.value = t0
       const t = todayStr()
       if (t !== today.value) { today.value = t; void load() } // наступила полночь — новый день
     }, 1000)
@@ -271,9 +291,38 @@ export const useApp = defineStore('app', () => {
     try { error.value = ''; return await fn() } catch (e) { error.value = (e as Error).message; return undefined }
   }
 
+  // ---- Быстрый запуск: последний снимок данных хранится на устройстве. Приложение сразу показывает его,
+  // а свежие данные с сервера подтягивает в фоне (обычно это меньше секунды). В демо-режиме данные и так локальные
+  const CACHE_KEY = 'kola-snapshot-v1'
+  function readCache(uid: string): Snapshot | null {
+    if (repo.mode === 'demo') return null
+    try {
+      const c = JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null') as { uid: string; day: string; data: Snapshot } | null
+      if (!c || c.uid !== uid) return null
+      // снимок прошлого дня: отметки привычек и их расписание относятся ко вчера — до свежих данных их не показываем
+      return c.day === today.value ? c.data : { ...c.data, habitEntries: [], habitStatus: [] }
+    } catch { return null }
+  }
+  function saveCache() {
+    if (repo.mode === 'demo' || !user.value) return
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ uid: user.value.id, day: today.value, data: data.value })) } catch { /* места нет — просто запустимся медленнее */ }
+  }
+  function clearCache() { try { localStorage.removeItem(CACHE_KEY) } catch { /* нечего удалять */ } }
+  // приложение свернули — сохранить то, что изменилось после последней загрузки
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && user.value) saveCache() })
+
   async function init() {
     user.value = await guard(() => repo.session()) ?? null
-    if (user.value) { await load(); startClock(); void startGoogle() }
+    if (user.value) {
+      const cached = readCache(user.value.id)
+      if (cached) {
+        data.value = cached
+        ready.value = true
+        startClock(); void load(); void startGoogle()
+        return
+      }
+      await load(); startClock(); void startGoogle()
+    }
     ready.value = true
   }
   async function startGoogle() {
@@ -284,6 +333,7 @@ export const useApp = defineStore('app', () => {
     loading.value = true
     await guard(async () => { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0]); lastLoad = Date.now() })
     loading.value = false
+    saveCache()
   }
   /** «Потянуть вниз»: свежие данные с сервера (Google — в фоне). refreshTick — сигнал экранам, которые грузят что-то сами (итог недели) */
   const refreshTick = ref(0)
@@ -307,7 +357,7 @@ export const useApp = defineStore('app', () => {
     return res
   }
   async function signOut() {
-    stopClock(); stopGoogleWatch(); await guard(() => repo.signOut()); user.value = null
+    stopClock(); stopGoogleWatch(); await guard(() => repo.signOut()); user.value = null; clearCache()
     data.value = { spheres: [], projects: [], tasks: [], habits: [], recurrences: [], weekGoals: [], reviews: [], habitEntries: [], timeEntries: [] }
   }
 
@@ -560,7 +610,7 @@ export const useApp = defineStore('app', () => {
     if (!ok) return false
     if (!(await guard(async () => { await repo.removeRecurrence(r.id); return true }))) return false
     const left = data.value.tasks.find(x => x.id === taskId)
-    if (left && left.status !== 'done' && !taskTotals.value[taskId]?.month) await guard(() => repo.removeTask(taskId))
+    if (left && left.status !== 'done' && !taskTotal(taskId).month) await guard(() => repo.removeTask(taskId))
     await load(); syncGoogleSoon()
     return !error.value
   }
@@ -780,7 +830,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotals, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

@@ -23,7 +23,8 @@ export default defineConfig(({ mode }) => {
       srcDir: 'src',
       filename: 'sw.ts',
       registerType: 'autoUpdate',
-      injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png}'] },
+      // шрифт: только кириллица и латиница (вьетнамский и прочие наборы браузер и так не скачает)
+      injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png}', 'assets/onest-{cyrillic,latin}-*.woff2'] },
       devOptions: { enabled: true, type: 'module' }, // service worker и в npm run dev, чтобы проверять уведомления
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {

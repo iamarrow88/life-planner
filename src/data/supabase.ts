@@ -93,6 +93,9 @@ async function dropFuture(recId: string, keep?: string) {
   if (drop.length) ok(await db().from('tasks').delete().in('id', drop))
 }
 
+/** День, когда это устройство последний раз запускало generate_recurring_tasks */
+const GEN_DAY_KEY = 'kola-recurring-generated'
+
 export const supabaseRepo: Repo = {
   mode: 'supabase',
   async session() { return toUser((await db().auth.getSession()).data.session?.user) },
@@ -110,7 +113,14 @@ export const supabaseRepo: Repo = {
 
   async load(today, since) {
     const c = db()
-    await c.rpc('generate_recurring_tasks') // создаёт задачи по повторам на 30 дней вперёд (безопасно вызывать повторно)
+    // Задачи по повторам создаются на 30 дней вперёд, поэтому достаточно раз в день на устройстве (правка повтора и
+    // «после выполнения» создают их сами). Первый запуск дня ждёт генерацию, остальные загрузки — нет
+    let genDay: string | null = null
+    try { genDay = localStorage.getItem(GEN_DAY_KEY) } catch { /* без хранилища — генерируем каждый раз */ }
+    if (genDay !== today) {
+      const g = await c.rpc('generate_recurring_tasks')
+      if (!g.error) try { localStorage.setItem(GEN_DAY_KEY, today) } catch { /* см. выше */ }
+    }
     const ws = weekStartOf(today)
     const [spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, cDays, cSet, cCourses] = await Promise.all([
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
