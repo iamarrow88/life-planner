@@ -2,6 +2,7 @@
 //   npm run release            — git push, сборка для телефона, APK → release/KolaApp.apk
 //   npm run release -- --dirty — то же, даже если есть незакоммиченные изменения (они попадут в APK, но не на сайт)
 //   npm run release -- --no-push — только собрать APK
+// Телефон подключён по USB с включённой отладкой — APK сразу ставится на него и приложение открывается (--no-install — не ставить)
 import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -64,4 +65,24 @@ const apk = join(root, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'ap
 mkdirSync(join(root, 'release'), { recursive: true })
 const target = join(root, 'release', 'KolaApp.apk')
 copyFileSync(apk, target)
-console.log(`\n✓ Готово: ${target}\n  Скопируй его на телефон и установи поверх старого — данные и вход сохранятся.`)
+console.log(`\n✓ APK: ${target}`)
+
+// 4. На телефон по USB (adb из Android SDK): ставим поверх старого и открываем
+function findAdb() {
+  const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT
+    || (win ? join(process.env.LOCALAPPDATA ?? '', 'Android', 'Sdk') : join(homedir(), process.platform === 'darwin' ? 'Library/Android/sdk' : 'Android/Sdk'))
+  const adb = join(sdk, 'platform-tools', win ? 'adb.exe' : 'adb')
+  return existsSync(adb) ? adb : null
+}
+const adb = args.includes('--no-install') ? null : findAdb()
+// строки «<id>\tdevice» — телефон готов, «<id>\tunauthorized» — на телефоне не нажали «Разрешить»
+const devices = adb ? out(`"${adb}"`, ['devices']).split('\n').slice(1).map(l => l.trim().split(/\s+/)).filter(([id]) => id) : []
+const ready = devices.filter(([, st]) => st === 'device').map(([id]) => id)
+if (devices.some(([, st]) => st === 'unauthorized')) console.log('\n! Телефон подключён, но отладка не разрешена: на экране телефона нажми «Разрешить» в окне «Разрешить отладку по USB?» и запусти команду ещё раз.')
+for (const id of ready) {
+  run(`"${adb}"`, ['-s', id, 'install', '-r', `"${target}"`])
+  out(`"${adb}"`, ['-s', id, 'shell', 'monkey', '-p', 'by.kolaapp.app', '-c', 'android.intent.category.LAUNCHER', '1'])
+}
+if (ready.length) console.log(`\n✓ Готово: установлено на телефон${ready.length > 1 ? ` (${ready.length} шт.)` : ''} и открыто.`)
+else console.log('\n✓ Готово. Скопируй APK на телефон и установи поверх старого — данные и вход сохранятся.'
+  + (adb ? '\n  Или подключи телефон по USB с включённой отладкой — тогда APK поставится сам.' : ''))
