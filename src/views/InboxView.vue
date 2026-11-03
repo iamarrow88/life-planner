@@ -8,6 +8,8 @@ import EstimateInput from '../components/EstimateInput.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import QuickTags from '../components/QuickTags.vue'
 import TagBar from '../components/TagBar.vue'
+import TaskFilter from '../components/TaskFilter.vue'
+import { useTaskFilter } from '../lib/taskFilter'
 import { vDragSort } from '../lib/dragSort'
 
 const app = useApp()
@@ -22,7 +24,10 @@ async function add() {
   await app.addTask({ title, status: 'inbox', estimate_minutes: est })
 }
 // ---- Отложено без даты: залежавшиеся — наверху основного списка с вопросом «решить?», остальные — в свёрнутом блоке внизу
-const rows = computed(() => [...app.staleDeferred, ...app.inbox])
+// отбор по сфере / проекту — свой у «Входящих»
+const { filter, match } = useTaskFilter('inbox')
+const rows = computed(() => [...app.staleDeferred, ...app.inbox].filter(match))
+const deferredRows = computed(() => app.freshDeferred.filter(match))
 const staleIds = computed(() => new Set(app.staleDeferred.map(t => t.id)))
 const idleDays = (t: { updated_at?: string }) => {
   if (!t.updated_at) return 0
@@ -36,7 +41,7 @@ function pickDeferred(id: string, e: Event) {
   if (el.value) { void plan(id, el.value, null); el.value = '' }
 }
 /** Выполненные задачи «из входящих»: те, которые так и не получили дату */
-const doneUndated = computed(() => app.data.tasks.filter(t => t.status === 'done' && !t.due_date))
+const doneUndated = computed(() => app.data.tasks.filter(t => t.status === 'done' && !t.due_date && match(t)))
 /** Предустановленное время для быстрого планирования */
 const TIMES = ['09:00', '14:00', '18:00']
 /** Для какой задачи и на какую дату сейчас выбирается время (всплывающее окно) */
@@ -116,12 +121,16 @@ function pickedDate(id: string, e: Event) {
     <AutoTextarea v-model="text" single-line :maxlength="500" class="!w-auto min-w-[12rem] flex-1" placeholder="Что нужно запомнить?" autofocus @submit="add" />
     <EstimateInput v-model="estimate" />
     <button class="btn-primary shrink-0" :disabled="!text.trim()">Добавить</button>
-    <QuickTags v-model="text" />
+    <!-- Отбор по сфере / проекту, за ним 🏷 — одной строкой; если места нет, теги переносятся ниже -->
+    <div class="flex w-full flex-wrap items-start gap-2">
+      <TaskFilter v-model="filter" class="!mb-0 min-w-0" />
+      <QuickTags v-model="text" large class="!w-auto min-w-0 max-w-full" />
+    </div>
   </form>
   <TagBar />
 
   <div v-if="!rows.length && !app.loading" class="card p-8 text-center text-mute">
-    Пусто — отличное состояние ✨
+    {{ filter.sphere ? 'В этой сфере во «Входящих» пусто' : 'Пусто — отличное состояние ✨' }}
   </div>
   <ul v-else v-drag-sort="(ids: string[]) => app.reorderTasks(ids)" class="space-y-3" data-test="inbox-list">
     <li v-for="t in rows" :key="t.id" :data-id="t.id" class="card" :class="staleIds.has(t.id) && 'border-amber-300'" :data-stale="staleIds.has(t.id) || undefined">
@@ -193,15 +202,15 @@ function pickedDate(id: string, e: Event) {
   </ul>
 
   <!-- Отложено без даты: явно нажато «Без даты» — свёрнуто, число видно всегда -->
-  <section v-if="app.freshDeferred.length" class="mt-6" data-test="deferred">
+  <section v-if="deferredRows.length" class="mt-6" data-test="deferred">
     <button type="button" class="mb-2 flex w-full items-center justify-between text-left" :aria-expanded="showDeferred" data-test="deferred-toggle" @click="showDeferred = !showDeferred">
-      <span class="text-sm font-semibold uppercase tracking-wide text-mute">Отложено без даты · {{ app.freshDeferred.length }}</span>
+      <span class="text-sm font-semibold uppercase tracking-wide text-mute">Отложено без даты · {{ deferredRows.length }}</span>
       <span class="text-lg text-mute">{{ showDeferred ? '▴' : '▾' }}</span>
     </button>
     <template v-if="showDeferred">
       <p class="mb-2 text-xs text-mute">Если задачу не трогать {{ app.staleDays }} дн., она вернётся наверх «Входящих» с вопросом «решить?».</p>
       <ul v-drag-sort="(ids: string[]) => app.reorderTasks(ids)" class="card divide-y divide-line" data-test="deferred-list">
-        <li v-for="t in app.freshDeferred" :key="t.id" :data-id="t.id">
+        <li v-for="t in deferredRows" :key="t.id" :data-id="t.id">
           <TaskRow :task="t" sortable />
           <div class="flex flex-wrap items-center gap-2 px-3 pb-2">
             <button type="button" class="chip hover:chip-on" @click="plan(t.id, app.today, null)">Сегодня</button>

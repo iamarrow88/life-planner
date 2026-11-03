@@ -12,6 +12,8 @@ import DoneBlock from '../components/DoneBlock.vue'
 import PillCheck from '../components/PillCheck.vue'
 import QuickTags from '../components/QuickTags.vue'
 import TagBar from '../components/TagBar.vue'
+import TaskFilter from '../components/TaskFilter.vue'
+import { useTaskFilter } from '../lib/taskFilter'
 import MonthGrid from '../components/MonthGrid.vue'
 import { GENERATED_DAYS, OVERDUE_COLOR, fmtLoad, monthSummary } from '../lib/monthMarks'
 import { matches } from '../lib/recurrence'
@@ -24,6 +26,10 @@ import { emptyCollapse, nextCollapse, splitHabits, type CollapseState } from '..
 import type { Habit, HabitDay, Task } from '../types'
 
 const app = useApp()
+// Отбор по сфере / проекту — свой у «Сегодня»: действует на списки, календарь дня и месяца и сумму бюджета
+const { filter: taskFilter, active: filterOn, match } = useTaskFilter('today')
+const fTasks = computed(() => (filterOn.value ? app.data.tasks.filter(match) : app.data.tasks))
+const fRecurrences = computed(() => (filterOn.value ? app.data.recurrences.filter(match) : app.data.recurrences))
 type Filter = 'today' | 'tomorrow' | 'week' | 'nodate'
 const filters: { v: Filter; label: string }[] = [
   { v: 'today', label: 'Сегодня' }, { v: 'tomorrow', label: 'Завтра' }, { v: 'week', label: 'Неделя' }, { v: 'nodate', label: 'Без даты' },
@@ -48,7 +54,7 @@ const monthSel = ref(app.today)
 function pickDay(d: string) { moveMsg.value = ''; if (monthSel.value === d) openDay(d); else monthSel.value = d }
 const selTasks = computed(() => planned.value.filter(t => t.due_date === monthSel.value).sort(sortTasks))
 /** Дела по повторам, которые на этот день ещё не созданы (дальше 30 дней) — перетащить их нельзя */
-const selVirtual = computed(() => monthSel.value <= addDays(app.today, GENERATED_DAYS) ? [] : app.data.recurrences
+const selVirtual = computed(() => monthSel.value <= addDays(app.today, GENERATED_DAYS) ? [] : fRecurrences.value
   .filter(r => r.mode === 'schedule' && matches(r, monthSel.value) && !selTasks.value.some(t => t.recurrence_id === r.id)))
 const monthGrid = ref<{ shift(n: number): void } | null>(null)
 const moveMsg = ref('')
@@ -68,7 +74,7 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
 }
 /** Дни вокруг месяца с запасом: сетка начинается не раньше чем за 6 дней до 1-го и занимает не больше 6 недель */
 const monthDays = computed(() => Array.from({ length: 49 }, (_, i) => addDays(calMonth.value + '-01', i - 7)))
-const summary = computed(() => monthSummary(monthDays.value, app.today, app.data.tasks, app.data.recurrences, app.spheres))
+const summary = computed(() => monthSummary(monthDays.value, app.today, fTasks.value, fRecurrences.value, app.spheres))
 const MAX_MARKS = 3
 
 // ---- Бюджет за период, который сейчас выбран: Сегодня / Завтра / Неделя / Без даты; в календаре — день или месяц
@@ -89,7 +95,7 @@ const budgetPeriod = computed((): { range: { from: string; to: string } | 'nodat
   if (calMonth.value === t.slice(0, 7)) return { range: { from: t, to: last }, label: `до конца ${MONTHS_GEN[m - 1]} (${shortDate(t)} – ${shortDate(last)})` }
   return { range: { from: calMonth.value + '-01', to: last }, label: `на ${MONTHS_NOM[m - 1]}${y !== Number(t.slice(0, 4)) ? ' ' + y : ''}` }
 })
-const budget = computed(() => app.budgetReady ? budgetSum(app.data.tasks, app.data.recurrences, app.today, budgetPeriod.value.range) : null)
+const budget = computed(() => app.budgetReady ? budgetSum(fTasks.value, fRecurrences.value, app.today, budgetPeriod.value.range) : null)
 const text = ref('')
 const estimate = ref<number | null>(null)
 const showHabitForm = ref(false)
@@ -98,7 +104,7 @@ const reviewDone = computed(() => !!app.currentReview?.completed_at)
 const showRecForm = ref(false)
 const showRules = ref(false)
 
-const planned = computed(() => app.data.tasks.filter(t => t.status !== 'inbox'))
+const planned = computed(() => fTasks.value.filter(t => t.status !== 'inbox'))
 /** Невыполненные: выполненные уезжают в блок «Выполнено» внизу */
 const pending = computed(() => planned.value.filter(t => t.status !== 'done'))
 /** Внутри дня — свой порядок (перетаскиванием), а задачи, которые не двигали, — по времени начала */
@@ -114,7 +120,7 @@ const list = computed(() => {
   const t = app.today
   const week = addDays(t, 7)
   // «Без даты»: сначала разобранные задачи без срока, за ними — неразобранные из «Входящих» (у них даты тоже нет)
-  if (filter.value === 'nodate') return [...pending.value.filter(x => !x.due_date), ...app.inbox].sort(byPosition)
+  if (filter.value === 'nodate') return [...pending.value.filter(x => !x.due_date), ...app.inbox.filter(match)].sort(byPosition)
   return pending.value.filter(x => {
     if (filter.value === 'today') return x.due_date === t || (!!x.due_date && x.due_date < t)
     if (filter.value === 'tomorrow') return x.due_date === addDays(t, 1)
@@ -263,9 +269,11 @@ async function add() {
 
   <!-- Календарь: переключатели вида и дней — всегда над привычками, чтобы не прыгали при переходе на сегодня -->
   <template v-if="view === 'cal'">
-      <div class="mb-3 flex gap-2" data-test="cal-mode">
+      <div class="mb-3 flex flex-wrap items-center gap-2" data-test="cal-mode">
         <button type="button" class="chip py-1.5 text-sm" :class="calMode === 'day' && 'chip-on'" data-test="cal-mode-day" @click="setCalMode('day')">День</button>
         <button type="button" class="chip py-1.5 text-sm" :class="calMode === 'month' && 'chip-on'" data-test="cal-mode-month" @click="setCalMode('month')">Месяц</button>
+        <!-- отбор по сфере / проекту: в календаре — рядом с «День / Месяц», в списке — рядом с 🏷 -->
+        <TaskFilter v-model="taskFilter" class="!mb-0 ml-auto" />
       </div>
     <div v-if="calMode === 'day'" class="mb-3 flex items-center justify-between" data-test="day-nav">
       <button class="btn-ghost !px-3" aria-label="Предыдущий день" @click="calDay = addDays(calDay, -1)">‹</button>
@@ -333,7 +341,11 @@ async function add() {
       <EstimateInput v-model="estimate" />
       <button class="btn-primary shrink-0" :disabled="!text.trim()">+</button>
       <button type="button" class="btn-ghost shrink-0" title="Повторяющаяся задача" @click="showRecForm = !showRecForm">↻</button>
-      <QuickTags v-model="text" />
+      <!-- Отбор по сфере / проекту, за ним 🏷 — одной строкой; если места нет, теги переносятся ниже -->
+      <div class="flex w-full flex-wrap items-start gap-2">
+        <TaskFilter v-model="taskFilter" class="!mb-0 min-w-0" />
+        <QuickTags v-model="text" large class="!w-auto min-w-0 max-w-full" />
+      </div>
     </form>
     <TagBar />
     <RecurrenceForm v-if="showRecForm" class="mb-3" @done="showRecForm = false" />

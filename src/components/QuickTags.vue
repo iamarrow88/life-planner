@@ -8,6 +8,8 @@ import { insertTag, parseTags, typingTag } from '../lib/tags'
  * (на телефоне до «#» далеко) и предпросмотр — какие теги распознаны
  */
 const text = defineModel<string>({ required: true })
+/** large — кнопка 🏷 высотой с поле выбора (рядом с отбором по сфере на «Входящих» и «Сегодня») */
+defineProps<{ large?: boolean }>()
 const app = useApp()
 const open = ref(false)
 const partial = computed(() => typingTag(text.value))
@@ -23,14 +25,18 @@ function pick(tag: string) { text.value = insertTag(text.value, tag); open.value
 </script>
 
 <template>
-  <div v-if="app.tagsReady" class="flex w-full flex-wrap items-center gap-1.5 text-xs" data-test="quick-tags">
-    <button type="button" class="chip py-0.5" :class="open && 'chip-on'" :aria-expanded="open" title="Теги" aria-label="Выбрать тег" data-test="quick-tags-toggle" @click="open = !open">🏷</button>
-    <span v-for="t in found" :key="'f' + t" class="text-accent">#{{ t }}</span>
-    <template v-if="options.length">
-      <span v-if="found.length" class="text-mute">·</span>
-      <button v-for="t in options" :key="t" type="button" class="chip py-0.5 hover:chip-on" data-test="quick-tag-option" @click="pick(t)">#{{ t }}</button>
-    </template>
-    <span v-else-if="open && !app.allTags.length" class="text-mute">Тегов пока нет — напиши в задаче «#тег».</span>
+  <!-- large: кнопка встаёт в строку родителя (display: contents), а список тегов — всегда отдельной строкой ниже,
+       поэтому кнопка не прыгает, когда список открывают -->
+  <div v-if="app.tagsReady" :class="large ? 'contents' : 'flex w-full flex-wrap items-center gap-1.5 text-xs'" data-test="quick-tags">
+    <button type="button" class="chip" :class="[large ? 'h-[34px] !rounded-xl px-3 text-sm' : 'py-0.5', open && 'chip-on']" :aria-expanded="open" title="Теги" aria-label="Выбрать тег" data-test="quick-tags-toggle" @click="open = !open">🏷</button>
+    <div v-if="found.length || options.length || (open && !app.allTags.length)" :class="large ? 'flex basis-full flex-wrap items-center gap-1.5 text-xs' : 'contents'" data-test="quick-tags-list">
+      <span v-for="t in found" :key="'f' + t" class="text-accent">#{{ t }}</span>
+      <template v-if="options.length">
+        <span v-if="found.length" class="text-mute">·</span>
+        <button v-for="t in options" :key="t" type="button" class="chip py-0.5 hover:chip-on" data-test="quick-tag-option" @click="pick(t)">#{{ t }}</button>
+      </template>
+      <span v-else-if="open && !app.allTags.length" class="text-mute">Тегов пока нет — напиши в задаче «#тег».</span>
+    </div>
   </div>
   <!-- В базе ещё нет тегов: «#…» останется просто текстом — подсказываем, что сделать -->
   <p v-else-if="text.includes('#')" class="w-full text-xs text-amber-800" data-test="tags-not-ready">
