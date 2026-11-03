@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User } from '../types'
+import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch } from '../types'
 import { googleClientId } from '../lib/google'
 import { parseTags, uniqTags } from '../lib/tags'
 import { byPosition } from '../lib/taskOrder'
@@ -9,6 +9,7 @@ import { DEFAULT_CYCLE_SETTINGS, PILL_NAMES, courseFrom, courseOn, cycleDayNo, c
 import { DEFAULT_SPHERE_COLORS } from '../lib/colors'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
+const WISH_CATEGORIES = ['Купить', 'Поехать', 'Попробовать', 'Научиться']
 export const NUDGE_MINUTES = 40
 export type PostponeKind = 'tomorrow' | 'weekend' | 'nextweek'
 export const FORGOTTEN_MINUTES = 180
@@ -413,6 +414,7 @@ export const useApp = defineStore('app', () => {
   async function addTask(t: NewTask) {
     if (!t.tags && tagsReady.value) { const p = parseTags(t.title); t = { ...t, title: p.title, tags: p.tags } }
     const task = await guard(() => repo.addTask(t)); if (task) { data.value.tasks.unshift(task); syncGoogleSoon() }
+    return task
   }
   async function updateTask(id: string, patch: Partial<NewTask>) {
     const task = await guard(() => repo.updateTask(id, patch))
@@ -431,6 +433,50 @@ export const useApp = defineStore('app', () => {
   async function removeTask(id: string) {
     await guard(() => repo.removeTask(id)); data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
   }
+  // ---- Мои желания: записи без дат и сроков. Новые — наверху, порядок меняется перетаскиванием
+  const wishesReady = computed(() => data.value.wishesReady !== false)
+  const wishes = computed(() => data.value.wishes ?? [])
+  const activeWishes = computed(() => wishes.value.filter(w => !w.fulfilled_at).sort((a, b) => a.position - b.position))
+  const fulfilledWishes = computed(() => wishes.value.filter(w => w.fulfilled_at).sort((a, b) => b.fulfilled_at!.localeCompare(a.fulfilled_at!)))
+  /** Категории для выбора: те, что уже используются, и несколько стартовых */
+  const wishCategories = computed(() => [...new Set([...WISH_CATEGORIES, ...wishes.value.map(w => w.category).filter((c): c is string => !!c)])])
+  async function addWish(title: string, category: string | null) {
+    const position = Math.min(1, ...activeWishes.value.map(w => w.position)) - 1
+    const w = await guard(() => repo.addWish({ title, category, position }))
+    if (w) (data.value.wishes ??= []).push(w)
+    return !!w
+  }
+  async function updateWish(id: string, patch: WishPatch) {
+    const w = await guard(() => repo.updateWish(id, patch))
+    if (w) { const i = wishes.value.findIndex(x => x.id === id); if (i >= 0) data.value.wishes![i] = w }
+    return !!w
+  }
+  async function removeWish(id: string) {
+    const ok = await guard(async () => { await repo.removeWish(id); return true })
+    if (ok) data.value.wishes = wishes.value.filter(x => x.id !== id)
+    return !!ok
+  }
+  /** Порядок: ids — видимые желания в новом порядке (при отборе); скрытые остаются на своих местах */
+  async function reorderWishes(ids: string[]) {
+    const all = activeWishes.value.map(w => w.id), set = new Set(ids)
+    let k = 0
+    const next = all.map(id => (set.has(id) ? ids[k++] : id))
+    const before = new Map(wishes.value.map(w => [w.id, w.position]))
+    next.forEach((id, i) => { const w = wishes.value.find(x => x.id === id); if (w) w.position = i })
+    const ok = await guard(async () => { await repo.reorderWishes(next); return true })
+    if (!ok) for (const w of wishes.value) w.position = before.get(w.id) ?? 0
+    return !!ok
+  }
+  /** Желание → задача во «Входящих» (заметка и ссылка — в описание, цена — в бюджет). Само желание остаётся */
+  async function wishToTask(id: string) {
+    const w = wishes.value.find(x => x.id === id); if (!w) return false
+    const task = await addTask({
+      title: w.title, status: 'inbox', note: [w.note, w.url].filter(Boolean).join('\n') || null,
+      ...(budgetReady.value && w.price != null ? { budget: Number(w.price) } : {}),
+    })
+    return task ? updateWish(id, { task_id: task.id }) : false
+  }
+
   // ---- Цвета для сфер: свой набор из «Ещё» или набор по умолчанию
   const colorsReady = computed(() => data.value.colorsReady !== false)
   const hasOwnColors = computed(() => !!data.value.sphereColors?.length)
@@ -758,7 +804,11 @@ export const useApp = defineStore('app', () => {
   }
   const savePush = (sub: PushSub) => guard(async () => { await repo.savePushSubscription(sub); return true }) as Promise<boolean | undefined>
   const removePush = (endpoint: string) => guard(async () => { await repo.removePushSubscription(endpoint); return true }) as Promise<boolean | undefined>
-  const exportAll = () => guard(() => repo.exportAll()) as Promise<ExportData | undefined>
+  // желания добавляем здесь: серверная export_all про них не знает
+  const exportAll = async () => {
+    const d = await (guard(() => repo.exportAll()) as Promise<ExportData | undefined>)
+    return d ? { ...d, wishes: wishes.value } : d
+  }
 
   /** Отметка привычки; day — другой день (например, вечерняя таблетка, отмеченная после полуночи) */
   async function bumpHabit(h: Habit, delta: number, day: string = today.value) {
@@ -903,7 +953,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, postponesReady, postponeTarget, postponeTask, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

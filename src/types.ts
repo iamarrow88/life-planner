@@ -1,5 +1,12 @@
 export type TaskStatus = 'inbox' | 'planned' | 'done'
 /** Подзадача — пункт чек-листа внутри задачи */
+/** Желание: просто запись «хочу», без дат и сроков. fulfilled_at — когда исполнилось, task_id — задача, созданная из желания */
+export interface Wish {
+  id: string; title: string; note: string | null; url: string | null; price: number | null; category: string | null
+  position: number; fulfilled_at: string | null; task_id: string | null; created_at?: string
+}
+export type NewWish = Pick<Wish, 'title' | 'category' | 'position'>
+export type WishPatch = Partial<Omit<Wish, 'id' | 'created_at'>>
 /** Перенос задачи: с какой даты (null — была без даты), на какую и когда перенесли */
 export interface Postpone { from: string | null; to: string; at: string }
 export interface Subtask { id: string; title: string; done: boolean }
@@ -100,6 +107,8 @@ export interface Snapshot {
   tagsReady?: boolean           // false — в базе ещё нет тегов (не выполнен planner_tags.sql)
   budgetReady?: boolean         // false — в базе ещё нет бюджета задач (не выполнен planner_budget.sql)
   orderReady?: boolean          // false — в базе ещё нет порядка задач (не выполнен planner_task_order.sql)
+  wishes?: Wish[]
+  wishesReady?: boolean          // false — в базе ещё нет желаний (не выполнен planner_wishes.sql)
   sphereColors?: string[] | null  // свой набор цветов для сфер (null — набор по умолчанию)
   colorsReady?: boolean          // false — в базе ещё нет набора цветов (не выполнен planner_sphere_colors.sql)
   postponesReady?: boolean      // false — в базе ещё нет истории переносов (не выполнен planner_task_postpone.sql)
@@ -219,6 +228,11 @@ export interface Repo {
   removeEntry(id: string): Promise<void>
   weekData(weekStart: string): Promise<WeekData>
   setWeekGoal(sphereId: string, weekStart: string, minutes: number, makeDefault: boolean): Promise<void>
+  addWish(w: NewWish): Promise<Wish>
+  updateWish(id: string, patch: WishPatch): Promise<Wish>
+  removeWish(id: string): Promise<void>
+  /** Порядок желаний: id в нужном порядке (position = номер в списке) */
+  reorderWishes(ids: string[]): Promise<void>
   /** Свой набор цветов для сфер; null — вернуться к набору по умолчанию */
   saveSphereColors(colors: string[] | null): Promise<void>
   saveTimeBudget(patch: Partial<TimeBudget>): Promise<void>

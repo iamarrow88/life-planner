@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData } from '../types'
+import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish } from '../types'
 import { todayStr, weekStart as weekStartOf } from '../lib/time'
 import { DEFAULT_CYCLE_SETTINGS } from '../lib/cycle'
 
@@ -95,6 +95,7 @@ async function dropFuture(recId: string, keep?: string) {
 
 /** День, когда это устройство последний раз запускало generate_recurring_tasks */
 const GEN_DAY_KEY = 'kola-recurring-generated'
+const WISH_COLS = 'id,title,note,url,price,category,position,fulfilled_at,task_id,created_at'
 
 export const supabaseRepo: Repo = {
   mode: 'supabase',
@@ -122,7 +123,7 @@ export const supabaseRepo: Repo = {
       if (!g.error) try { localStorage.setItem(GEN_DAY_KEY, today) } catch { /* см. выше */ }
     }
     const ws = weekStartOf(today)
-    const [spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, cDays, cSet, cCourses] = await Promise.all([
+    const [spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, cDays, cSet, cCourses] = await Promise.all([
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
       c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
@@ -138,6 +139,8 @@ export const supabaseRepo: Repo = {
       c.from('week_work').select('week_start,minutes').order('week_start'),
       // отдельным запросом: пока planner_sphere_colors.sql не выполнен, остальные настройки должны читаться
       c.from('user_settings').select('sphere_colors').maybeSingle(),
+      // желания — тоже отдельный патч базы (planner_wishes.sql)
+      c.from('wishes').select(WISH_COLS).order('position').order('created_at', { ascending: false }),
       c.from('cycle_days').select(cycleDayCols).order('day'),
       c.from('cycle_settings').select(CYCLE_SETTINGS_COLS).maybeSingle(),
       c.from('pill_courses').select(COURSE_COLS).order('starts_on'),
@@ -174,6 +177,8 @@ export const supabaseRepo: Repo = {
       // бюджет времени — отдельный патч базы: если его ещё не выполнили, экран просто подскажет это
       timeBudget: budget.error || work.error ? null : ((budget.data as TimeBudget | null) ?? { sleep_minutes_per_day: 480, routine_minutes_per_day: 180 }),
       weekWork: work.error ? [] : (work.data as WeekWork[]),
+      wishesReady: !wishesRes.error,
+      wishes: wishesRes.error ? [] : (wishesRes.data as unknown as Wish[]),
       colorsReady: !colorsRes.error,
       sphereColors: colorsRes.error ? null : ((colorsRes.data as { sphere_colors: string[] | null } | null)?.sphere_colors ?? null),
       // календарь цикла — тоже отдельный патч (planner_cycle.sql)
@@ -265,6 +270,13 @@ export const supabaseRepo: Repo = {
       ...optFields(r),
     }))
     ok(await db().rpc('generate_recurring_tasks'))
+  },
+  async addWish(w) { return ok(await db().from('wishes').insert(w).select(WISH_COLS).single()) as unknown as Wish },
+  async updateWish(id, patch) { return ok(await db().from('wishes').update(patch).eq('id', id).select(WISH_COLS).single()) as unknown as Wish },
+  async removeWish(id) { ok(await db().from('wishes').delete().eq('id', id)) },
+  async reorderWishes(ids) {
+    const rs = await Promise.all(ids.map((id, i) => db().from('wishes').update({ position: i }).eq('id', id)))
+    for (const r of rs) if (r.error) throw new Error(r.error.message)
   },
   async saveSphereColors(colors) {
     const uid = (await db().auth.getSession()).data.session?.user.id

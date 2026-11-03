@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApp } from '../stores/app'
 import AutoTextarea from '../components/AutoTextarea.vue'
+import NavIcon from '../components/NavIcon.vue'
 import { fmtMinutes, shortDate, weekStart, addDays, monthStart } from '../lib/time'
 import { budgetRing, type Arc } from '../lib/timeBudget'
 import { vDragSort } from '../lib/dragSort'
@@ -104,6 +105,12 @@ async function save() {
     </div>
     <button class="btn-ghost" @click="toggleAdding">{{ adding ? 'Закрыть' : '+ Сфера' }}</button>
   </div>
+
+  <RouterLink to="/review" class="card mb-4 flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-review">
+    <NavIcon name="review" class="shrink-0 text-accent" />
+    <span class="min-w-0 flex-1"><span class="block font-semibold">Итог недели</span><span class="block text-xs text-mute">Цифры, размышление и план на следующую неделю</span></span>
+    <span class="text-mute">›</span>
+  </RouterLink>
 
   <form v-if="adding" class="card mb-4 space-y-3 p-4" @submit.prevent="save">
     <input v-model="name" class="input" placeholder="Название сферы" maxlength="80" required autofocus />

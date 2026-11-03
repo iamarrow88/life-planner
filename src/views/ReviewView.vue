@@ -117,6 +117,7 @@ async function complete() {
 </script>
 
 <template>
+  <RouterLink to="/spheres" class="mb-3 inline-block text-sm font-semibold text-accent">‹ Сферы</RouterLink>
   <div class="mb-4 flex items-start justify-between gap-3">
     <div>
       <h1 class="text-2xl font-bold">Итог недели</h1>

@@ -24,6 +24,7 @@ export const router = createRouter({
       ],
     },
     { path: '/review', component: () => import('./views/ReviewView.vue') },
+    { path: '/wishes', component: () => import('./views/WishesView.vue') },
     { path: '/more', component: () => import('./views/MoreView.vue') },
   ],
 })

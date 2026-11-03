@@ -1,5 +1,5 @@
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData } from '../types'
+import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData, Wish } from '../types'
 import { addDays, dayOf, entrySeconds, todayStr } from '../lib/time'
 import { matches, nextAfter } from '../lib/recurrence'
 import { dueOn, scheduledOn } from '../lib/habitSchedule'
@@ -316,6 +316,19 @@ export const demoRepo: Repo = {
     s.tasks = s.tasks.filter(t => !drop.has(t.id))
     for (const t of s.tasks) if (t.recurrence_id === id) t.recurrence_id = null
     s.recurrences = s.recurrences.filter(r => r.id !== id); write(s)
+  },
+  async addWish(w) {
+    const s = read(); const wish: Wish = { id: uid(), note: null, url: null, price: null, fulfilled_at: null, task_id: null, created_at: new Date().toISOString(), ...w }
+    ;(s.wishes ??= []).push(wish); write(s); return wish
+  },
+  async updateWish(id, patch) {
+    const s = read(); const wish = s.wishes?.find(x => x.id === id)
+    if (!wish) throw new Error('Желание не найдено')
+    Object.assign(wish, patch); write(s); return wish
+  },
+  async removeWish(id) { const s = read(); s.wishes = (s.wishes ?? []).filter(x => x.id !== id); write(s) },
+  async reorderWishes(ids) {
+    const s = read(); ids.forEach((id, i) => { const w = s.wishes?.find(x => x.id === id); if (w) w.position = i }); write(s)
   },
   async saveSphereColors(colors) { const s = read(); s.sphereColors = colors; write(s) },
   async saveTimeBudget(patch) { const s = read(); s.timeBudget = { ...s.timeBudget!, ...patch }; write(s) },
