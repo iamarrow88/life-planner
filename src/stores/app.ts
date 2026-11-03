@@ -193,6 +193,18 @@ export const useApp = defineStore('app', () => {
   // ---- «↷ Перенести»: завтра / на выходные (суббота) / на следующую неделю (понедельник), от сегодняшнего дня;
   // время начала не меняется. Каждый перенос записывается в историю задачи (postpones)
   const postponesReady = computed(() => data.value.postponesReady !== false)
+  /** Окно переноса (кнопка «Перенести…» в уведомлении) */
+  const postponeSheetId = ref<string | null>(null)
+  const openPostponeSheet = (id: string) => { postponeSheetId.value = id }
+  const closePostponeSheet = () => { postponeSheetId.value = null }
+  /** Короткое сообщение внизу экрана */
+  const notice = ref('')
+  let noticeTimer: number | undefined
+  function showNotice(text: string) {
+    notice.value = text
+    window.clearTimeout(noticeTimer)
+    noticeTimer = window.setTimeout(() => { notice.value = '' }, 3000)
+  }
   function postponeTarget(kind: PostponeKind, from: string = today.value): string {
     if (kind === 'tomorrow') return addDays(from, 1)
     if (kind === 'nextweek') return addDays(weekStart(from), 7)
@@ -302,9 +314,14 @@ export const useApp = defineStore('app', () => {
   }
   /** Приложение на телефоне может висеть открытым днями: при возврате подтягиваем свежие данные (сферы, проекты, задачи с других устройств) */
   let lastLoad = Date.now()
+  /** syncing — идёт тихая загрузка; holdReloads — выполняется действие из уведомления: его не должен затереть устаревший ответ сервера */
+  const syncing = ref(false)
+  const holdReloads = ref(false)
   async function reloadQuietly() {
-    if (!user.value || loading.value) return
+    if (!user.value || loading.value || holdReloads.value) return
+    syncing.value = true
     try { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0]); lastLoad = Date.now(); saveCache() } catch { /* оставляем то, что есть */ }
+    syncing.value = false
   }
   function onShow() {
     if (document.visibilityState === 'visible' && Date.now() - lastLoad > 30_000) void reloadQuietly()
@@ -963,7 +980,7 @@ export const useApp = defineStore('app', () => {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
-    tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, postponesReady, postponeTarget, postponeTask, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
+    tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
     init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,

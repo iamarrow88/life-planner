@@ -10,6 +10,7 @@ import TaskDetail from './components/TaskDetail.vue'
 import HabitDetail from './components/HabitDetail.vue'
 import TaskSearch from './components/TaskSearch.vue'
 import PullToRefresh from './components/PullToRefresh.vue'
+import PostponeSheet from './components/PostponeSheet.vue'
 import { repo, supabaseProblems } from './data'
 import { initNative } from './lib/native'
 
@@ -76,6 +77,8 @@ async function logout() { await app.signOut(); router.push('/login') }
       </div>
     </main>
 
+    <PostponeSheet />
+    <p v-if="app.notice" role="status" class="fixed inset-x-4 bottom-20 z-40 mx-auto max-w-sm rounded-xl bg-ink px-4 py-2.5 text-center text-sm text-white shadow-lg md:bottom-6" data-test="notice">{{ app.notice }}</p>
     <TaskSearch />
     <TaskDetail />
     <HabitDetail />

@@ -6,12 +6,17 @@
 //   * итог недели: в воскресенье в 19:00, если итог этой недели не завершён.
 // Расписание пересобирается при каждом изменении данных: всё старое снимается и ставится заново на 14 дней вперёд.
 import { LocalNotifications, type LocalNotificationSchema } from '@capacitor/local-notifications'
+import type { PostponeKind } from '../stores/app'
 import type { Habit, Task, TimeEntry } from '../types'
 import { addDays, fmtMinutes, hhmm, weekStart } from './time'
 import { FORGOTTEN_MINUTES, NUDGE_MINUTES } from '../stores/app'
 
 const DAYS_AHEAD = 14
 const CHANNEL = 'reminders'
+/** Кнопки у напоминания о задаче. Android показывает не больше трёх, поэтому остальные варианты переноса — в «Перенести…» */
+const TASK_ACTIONS = 'task'
+export const ACTION_DONE = 'done', ACTION_POSTPONE = 'postpone'
+export const ACTION_TOMORROW: PostponeKind = 'tomorrow'
 const REVIEW_WEEKDAY = 0, REVIEW_TIME = '19:00' // как по умолчанию на сервере: воскресенье, 19:00
 
 export interface ReminderInput {
@@ -38,9 +43,12 @@ const at = (day: string, time: string) => new Date(`${day}T${time.length === 5 ?
 /** Все напоминания, которые должны стоять сейчас (только в будущем) */
 export function plan(i: ReminderInput, now = Date.now()): LocalNotificationSchema[] {
   const out: LocalNotificationSchema[] = []
-  const push = (key: string, when: Date, title: string, body: string, url = '/today') => {
+  const push = (key: string, when: Date, title: string, body: string, url = '/today', taskId?: string) => {
     if (when.getTime() <= now) return
-    out.push({ id: idOf(key), title, body, schedule: { at: when, allowWhileIdle: true }, channelId: CHANNEL, extra: { url }, smallIcon: 'ic_stat_kola' })
+    out.push({
+      id: idOf(key), title, body, schedule: { at: when, allowWhileIdle: true }, channelId: CHANNEL, extra: { url, taskId }, smallIcon: 'ic_stat_kola',
+      ...(taskId ? { actionTypeId: TASK_ACTIONS } : {}),
+    })
   }
   const last = addDays(i.today, DAYS_AHEAD)
 
@@ -49,7 +57,7 @@ export function plan(i: ReminderInput, now = Date.now()): LocalNotificationSchem
     if (t.due_date < i.today || t.due_date > last) continue
     const start = at(t.due_date, t.start_time)
     const before = t.remind_before_minutes
-    push('task:' + t.id, new Date(start.getTime() - before * 60000), t.title, before > 0 ? `Через ${fmtMinutes(before)} · ${hhmm(t.start_time)}` : `Пора начинать · ${hhmm(t.start_time)}`)
+    push('task:' + t.id, new Date(start.getTime() - before * 60000), t.title, before > 0 ? `Через ${fmtMinutes(before)} · ${hhmm(t.start_time)}` : `Пора начинать · ${hhmm(t.start_time)}`, '/today', t.id)
   }
 
   for (const h of i.habits) {
@@ -81,6 +89,10 @@ let channelReady = false
 async function ensureChannel() {
   if (channelReady) return
   await LocalNotifications.createChannel({ id: CHANNEL, name: 'Напоминания', description: 'Задачи, таблетки, таймер и итог недели', importance: 4, visibility: 1, vibration: true })
+  await LocalNotifications.registerActionTypes({ types: [{
+    id: TASK_ACTIONS,
+    actions: [{ id: ACTION_DONE, title: 'Выполнить' }, { id: ACTION_TOMORROW, title: 'Завтра' }, { id: ACTION_POSTPONE, title: 'Перенести…' }],
+  }] })
   channelReady = true
 }
 
