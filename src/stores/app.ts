@@ -417,10 +417,12 @@ export const useApp = defineStore('app', () => {
     return task
   }
   async function updateTask(id: string, patch: Partial<NewTask>) {
+    const wasDone = data.value.tasks.find(t => t.id === id)?.status === 'done'
     const task = await guard(() => repo.updateTask(id, patch))
     if (task) {
       const i = data.value.tasks.findIndex(t => t.id === id)
       if (i >= 0) data.value.tasks[i] = task
+      if (wasDone !== (task.status === 'done')) await syncWishWithTask(task)
       // выполнили повторяющуюся задачу — следующая могла создаться (режим «после выполнения»)
       if (patch.status === 'done' && task.recurrence_id) await load()
       syncGoogleSoon()
@@ -466,6 +468,12 @@ export const useApp = defineStore('app', () => {
     const ok = await guard(async () => { await repo.reorderWishes(next); return true })
     if (!ok) for (const w of wishes.value) w.position = before.get(w.id) ?? 0
     return !!ok
+  }
+  /** Задачу из желания выполнили — желание исполнилось; вернули задачу в работу — вернулось и желание */
+  async function syncWishWithTask(task: Task) {
+    const w = wishes.value.find(x => x.task_id === task.id); if (!w) return
+    if (task.status === 'done' && !w.fulfilled_at) await updateWish(w.id, { fulfilled_at: task.done_at ?? new Date().toISOString() })
+    else if (task.status !== 'done' && w.fulfilled_at) await updateWish(w.id, { fulfilled_at: null })
   }
   /** Желание → задача во «Входящих» (заметка и ссылка — в описание, цена — в бюджет). Само желание остаётся */
   async function wishToTask(id: string) {
