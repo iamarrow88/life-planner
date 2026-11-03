@@ -3,3 +3,4 @@ dist
 .env
 supabase/.env.push
 supabase/cron.sql
+release/

@@ -45,6 +45,7 @@ Push-напоминания (задачи со временем, таймер, �
 
 ## Приложение для Android (Capacitor)
 Та же сборка, что и сайт, упакованная в приложение (`android/`, id `by.kolaapp.app`).
+- `npm run release` — выпустить новую версию: отправить коммиты на GitHub (сайт пересоберётся сам) и собрать APK в `release/KolaApp.apk`. Не запустится, если есть незакоммиченные изменения; `-- --no-push` — только APK, `-- --dirty` — собрать APK вместе с незакоммиченным.
 - `npm run android` — собрать веб-часть для телефона (`vite build --mode android`) и скопировать её в `android/`.
 - `npm run android:open` — открыть проект в Android Studio: оттуда ▶ Run на телефон (по USB с включённой отладкой) или эмулятор, либо Build → Build APK(s).
 - Готовый отладочный APK: `android/app/build/outputs/apk/debug/app-debug.apk` — его можно скопировать на телефон и установить.
