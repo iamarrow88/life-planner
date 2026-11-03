@@ -1,5 +1,15 @@
 export type TaskStatus = 'inbox' | 'planned' | 'done'
 /** Подзадача — пункт чек-листа внутри задачи */
+/** Книга: queue — в очереди, reading — читаю, done — прочитано */
+export type BookStatus = 'queue' | 'reading' | 'done'
+export interface BookNote { id: string; at: string; page: number | null; text: string }
+export interface Book {
+  id: string; title: string; author: string | null; status: BookStatus; position: number
+  total_pages: number | null; current_page: number; started_on: string | null; finished_on: string | null
+  rating: number | null; notes: BookNote[]; created_at?: string
+}
+export type NewBook = Pick<Book, 'title' | 'status' | 'position'>
+export type BookPatch = Partial<Omit<Book, 'id' | 'created_at'>>
 /** Желание: просто запись «хочу», без дат и сроков. fulfilled_at — когда исполнилось, task_id — задача, созданная из желания */
 export interface Wish {
   id: string; title: string; note: string | null; url: string | null; price: number | null; category: string | null
@@ -107,6 +117,8 @@ export interface Snapshot {
   tagsReady?: boolean           // false — в базе ещё нет тегов (не выполнен planner_tags.sql)
   budgetReady?: boolean         // false — в базе ещё нет бюджета задач (не выполнен planner_budget.sql)
   orderReady?: boolean          // false — в базе ещё нет порядка задач (не выполнен planner_task_order.sql)
+  books?: Book[]
+  booksReady?: boolean           // false — в базе ещё нет библиотеки (не выполнен planner_books.sql)
   wishes?: Wish[]
   wishesReady?: boolean          // false — в базе ещё нет желаний (не выполнен planner_wishes.sql)
   sphereColors?: string[] | null  // свой набор цветов для сфер (null — набор по умолчанию)
@@ -228,6 +240,11 @@ export interface Repo {
   removeEntry(id: string): Promise<void>
   weekData(weekStart: string): Promise<WeekData>
   setWeekGoal(sphereId: string, weekStart: string, minutes: number, makeDefault: boolean): Promise<void>
+  addBook(b: NewBook): Promise<Book>
+  updateBook(id: string, patch: BookPatch): Promise<Book>
+  removeBook(id: string): Promise<void>
+  /** Порядок очереди: id в нужном порядке (position = номер в списке) */
+  reorderBooks(ids: string[]): Promise<void>
   addWish(w: NewWish): Promise<Wish>
   updateWish(id: string, patch: WishPatch): Promise<Wish>
   removeWish(id: string): Promise<void>

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch } from '../types'
+import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch, Book, BookPatch } from '../types'
 import { googleClientId } from '../lib/google'
 import { parseTags, uniqTags } from '../lib/tags'
 import { byPosition } from '../lib/taskOrder'
@@ -452,6 +452,46 @@ export const useApp = defineStore('app', () => {
   async function removeTask(id: string) {
     await guard(() => repo.removeTask(id)); data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
   }
+  // ---- Библиотека: очередь, «читаю сейчас», прочитанное
+  const booksReady = computed(() => data.value.booksReady !== false)
+  const books = computed(() => data.value.books ?? [])
+  const readingBooks = computed(() => books.value.filter(b => b.status === 'reading').sort((a, b) => (a.started_on ?? '').localeCompare(b.started_on ?? '')))
+  const queueBooks = computed(() => books.value.filter(b => b.status === 'queue').sort((a, b) => a.position - b.position))
+  const doneBooks = computed(() => books.value.filter(b => b.status === 'done').sort((a, b) => (b.finished_on ?? '').localeCompare(a.finished_on ?? '')))
+  /** Новая книга — в конец очереди */
+  async function addBook(title: string) {
+    const position = Math.max(-1, ...queueBooks.value.map(b => b.position)) + 1
+    const b = await guard(() => repo.addBook({ title, status: 'queue', position }))
+    if (b) (data.value.books ??= []).push(b)
+    return !!b
+  }
+  async function updateBook(id: string, patch: BookPatch) {
+    const b = await guard(() => repo.updateBook(id, patch))
+    if (b) { const i = books.value.findIndex(x => x.id === id); if (i >= 0) data.value.books![i] = b }
+    return !!b
+  }
+  async function removeBook(id: string) {
+    const ok = await guard(async () => { await repo.removeBook(id); return true })
+    if (ok) data.value.books = books.value.filter(x => x.id !== id)
+    return !!ok
+  }
+  async function reorderBooks(ids: string[]) {
+    const before = new Map(books.value.map(b => [b.id, b.position]))
+    ids.forEach((id, i) => { const b = books.value.find(x => x.id === id); if (b) b.position = i })
+    const ok = await guard(async () => { await repo.reorderBooks(ids); return true })
+    if (!ok) for (const b of books.value) b.position = before.get(b.id) ?? 0
+    return !!ok
+  }
+  const startBook = (b: Book) => updateBook(b.id, { status: 'reading', started_on: b.started_on ?? today.value, finished_on: null })
+  /** Дочитала: страница — последняя, дата конца — сегодня (её можно поправить в карточке) */
+  const finishBook = (b: Book) => updateBook(b.id, { status: 'done', finished_on: today.value, started_on: b.started_on ?? today.value, current_page: b.total_pages ?? b.current_page })
+  /** Обратно в очередь: чтение не считается начатым, встаёт в конец */
+  const requeueBook = (b: Book) => updateBook(b.id, { status: 'queue', started_on: null, finished_on: null, current_page: 0, position: Math.max(-1, ...queueBooks.value.map(x => x.position)) + 1 })
+  function addBookNote(b: Book, text: string, page: number | null) {
+    return updateBook(b.id, { notes: [...(b.notes ?? []), { id: crypto.randomUUID(), at: new Date().toISOString(), page, text }] })
+  }
+  const removeBookNote = (b: Book, noteId: string) => updateBook(b.id, { notes: (b.notes ?? []).filter(n => n.id !== noteId) })
+
   // ---- Мои желания: записи без дат и сроков. Новые — наверху, порядок меняется перетаскиванием
   const wishesReady = computed(() => data.value.wishesReady !== false)
   const wishes = computed(() => data.value.wishes ?? [])
@@ -829,10 +869,10 @@ export const useApp = defineStore('app', () => {
   }
   const savePush = (sub: PushSub) => guard(async () => { await repo.savePushSubscription(sub); return true }) as Promise<boolean | undefined>
   const removePush = (endpoint: string) => guard(async () => { await repo.removePushSubscription(endpoint); return true }) as Promise<boolean | undefined>
-  // желания добавляем здесь: серверная export_all про них не знает
+  // желания и книги добавляем здесь: серверная export_all про них не знает
   const exportAll = async () => {
     const d = await (guard(() => repo.exportAll()) as Promise<ExportData | undefined>)
-    return d ? { ...d, wishes: wishes.value } : d
+    return d ? { ...d, wishes: wishes.value, books: books.value } : d
   }
 
   /** Отметка привычки; day — другой день (например, вечерняя таблетка, отмеченная после полуночи) */
@@ -978,7 +1018,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

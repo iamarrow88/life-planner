@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish } from '../types'
+import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish, Book } from '../types'
 import { todayStr, weekStart as weekStartOf } from '../lib/time'
 import { DEFAULT_CYCLE_SETTINGS } from '../lib/cycle'
 
@@ -95,6 +95,7 @@ async function dropFuture(recId: string, keep?: string) {
 
 /** День, когда это устройство последний раз запускало generate_recurring_tasks */
 const GEN_DAY_KEY = 'kola-recurring-generated'
+const BOOK_COLS = 'id,title,author,status,position,total_pages,current_page,started_on,finished_on,rating,notes,created_at'
 const WISH_COLS = 'id,title,note,url,price,category,position,fulfilled_at,task_id,created_at'
 
 export const supabaseRepo: Repo = {
@@ -123,7 +124,7 @@ export const supabaseRepo: Repo = {
       if (!g.error) try { localStorage.setItem(GEN_DAY_KEY, today) } catch { /* см. выше */ }
     }
     const ws = weekStartOf(today)
-    const [spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, cDays, cSet, cCourses] = await Promise.all([
+    const [spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, cDays, cSet, cCourses] = await Promise.all([
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
       c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
@@ -141,6 +142,8 @@ export const supabaseRepo: Repo = {
       c.from('user_settings').select('sphere_colors').maybeSingle(),
       // желания — тоже отдельный патч базы (planner_wishes.sql)
       c.from('wishes').select(WISH_COLS).order('position').order('created_at', { ascending: false }),
+      // библиотека — тоже отдельный патч базы (planner_books.sql)
+      c.from('books').select(BOOK_COLS).order('position').order('created_at'),
       c.from('cycle_days').select(cycleDayCols).order('day'),
       c.from('cycle_settings').select(CYCLE_SETTINGS_COLS).maybeSingle(),
       c.from('pill_courses').select(COURSE_COLS).order('starts_on'),
@@ -177,6 +180,8 @@ export const supabaseRepo: Repo = {
       // бюджет времени — отдельный патч базы: если его ещё не выполнили, экран просто подскажет это
       timeBudget: budget.error || work.error ? null : ((budget.data as TimeBudget | null) ?? { sleep_minutes_per_day: 480, routine_minutes_per_day: 180 }),
       weekWork: work.error ? [] : (work.data as WeekWork[]),
+      booksReady: !booksRes.error,
+      books: booksRes.error ? [] : (booksRes.data as unknown as Book[]),
       wishesReady: !wishesRes.error,
       wishes: wishesRes.error ? [] : (wishesRes.data as unknown as Wish[]),
       colorsReady: !colorsRes.error,
@@ -270,6 +275,13 @@ export const supabaseRepo: Repo = {
       ...optFields(r),
     }))
     ok(await db().rpc('generate_recurring_tasks'))
+  },
+  async addBook(b) { return ok(await db().from('books').insert(b).select(BOOK_COLS).single()) as unknown as Book },
+  async updateBook(id, patch) { return ok(await db().from('books').update(patch).eq('id', id).select(BOOK_COLS).single()) as unknown as Book },
+  async removeBook(id) { ok(await db().from('books').delete().eq('id', id)) },
+  async reorderBooks(ids) {
+    const rs = await Promise.all(ids.map((id, i) => db().from('books').update({ position: i }).eq('id', id)))
+    for (const r of rs) if (r.error) throw new Error(r.error.message)
   },
   async addWish(w) { return ok(await db().from('wishes').insert(w).select(WISH_COLS).single()) as unknown as Wish },
   async updateWish(id, patch) { return ok(await db().from('wishes').update(patch).eq('id', id).select(WISH_COLS).single()) as unknown as Wish },

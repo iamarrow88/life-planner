@@ -1,5 +1,5 @@
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData, Wish } from '../types'
+import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData, Wish, Book } from '../types'
 import { addDays, dayOf, entrySeconds, todayStr } from '../lib/time'
 import { matches, nextAfter } from '../lib/recurrence'
 import { dueOn, scheduledOn } from '../lib/habitSchedule'
@@ -316,6 +316,19 @@ export const demoRepo: Repo = {
     s.tasks = s.tasks.filter(t => !drop.has(t.id))
     for (const t of s.tasks) if (t.recurrence_id === id) t.recurrence_id = null
     s.recurrences = s.recurrences.filter(r => r.id !== id); write(s)
+  },
+  async addBook(b) {
+    const s = read(); const book: Book = { id: uid(), author: null, total_pages: null, current_page: 0, started_on: null, finished_on: null, rating: null, notes: [], created_at: new Date().toISOString(), ...b }
+    ;(s.books ??= []).push(book); write(s); return book
+  },
+  async updateBook(id, patch) {
+    const s = read(); const book = s.books?.find(x => x.id === id)
+    if (!book) throw new Error('Книга не найдена')
+    Object.assign(book, patch); write(s); return book
+  },
+  async removeBook(id) { const s = read(); s.books = (s.books ?? []).filter(x => x.id !== id); write(s) },
+  async reorderBooks(ids) {
+    const s = read(); ids.forEach((id, i) => { const b = s.books?.find(x => x.id === id); if (b) b.position = i }); write(s)
   },
   async addWish(w) {
     const s = read(); const wish: Wish = { id: uid(), note: null, url: null, price: null, fulfilled_at: null, task_id: null, created_at: new Date().toISOString(), ...w }

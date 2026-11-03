@@ -46,6 +46,7 @@ async function add() {
 </script>
 
 <template>
+  <RouterLink to="/misc" class="mb-3 inline-block text-sm font-semibold text-accent">‹ Разное</RouterLink>
   <h1 class="mb-1 text-2xl font-bold">Мои желания</h1>
   <p class="mb-4 text-sm text-mute">Всё, что хочется, в одном месте. Без сроков и обязательств.</p>
 
