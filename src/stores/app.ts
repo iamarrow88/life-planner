@@ -6,6 +6,7 @@ import { googleClientId } from '../lib/google'
 import { parseTags, uniqTags } from '../lib/tags'
 import { byPosition } from '../lib/taskOrder'
 import { DEFAULT_CYCLE_SETTINGS, PILL_NAMES, courseFrom, courseOn, cycleDayNo, cycleStarts } from '../lib/cycle'
+import { DEFAULT_SPHERE_COLORS } from '../lib/colors'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
 export const NUDGE_MINUTES = 40
@@ -429,6 +430,25 @@ export const useApp = defineStore('app', () => {
   }
   async function removeTask(id: string) {
     await guard(() => repo.removeTask(id)); data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
+  }
+  // ---- Цвета для сфер: свой набор из «Ещё» или набор по умолчанию
+  const colorsReady = computed(() => data.value.colorsReady !== false)
+  const hasOwnColors = computed(() => !!data.value.sphereColors?.length)
+  const sphereColors = computed(() => (data.value.sphereColors?.length ? data.value.sphereColors : DEFAULT_SPHERE_COLORS))
+  async function saveSphereColors(colors: string[] | null) {
+    const ok = await guard(async () => { await repo.saveSphereColors(colors); return true })
+    if (ok) data.value.sphereColors = colors
+    return !!ok
+  }
+  /** Раскрасить все сферы цветами набора по порядку; цветов меньше, чем сфер, — идут по кругу */
+  async function recolorSpheres() {
+    const list = sphereColors.value
+    let ok = true
+    for (const [i, s] of data.value.spheres.entries()) {
+      const color = list[i % list.length]
+      if (s.color.toLowerCase() !== color.toLowerCase()) ok = (await updateSphere(s.id, { color })) && ok
+    }
+    return ok
   }
   async function addSphere(name: string, color: string, goal: number, description = '') {
     if (sphereNameTaken(name)) { error.value = `Сфера «${name}» уже есть`; return false }
@@ -883,7 +903,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, postponesReady, postponeTarget, postponeTask, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

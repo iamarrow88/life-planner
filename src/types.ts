@@ -100,6 +100,8 @@ export interface Snapshot {
   tagsReady?: boolean           // false — в базе ещё нет тегов (не выполнен planner_tags.sql)
   budgetReady?: boolean         // false — в базе ещё нет бюджета задач (не выполнен planner_budget.sql)
   orderReady?: boolean          // false — в базе ещё нет порядка задач (не выполнен planner_task_order.sql)
+  sphereColors?: string[] | null  // свой набор цветов для сфер (null — набор по умолчанию)
+  colorsReady?: boolean          // false — в базе ещё нет набора цветов (не выполнен planner_sphere_colors.sql)
   postponesReady?: boolean      // false — в базе ещё нет истории переносов (не выполнен planner_task_postpone.sql)
   subtasksReady?: boolean       // false — в базе ещё нет подзадач (не выполнен planner_subtasks.sql)
 }
@@ -217,6 +219,8 @@ export interface Repo {
   removeEntry(id: string): Promise<void>
   weekData(weekStart: string): Promise<WeekData>
   setWeekGoal(sphereId: string, weekStart: string, minutes: number, makeDefault: boolean): Promise<void>
+  /** Свой набор цветов для сфер; null — вернуться к набору по умолчанию */
+  saveSphereColors(colors: string[] | null): Promise<void>
   saveTimeBudget(patch: Partial<TimeBudget>): Promise<void>
   setWeekWork(weekStart: string, minutes: number): Promise<void>
   /** Записать день цикла целиком; пустой день (без отметок и заметки) удаляется */

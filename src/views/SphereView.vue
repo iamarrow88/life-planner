@@ -20,7 +20,7 @@ import { dayOf, fmtMinutes, shortDate, weekStart } from '../lib/time'
 
 const app = useApp()
 const route = useRoute()
-const COLORS = ['#3E8E5F', '#7B5CC4', '#D9783A', '#2F6DB3', '#C0475F', '#B58B1F']
+const COLORS = computed(() => app.sphereColors)
 const id = computed(() => String(route.params.id))
 const sphere = computed(() => app.sphereById(id.value))
 

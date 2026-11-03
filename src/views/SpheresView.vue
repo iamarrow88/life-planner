@@ -8,12 +8,17 @@ import { budgetRing, type Arc } from '../lib/timeBudget'
 import { vDragSort } from '../lib/dragSort'
 
 const app = useApp()
-const COLORS = ['#3E8E5F', '#7B5CC4', '#D9783A', '#2F6DB3', '#C0475F', '#B58B1F']
+const COLORS = computed(() => app.sphereColors)
 const adding = ref(false)
+/** Новая сфера: по умолчанию — первый цвет набора, которого ещё нет у других сфер */
+function toggleAdding() {
+  adding.value = !adding.value
+  if (adding.value) color.value = COLORS.value.find(c => !app.spheres.some(s => s.color.toLowerCase() === c.toLowerCase())) ?? COLORS.value[0]
+}
 const period = ref<'week' | 'month'>('week')
 const minutesBy = computed(() => (period.value === 'week' ? app.weekMinutes : app.monthMinutes))
 const name = ref('')
-const color = ref(COLORS[0])
+const color = ref(COLORS.value[0])
 const goalHours = ref(5)
 const description = ref('')
 
@@ -97,7 +102,7 @@ async function save() {
       <h1 class="text-2xl font-bold">Сферы</h1>
       <p class="text-sm text-mute">{{ period === 'week' ? 'Неделя' : 'Месяц' }}: {{ range }}</p>
     </div>
-    <button class="btn-ghost" @click="adding = !adding">{{ adding ? 'Закрыть' : '+ Сфера' }}</button>
+    <button class="btn-ghost" @click="toggleAdding">{{ adding ? 'Закрыть' : '+ Сфера' }}</button>
   </div>
 
   <form v-if="adding" class="card mb-4 space-y-3 p-4" @submit.prevent="save">

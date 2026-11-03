@@ -317,6 +317,7 @@ export const demoRepo: Repo = {
     for (const t of s.tasks) if (t.recurrence_id === id) t.recurrence_id = null
     s.recurrences = s.recurrences.filter(r => r.id !== id); write(s)
   },
+  async saveSphereColors(colors) { const s = read(); s.sphereColors = colors; write(s) },
   async saveTimeBudget(patch) { const s = read(); s.timeBudget = { ...s.timeBudget!, ...patch }; write(s) },
   async setWeekWork(weekStart, minutes) {
     const s = read(); const list = (s.weekWork ??= []); const w = list.find(x => x.week_start === weekStart)

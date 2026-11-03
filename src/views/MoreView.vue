@@ -13,6 +13,7 @@ import { googleClientId, googleRedirectUri, startGoogleLogin, takeGoogleCallback
 import { getPushState, showTestNotification, subscribePush, unsubscribePush, type PushState } from '../lib/push'
 import { isNative } from '../lib/native'
 import NativeNotifications from '../components/NativeNotifications.vue'
+import { DEFAULT_SPHERE_COLORS, MAX_SPHERE_COLORS, parseColors } from '../lib/colors'
 
 const app = useApp()
 const router = useRouter()
@@ -161,6 +162,34 @@ async function copyWatch() {
 }
 onMounted(loadWatch)
 
+// ---- Цвета сфер: набор задаётся одной строкой, разбирается на лету
+const colorsText = ref(app.sphereColors.join(' '))
+const colorsMsg = ref('')
+const parsedColors = computed(() => parseColors(colorsText.value))
+const tooManyColors = computed(() => parsedColors.value.colors.length > MAX_SPHERE_COLORS)
+/** В поле не то, что сохранено: «Раскрасить» применяет только сохранённый набор */
+const colorsDirty = computed(() => parsedColors.value.colors.join(' ') !== app.sphereColors.join(' ') || !!parsedColors.value.invalid.length)
+const colorsSavable = computed(() => parsedColors.value.colors.length > 0 && !parsedColors.value.invalid.length && !tooManyColors.value)
+async function saveColors() {
+  colorsMsg.value = ''
+  if (await app.saveSphereColors(parsedColors.value.colors)) {
+    colorsText.value = parsedColors.value.colors.join(' ')
+    colorsMsg.value = 'Сохранено: эти цвета теперь предлагаются при создании и редактировании сферы.'
+  }
+}
+async function resetColors() {
+  colorsMsg.value = ''
+  if (await app.saveSphereColors(null)) {
+    colorsText.value = DEFAULT_SPHERE_COLORS.join(' ')
+    colorsMsg.value = 'Вернулся набор по умолчанию.'
+  }
+}
+async function recolor() {
+  colorsMsg.value = ''
+  if (!window.confirm('Раскрасить все сферы цветами набора по порядку? Текущие цвета сфер заменятся.')) return
+  if (await app.recolorSpheres()) colorsMsg.value = 'Сферы раскрашены.'
+}
+
 async function logout() { await app.signOut(); router.push('/login') }
 </script>
 
@@ -175,6 +204,26 @@ async function logout() { await app.signOut(); router.push('/login') }
           data-test="stale-days" @change="app.setStaleDays(Number(($event.target as HTMLInputElement).value))" />
       </label>
       <p class="text-xs text-mute">Задачи со сферой, но без даты лежат во «Входящих» в свёрнутом блоке «Отложено». Залежавшиеся поднимаются наверх с вопросом «решить?». Настройка хранится на этом устройстве.</p>
+    </div>
+  </section>
+
+  <section class="mb-6" data-test="sphere-colors">
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Цвета сфер</h2>
+    <div class="card space-y-3 p-4 text-sm">
+      <p class="text-xs text-mute">Hex-цвета через пробел или запятую, например <code>#3E8E5F #7B5CC4, D9783A</code>. Они предлагаются при создании и редактировании сферы.</p>
+      <p v-if="!app.colorsReady" class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Чтобы сохранять свой набор, выполни <code>planner_sphere_colors.sql</code> в Supabase (SQL Editor).</p>
+      <textarea v-model="colorsText" rows="2" class="input font-mono !text-sm" spellcheck="false" aria-label="Цвета сфер в формате hex" placeholder="#3E8E5F #7B5CC4 #D9783A" data-test="colors-input" @input="colorsMsg = ''"></textarea>
+      <div v-if="parsedColors.colors.length" class="flex flex-wrap gap-1.5" data-test="colors-preview">
+        <span v-for="c in parsedColors.colors" :key="c" class="h-7 w-7 rounded-full border border-line" :style="{ background: c }" :title="c"></span>
+      </div>
+      <p v-if="parsedColors.invalid.length" class="text-xs text-red-700" data-test="colors-invalid">Не похоже на цвет: {{ parsedColors.invalid.join(', ') }}</p>
+      <p v-if="tooManyColors" class="text-xs text-red-700">Слишком много цветов: не больше {{ MAX_SPHERE_COLORS }}.</p>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="btn-primary" :disabled="!colorsSavable || !colorsDirty || !app.colorsReady" data-test="colors-save" @click="saveColors">Сохранить</button>
+        <button type="button" class="btn-ghost" :disabled="!app.spheres.length || colorsDirty" data-test="colors-recolor" :title="colorsDirty ? 'Сначала сохрани набор' : 'Применить набор к существующим сферам'" @click="recolor">Раскрасить сферы</button>
+        <button v-if="app.hasOwnColors" type="button" class="btn-ghost" data-test="colors-reset" @click="resetColors">По умолчанию</button>
+      </div>
+      <p v-if="colorsMsg" class="text-xs text-accent">{{ colorsMsg }}</p>
     </div>
   </section>
 

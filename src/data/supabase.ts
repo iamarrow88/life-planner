@@ -122,7 +122,7 @@ export const supabaseRepo: Repo = {
       if (!g.error) try { localStorage.setItem(GEN_DAY_KEY, today) } catch { /* см. выше */ }
     }
     const ws = weekStartOf(today)
-    const [spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, cDays, cSet, cCourses] = await Promise.all([
+    const [spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, cDays, cSet, cCourses] = await Promise.all([
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
       c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
@@ -136,6 +136,8 @@ export const supabaseRepo: Repo = {
       c.rpc('habit_status', { p_day: today }),
       c.from('user_settings').select('sleep_minutes_per_day,routine_minutes_per_day').maybeSingle(),
       c.from('week_work').select('week_start,minutes').order('week_start'),
+      // отдельным запросом: пока planner_sphere_colors.sql не выполнен, остальные настройки должны читаться
+      c.from('user_settings').select('sphere_colors').maybeSingle(),
       c.from('cycle_days').select(cycleDayCols).order('day'),
       c.from('cycle_settings').select(CYCLE_SETTINGS_COLS).maybeSingle(),
       c.from('pill_courses').select(COURSE_COLS).order('starts_on'),
@@ -172,6 +174,8 @@ export const supabaseRepo: Repo = {
       // бюджет времени — отдельный патч базы: если его ещё не выполнили, экран просто подскажет это
       timeBudget: budget.error || work.error ? null : ((budget.data as TimeBudget | null) ?? { sleep_minutes_per_day: 480, routine_minutes_per_day: 180 }),
       weekWork: work.error ? [] : (work.data as WeekWork[]),
+      colorsReady: !colorsRes.error,
+      sphereColors: colorsRes.error ? null : ((colorsRes.data as { sphere_colors: string[] | null } | null)?.sphere_colors ?? null),
       // календарь цикла — тоже отдельный патч (planner_cycle.sql)
       cycle: cycleReady ? {
         days: cycleDays.data as unknown as CycleDay[],
@@ -261,6 +265,11 @@ export const supabaseRepo: Repo = {
       ...optFields(r),
     }))
     ok(await db().rpc('generate_recurring_tasks'))
+  },
+  async saveSphereColors(colors) {
+    const uid = (await db().auth.getSession()).data.session?.user.id
+    if (!uid) throw new Error('Нужно войти')
+    ok(await db().from('user_settings').upsert({ user_id: uid, sphere_colors: colors }))
   },
   async saveTimeBudget(patch) {
     const uid = (await db().auth.getSession()).data.session?.user.id
