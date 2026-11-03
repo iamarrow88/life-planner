@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useApp } from '../stores/app'
-import { fmtSec } from '../lib/time'
+import { fmtSec, shortDate, ymd } from '../lib/time'
 import AutoTextarea from './AutoTextarea.vue'
 import EstimateInput from './EstimateInput.vue'
 import TagInput from './TagInput.vue'
@@ -52,6 +52,12 @@ const DEFAULT_ESTIMATE = 15
 const presets = [30, 45, 60, 90, 120]
 const isRunning = computed(() => !!task.value && app.running?.task_id === task.value.id)
 const totals = computed(() => (task.value ? app.taskTotal(task.value.id) : undefined))
+/** Переносы кнопкой «↷»: больше трёх — повод задуматься, подсвечиваем красным */
+const postpones = computed(() => task.value?.postpones ?? [])
+const showPostpones = ref(false)
+const POSTPONE_ALERT = 3
+const timesWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'раз' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'раза' : 'раз')
+const atDay = (iso: string) => shortDate(ymd(new Date(iso)))  // день переноса по местному времени
 
 // ---- Повтор: правило, по которому создаются следующие задачи (как расписание у привычки)
 const rule = computed(() => app.data.recurrences.find(r => r.id === task.value?.recurrence_id) ?? null)
@@ -220,6 +226,15 @@ async function remove() {
           <button v-if="date" type="button" class="font-semibold text-accent" aria-label="Сбросить дату" title="Убрать дату: задача вернётся во «Входящие»" @click="resetDate">сбросить дату</button>
           <span v-if="keepsOutOfInbox">Уйдёт в «Отложено без даты».</span>
           <span v-else-if="!date && task.status !== 'done'">Без даты задача лежит во «Входящих».</span>
+        </div>
+        <!-- История переносов (кнопка ↷ в строке задачи) -->
+        <div v-if="postpones.length" class="mt-1.5 text-xs" data-test="postpones">
+          <button type="button" class="font-semibold" :class="postpones.length > POSTPONE_ALERT ? 'text-red-600' : 'text-mute hover:text-accent'" :aria-expanded="showPostpones" @click="showPostpones = !showPostpones">
+            ↷ Переносили {{ postpones.length }} {{ timesWord(postpones.length) }} {{ showPostpones ? '▴' : '▾' }}
+          </button>
+          <ul v-if="showPostpones" class="mt-1 space-y-0.5 text-mute">
+            <li v-for="(x, i) in postpones" :key="i">{{ x.from ? shortDate(x.from) : 'без даты' }} → {{ shortDate(x.to) }} <span class="opacity-70">· перенесено {{ atDay(x.at) }}</span></li>
+          </ul>
         </div>
       </div>
 

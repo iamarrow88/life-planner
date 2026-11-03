@@ -9,6 +9,7 @@ import { DEFAULT_CYCLE_SETTINGS, PILL_NAMES, courseFrom, courseOn, cycleDayNo, c
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
 export const NUDGE_MINUTES = 40
+export type PostponeKind = 'tomorrow' | 'weekend' | 'nextweek'
 export const FORGOTTEN_MINUTES = 180
 
 export const useApp = defineStore('app', () => {
@@ -187,6 +188,33 @@ export const useApp = defineStore('app', () => {
   const orderReady = computed(() => data.value.orderReady !== false)
   /** false — в Supabase не выполнен planner_subtasks.sql */
   const subtasksReady = computed(() => data.value.subtasksReady !== false)
+  // ---- «↷ Перенести»: завтра / на выходные (суббота) / на следующую неделю (понедельник), от сегодняшнего дня;
+  // время начала не меняется. Каждый перенос записывается в историю задачи (postpones)
+  const postponesReady = computed(() => data.value.postponesReady !== false)
+  function postponeTarget(kind: PostponeKind, from: string = today.value): string {
+    if (kind === 'tomorrow') return addDays(from, 1)
+    if (kind === 'nextweek') return addDays(weekStart(from), 7)
+    const [y, m, d] = from.split('-').map(Number)
+    const wd = new Date(y, m - 1, d).getDay()          // 0 — воскресенье, 6 — суббота
+    return addDays(from, ((6 - wd + 7) % 7) || 7)      // ближайшая суббота после сегодня (в субботу — следующая)
+  }
+  /** kind — готовый вариант; или своя дата и время ({ date, time }: time '' — без времени, 'HH:MM' — новое) */
+  async function postponeTask(id: string, kind: PostponeKind | { date: string; time: string }): Promise<string | null> {
+    const t = data.value.tasks.find(x => x.id === id); if (!t) return null
+    const custom = typeof kind === 'object' ? kind : null
+    const to = custom ? custom.date : postponeTarget(kind as PostponeKind)
+    const time = custom ? (custom.time ? custom.time + ':00' : null) : t.start_time
+    if (t.due_date === to && time === t.start_time) return to
+    if (t.recurrence_id && data.value.tasks.some(x => x.id !== id && x.recurrence_id === t.recurrence_id && x.due_date === to)) {
+      error.value = `В этот день уже есть «${t.title}» по тому же повтору — перенести нельзя.`; return null
+    }
+    const patch: Partial<NewTask> = { due_date: to, ...(t.status === 'inbox' ? { status: 'planned' as const } : {}) }
+    // своё время: без времени — напоминать не о чем
+    if (custom) Object.assign(patch, { start_time: time, ...(time ? {} : { remind_before_minutes: null }) })
+    if (postponesReady.value) patch.postpones = [...(t.postpones ?? []), { from: t.due_date, to, at: new Date().toISOString() }]
+    await updateTask(id, patch)
+    return error.value ? null : to
+  }
   /** Подзадачи сохраняются сразу (отметили, добавили, переставили); на экране — до ответа базы, при ошибке — как было */
   async function setSubtasks(taskId: string, list: Subtask[]) {
     const t = data.value.tasks.find(x => x.id === taskId); if (!t) return false
@@ -857,7 +885,7 @@ export const useApp = defineStore('app', () => {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
-    tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
+    tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, postponesReady, postponeTarget, postponeTask, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
     init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useApp } from '../stores/app'
+import { useApp, type PostponeKind } from '../stores/app'
 import type { Task } from '../types'
-import { fmtClock, fmtSec, hhmm } from '../lib/time'
+import { fmtClock, fmtSec, hhmm, shortDate } from '../lib/time'
 import { fmtMinutes } from '../lib/time'
 import { fmtMoney } from '../lib/budget'
 import { ref } from 'vue'
@@ -21,6 +21,34 @@ const totals = computed(() => app.taskTotal(props.task.id))
 const subs = computed(() => props.task.subtasks ?? [])
 const showSubs = ref(false)
 const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
+
+// ---- «↷ Перенести»: у задач с датой — завтра, на выходные, на следующую неделю (время начала сохраняется)
+const canPostpone = computed(() => !done.value && !!props.task.due_date && !props.noTimer)
+const postponeMenu = ref<{ top: number; left: number } | null>(null)
+const WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб']
+const dayName = (d: string) => { const [y, m, dd] = d.split('-').map(Number); return `${WD[new Date(y, m - 1, dd).getDay()]}, ${shortDate(d)}` }
+const postponeOptions = computed(() => ([['tomorrow', 'Завтра'], ['weekend', 'На выходные'], ['nextweek', 'На следующую неделю']] as const)
+  .map(([kind, label]) => ({ kind, label, to: app.postponeTarget(kind) })))
+function openPostpone(e: MouseEvent) {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  // меню справа под кнопкой, но не за краем экрана
+  // меню «висит» поверх страницы: прокрутили список — закрываем, чтобы оно не оторвалось от задачи
+  window.addEventListener('scroll', closePostpone, { capture: true, once: true })
+  choosing.value = false
+  postponeMenu.value = { top: Math.min(r.bottom + 4, window.innerHeight - 260), left: Math.max(8, Math.min(r.right - 264, window.innerWidth - 272)) }
+}
+function closePostpone() { postponeMenu.value = null }
+async function postpone(kind: PostponeKind) { postponeMenu.value = null; await app.postponeTask(props.task.id, kind) }
+/** «Выбрать…»: своя дата и время (по умолчанию — завтра, время задачи) */
+const choosing = ref(false)
+const customDate = ref('')
+const customTime = ref('')
+function startChoose() { choosing.value = true; customDate.value = app.postponeTarget('tomorrow'); customTime.value = hhmm(props.task.start_time) }
+async function postponeCustom() {
+  if (!customDate.value) return
+  postponeMenu.value = null
+  await app.postponeTask(props.task.id, { date: customDate.value, time: customTime.value })
+}
 </script>
 
 <template>
@@ -55,6 +83,8 @@ const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
       </div>
     </div>
     <slot />
+    <button v-if="canPostpone" type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-lg text-mute transition hover:bg-accent-soft hover:text-accent"
+      :class="postponeMenu && 'bg-accent-soft text-accent'" aria-label="Перенести задачу" title="Перенести: завтра, на выходные, на следующую неделю" data-test="postpone" @click="openPostpone">↷</button>
     <button v-if="!done && !noTimer" class="grid h-9 w-9 shrink-0 place-items-center rounded-full transition"
       :class="isRunning ? 'bg-accent text-white' : 'bg-accent-soft text-accent hover:brightness-95'"
       :aria-label="isRunning ? 'Остановить таймер' : 'Запустить таймер'"
@@ -64,5 +94,27 @@ const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
     </button>
   </div>
   <SubtaskList v-if="showSubs && subs.length" :task="task" compact />
+  <Teleport to="body">
+    <template v-if="postponeMenu">
+      <div class="fixed inset-0 z-40" @click="postponeMenu = null"></div>
+      <div role="menu" :aria-label="'Перенести «' + task.title + '»'" class="fixed z-50 rounded-2xl border border-line bg-white p-1.5 shadow-lg" :style="{ top: postponeMenu.top + 'px', left: postponeMenu.left + 'px', width: '16.5rem' }" data-test="postpone-menu">
+        <button v-for="o in postponeOptions" :key="o.kind" type="button" role="menuitem" class="flex w-full items-baseline justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-accent-soft"
+          :data-test="'postpone-' + o.kind" @click="postpone(o.kind)">
+          <span class="whitespace-nowrap">{{ o.label }}</span><span class="whitespace-nowrap text-xs text-mute">{{ dayName(o.to) }}</span>
+        </button>
+        <button v-if="!choosing" type="button" role="menuitem" class="flex w-full items-baseline justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm hover:bg-accent-soft" data-test="postpone-choose" @click="startChoose">
+          <span class="whitespace-nowrap">Выбрать…</span><span class="whitespace-nowrap text-xs text-mute">дата и время</span>
+        </button>
+        <form v-else class="space-y-2 border-t border-line px-2 pb-1 pt-2" data-test="postpone-custom" @submit.prevent="postponeCustom">
+          <div class="flex gap-1.5">
+            <input v-model="customDate" type="date" class="input min-w-0 flex-1 !px-2 !py-1.5 !text-sm" :min="app.today" required aria-label="Новая дата" />
+            <input v-model="customTime" type="time" class="input !w-24 !px-2 !py-1.5 !text-sm" aria-label="Время (необязательно)" title="Пусто — без времени" />
+          </div>
+          <button class="btn-primary w-full !py-1.5 !text-sm" :disabled="!customDate">Перенести</button>
+        </form>
+        <p v-if="task.start_time && !choosing" class="px-3 pb-1 pt-0.5 text-[11px] text-mute">Время {{ hhmm(task.start_time) }} сохранится</p>
+      </div>
+    </template>
+  </Teleport>
   </div>
 </template>

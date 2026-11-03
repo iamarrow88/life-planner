@@ -1,5 +1,7 @@
 export type TaskStatus = 'inbox' | 'planned' | 'done'
 /** Подзадача — пункт чек-листа внутри задачи */
+/** Перенос задачи: с какой даты (null — была без даты), на какую и когда перенесли */
+export interface Postpone { from: string | null; to: string; at: string }
 export interface Subtask { id: string; title: string; done: boolean }
 export type HabitKind = 'timer' | 'plain' | 'counter'
 
@@ -17,6 +19,7 @@ export interface Task {
   budget?: number | null                  // бюджет, BYN (null — не задан)
   position?: number | null                // место в списке, заданное перетаскиванием (null — не двигали)
   subtasks?: Subtask[]
+  postpones?: Postpone[]                  // переносы кнопкой «↷ Перенести»: откуда, куда, когда
   updated_at?: string                     // когда задачу последний раз меняли (для «залежавшихся» отложенных)
 }
 export type RecurrenceFreq = 'day' | 'week' | 'month' | 'year'
@@ -97,6 +100,7 @@ export interface Snapshot {
   tagsReady?: boolean           // false — в базе ещё нет тегов (не выполнен planner_tags.sql)
   budgetReady?: boolean         // false — в базе ещё нет бюджета задач (не выполнен planner_budget.sql)
   orderReady?: boolean          // false — в базе ещё нет порядка задач (не выполнен planner_task_order.sql)
+  postponesReady?: boolean      // false — в базе ещё нет истории переносов (не выполнен planner_task_postpone.sql)
   subtasksReady?: boolean       // false — в базе ещё нет подзадач (не выполнен planner_subtasks.sql)
 }
 export interface NewTask {
@@ -107,6 +111,7 @@ export interface NewTask {
   tags?: string[]
   budget?: number | null
   subtasks?: Subtask[]
+  postpones?: Postpone[]
 }
 export interface NewHabit extends Partial<HabitSchedule> {
   name: string; kind: HabitKind; target_value: number | null; sphere_id: string
