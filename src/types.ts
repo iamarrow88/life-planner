@@ -36,6 +36,7 @@ export interface Task {
   budget?: number | null                  // бюджет, BYN (null — не задан)
   position?: number | null                // место в списке, заданное перетаскиванием (null — не двигали)
   subtasks?: Subtask[]
+  priority?: number | null                // 1 высокий (красный), 2 средний (оранжевый), 3 низкий (жёлтый); null — нет
   postpones?: Postpone[]                  // переносы кнопкой «↷ Перенести»: откуда, куда, когда
   updated_at?: string                     // когда задачу последний раз меняли (для «залежавшихся» отложенных)
 }
@@ -123,6 +124,7 @@ export interface Snapshot {
   wishesReady?: boolean          // false — в базе ещё нет желаний (не выполнен planner_wishes.sql)
   sphereColors?: string[] | null  // свой набор цветов для сфер (null — набор по умолчанию)
   colorsReady?: boolean          // false — в базе ещё нет набора цветов (не выполнен planner_sphere_colors.sql)
+  priorityReady?: boolean        // false — в базе ещё нет приоритета (не выполнен planner_task_priority.sql)
   postponesReady?: boolean      // false — в базе ещё нет истории переносов (не выполнен planner_task_postpone.sql)
   subtasksReady?: boolean       // false — в базе ещё нет подзадач (не выполнен planner_subtasks.sql)
 }
@@ -135,6 +137,7 @@ export interface NewTask {
   budget?: number | null
   subtasks?: Subtask[]
   postpones?: Postpone[]
+  priority?: number | null
 }
 export interface NewHabit extends Partial<HabitSchedule> {
   name: string; kind: HabitKind; target_value: number | null; sphere_id: string

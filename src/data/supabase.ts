@@ -52,7 +52,7 @@ const TASK_BASE_COLS = 'id,title,note,status,sphere_id,project_id,due_date,start
 const REC_BASE_COLS = 'id,title,note,sphere_id,project_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
 // Необязательные колонки задач и повторов: их добавляют отдельные SQL-патчи (planner_tags.sql, planner_budget.sql, planner_task_order.sql, planner_subtasks.sql).
 // Пока патч не выполнен, колонку не читаем и не пишем — приложение работает без неё
-const optional = { tags: true, budget: true, position: true, subtasks: true, postpones: true }
+const optional = { tags: true, budget: true, position: true, subtasks: true, postpones: true, priority: true }
 type Opt = keyof typeof optional
 const OPTS = Object.keys(optional) as Opt[]
 /** position есть только у задач */
@@ -173,7 +173,7 @@ export const supabaseRepo: Repo = {
     return {
       spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as unknown as Task[], habits: ok(habits) as unknown as Habit[],
       habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], recurrences: ok(recs) as unknown as Recurrence[],
-      tagsReady: optional.tags, budgetReady: optional.budget, orderReady: optional.position, subtasksReady: optional.subtasks, postponesReady: optional.postpones,
+      tagsReady: optional.tags, budgetReady: optional.budget, orderReady: optional.position, subtasksReady: optional.subtasks, postponesReady: optional.postpones, priorityReady: optional.priority,
       weekGoals: ok(goals) as WeekGoal[], reviews: ok(reviews) as WeeklyReview[],
       // если состояние привычек не пришло — считаем, что все запланированы на сегодня (список не должен пропасть)
       habitStatus: hs.error ? [] : (hs.data as HabitStatus[]),
