@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useApp } from '../stores/app'
 import type { Wish, WishPatch } from '../types'
 import { fmtMoney } from '../lib/budget'
@@ -33,7 +33,8 @@ function normalizeUrl(raw: string): string | null {
   if (/^https?:\/\//i.test(v)) return v
   return /^[a-z][a-z0-9+.-]*:/i.test(v) && !/^[^/]+:\d/.test(v) ? null : 'https://' + v
 }
-const urlBad = ref(false)
+/** Показываем сразу при вводе, а не при уходе из поля: иначе подсказка сдвинула бы кнопки под курсором и клик пропал */
+const urlBad = computed(() => !!url.value.trim() && !normalizeUrl(url.value))
 async function save() {
   const w = props.wish, patch: WishPatch = {}
   const t = title.value.trim()
@@ -42,7 +43,6 @@ async function save() {
   const n = note.value.trim() || null
   if (n !== (w.note ?? null)) patch.note = n
   const u = normalizeUrl(url.value)
-  urlBad.value = !!url.value.trim() && !u
   if (!urlBad.value && u !== (w.url ?? null)) { patch.url = u; url.value = u ?? '' }
   const p = price.value === '' || price.value == null || !(Number(price.value) >= 0) ? null : Math.round(Number(price.value) * 100) / 100
   if (p !== (w.price == null ? null : Number(w.price))) patch.price = p

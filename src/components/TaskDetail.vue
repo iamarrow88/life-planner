@@ -25,6 +25,8 @@ const tags = ref<string[]>([])
 const budget = ref<number | null>(null)
 /** «Без даты»: задачу разобрала, но когда ею заняться — пока не знаю; уходит из «Входящих» в «Отложено без даты» (сфера не обязательна) */
 const noDate = ref(false)
+/** Поле тегов: тег, который ещё набирают, надо забрать перед сохранением */
+const tagInput = ref<{ flush: () => void } | null>(null)
 const sphereId = ref('')
 const projectId = ref('')
 const newProject = ref('')
@@ -78,6 +80,7 @@ let saved = ''
 /** × и подложка: правки сохраняются, карточка закрывается. Сохранить нельзя — спрашиваем, закрыть ли без них */
 function closeCard() {
   if (busy.value) return
+  tagInput.value?.flush()
   if (formState() === saved) { app.closeTask(); return }
   const problem = !title.value.trim() ? 'у задачи нет названия' : needDays.value ? 'у повтора не выбраны дни недели' : ''
   if (!problem) { void save(); return }
@@ -161,6 +164,7 @@ const keepsOutOfInbox = computed(() => noDate.value && !date.value)
 
 /** markDone — «Выполнено»: сохраняем правки, останавливаем таймер этой задачи и закрываем её */
 async function save(markDone = false) {
+  tagInput.value?.flush()
   const t = task.value
   if (!t || !title.value.trim()) return
   if (needDays.value) return
@@ -213,7 +217,7 @@ async function remove() {
 
       <AutoTextarea v-model="title" single-line :maxlength="500" required placeholder="Название задачи" @submit="save()" />
       <AutoTextarea v-model="note" :min-rows="2" placeholder="Описание задачи" />
-      <TagInput v-if="app.tagsReady" v-model="tags" />
+      <TagInput v-if="app.tagsReady" ref="tagInput" v-model="tags" />
       <SubtaskList v-if="app.subtasksReady" :task="task" />
 
       <!-- Когда: дата, время начала и напоминание — одной строкой -->
