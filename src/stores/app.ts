@@ -28,6 +28,11 @@ export const useApp = defineStore('app', () => {
   const habitDetailId = ref<string | null>(null)
   const openHabit = (id: string) => { habitDetailId.value = id }
   const closeHabit = () => { habitDetailId.value = null }
+  /** Закрытие карточки с сохранением правок: его задаёт сама карточка, им пользуется и кнопка «Назад» на Android */
+  const cardClosers: { task?: () => void; habit?: () => void } = {}
+  const setCardCloser = (kind: 'task' | 'habit', fn: () => void) => { cardClosers[kind] = fn }
+  const requestCloseTask = () => (cardClosers.task ? cardClosers.task() : closeTask())
+  const requestCloseHabit = () => (cardClosers.habit ? cardClosers.habit() : closeHabit())
   const detailId = ref<string | null>(null)
   const openTask = (id: string) => { detailId.value = id }
   const closeTask = () => { detailId.value = null }
@@ -1020,7 +1025,7 @@ export const useApp = defineStore('app', () => {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
-    tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
+    tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
     init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,

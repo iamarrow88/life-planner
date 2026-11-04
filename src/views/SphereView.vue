@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Карточка сферы: подробности, задачи по проектам, привычки и повторы этой сферы — всё можно править прямо здесь
 import { computed, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { useApp } from '../stores/app'
 import type { Task } from '../types'
 import TaskRow from '../components/TaskRow.vue'
@@ -117,7 +117,8 @@ function startEdit() {
   eGoal.value = Math.round((s.weekly_goal_minutes / 60) * 100) / 100
 }
 async function saveEdit() {
-  const name = eName.value.trim(); if (!name) return
+  const name = eName.value.trim()
+  if (!name) { if (window.confirm('Изменения не сохранить: у сферы нет названия. Закрыть без них?')) editing.value = false; return }
   const ok = await app.updateSphere(id.value, {
     name, color: eColor.value, description: eDesc.value.trim() || null,
     weekly_goal_minutes: Math.max(0, Math.round((eGoal.value || 0) * 60)),
@@ -145,6 +146,13 @@ ${n ? `• проекты сферы (${n}) станут проектами «${
   merging.value = false
   if (projectId) void router.push('/spheres/' + targetId)
 }
+// Ушли со страницы, не закрыв редактирование, — правки тоже сохраняем (если сфера ещё есть: её могли сделать проектом)
+function saveOnLeave() {
+  if (editing.value && sphere.value && eName.value.trim()) void saveEdit()
+  editing.value = false
+}
+onBeforeRouteLeave(saveOnLeave)
+onBeforeRouteUpdate(saveOnLeave)
 const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id === id.value && g.week_start === weekStart(app.today)))
 </script>
 
@@ -158,7 +166,7 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
       <div class="flex items-center gap-3">
         <span class="h-3.5 w-3.5 shrink-0 rounded-full" :style="{ background: sphere.color }"></span>
         <h1 class="min-w-0 flex-1 truncate text-2xl font-bold">{{ sphere.name }}</h1>
-        <button type="button" class="text-sm text-mute hover:text-accent" aria-label="Редактировать сферу" title="Редактировать сферу" @click="editing ? (editing = false) : startEdit()">✎</button>
+        <button type="button" class="text-sm text-mute hover:text-accent" aria-label="Редактировать сферу" title="Редактировать сферу" @click="editing ? saveEdit() : startEdit()">✎</button>
         <button class="rounded-full px-3 py-1 text-xs font-semibold transition" :class="timerOn ? 'bg-accent text-white' : 'bg-accent-soft text-accent'"
           @click="timerOn ? app.stopTimer() : app.startTimer({ sphere_id: sphere.id })">{{ timerOn ? 'Стоп' : '▶ Таймер' }}</button>
       </div>

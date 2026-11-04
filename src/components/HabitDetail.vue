@@ -26,7 +26,16 @@ const kinds: { v: HabitKind; label: string }[] = [
 
 const formState = () => JSON.stringify([name.value, kind.value, target.value, sphereId.value, schedule.value])
 let saved = ''
-const bd = useBackdrop(() => app.closeHabit(), () => formState() !== saved)
+/** × и подложка: правки сохраняются, карточка закрывается. Сохранить нельзя — спрашиваем, закрыть ли без них */
+function closeCard() {
+  if (busy.value) return
+  if (formState() === saved) { app.closeHabit(); return }
+  const problem = !name.value.trim() ? 'у привычки нет названия' : !sphereId.value ? 'не выбрана сфера' : needDays.value && !schedule.value.weekdays.length ? 'не выбраны дни недели' : ''
+  if (!problem) { void save(); return }
+  if (window.confirm(`Изменения не сохранить: ${problem}. Закрыть без них?`)) app.closeHabit()
+}
+app.setCardCloser('habit', closeCard)
+const bd = useBackdrop(closeCard)
 // Форму заполняем, только когда открыли другую привычку: фоновое обновление данных не должно стирать набранное
 watch(() => habit.value?.id, () => {
   const h = habit.value
@@ -85,6 +94,7 @@ async function remove() {
         <h2 class="text-lg font-bold">Привычка</h2>
         <button type="button" class="text-2xl leading-none text-mute" aria-label="Закрыть" @click="bd.close">×</button>
       </div>
+      <p v-if="app.error" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert" data-test="card-error">{{ app.error }}</p>
 
       <input v-model="name" class="input" maxlength="120" required placeholder="Название привычки" aria-label="Название привычки" />
 

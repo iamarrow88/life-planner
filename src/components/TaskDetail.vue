@@ -75,7 +75,16 @@ const scheduleOf = (r: Recurrence): Schedule => ({
 const formState = () => JSON.stringify([title.value, note.value, tags.value, budget.value, date.value, time.value, estimate.value, noDate.value, sphereId.value, projectId.value,
   remind.value, repeat.value, schedule.value, repeatScope.value, newProject.value])
 let saved = ''
-const bd = useBackdrop(() => app.closeTask(), () => formState() !== saved)
+/** × и подложка: правки сохраняются, карточка закрывается. Сохранить нельзя — спрашиваем, закрыть ли без них */
+function closeCard() {
+  if (busy.value) return
+  if (formState() === saved) { app.closeTask(); return }
+  const problem = !title.value.trim() ? 'у задачи нет названия' : needDays.value ? 'у повтора не выбраны дни недели' : ''
+  if (!problem) { void save(); return }
+  if (window.confirm(`Изменения не сохранить: ${problem}. Закрыть без них?`)) app.closeTask()
+}
+app.setCardCloser('task', closeCard)
+const bd = useBackdrop(closeCard)
 // Форму заполняем, только когда открыли другую задачу: фоновое обновление данных не должно стирать набранный текст
 watch(() => task.value?.id, () => {
   const t = task.value
@@ -200,6 +209,7 @@ async function remove() {
         <h2 class="text-lg font-bold">Задача</h2>
         <button type="button" class="text-2xl leading-none text-mute" aria-label="Закрыть" @click="bd.close">×</button>
       </div>
+      <p v-if="app.error" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert" data-test="card-error">{{ app.error }}</p>
 
       <AutoTextarea v-model="title" single-line :maxlength="500" required placeholder="Название задачи" @submit="save()" />
       <AutoTextarea v-model="note" :min-rows="2" placeholder="Описание задачи" />
