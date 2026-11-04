@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, inject } from 'vue'
 import { useApp } from '../stores/app'
+import { TAG_CLICK } from '../lib/taskFilter'
 import type { Task } from '../types'
 import { fmtClock, fmtSec, hhmm } from '../lib/time'
 import { fmtMinutes } from '../lib/time'
@@ -21,6 +22,9 @@ const done = computed(() => props.task.status === 'done')
 const totals = computed(() => app.taskTotal(props.task.id))
 const subs = computed(() => props.task.subtasks ?? [])
 const showSubs = ref(false)
+/** На экранах с отбором нажатие на тег добавляет его в отбор, на остальных — открывает поиск */
+const onTagClick = inject<((tag: string) => void) | null>(TAG_CLICK, null)
+const clickTag = (g: string) => (onTagClick ? onTagClick(g) : app.openSearch('#' + g + ' '))
 const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
 
 // ---- «↷ Перенести»: у задач с датой — завтра, на выходные, на следующую неделю (время начала сохраняется)
@@ -57,7 +61,7 @@ function closePostpone() { postponeMenu.value = null }
           <span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}<template v-if="project"> › {{ project.name }}</template>
         </span>
         <template v-if="task.tags?.length">
-          <button v-for="g in task.tags.slice(0, 2)" :key="g" type="button" class="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent hover:brightness-95" :title="'Все задачи с тегом #' + g" data-test="task-tag" @click="app.openSearch('#' + g + ' ')">#{{ g }}</button>
+          <button v-for="g in task.tags.slice(0, 2)" :key="g" type="button" class="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent hover:brightness-95" :title="'Задачи с тегом #' + g" data-test="task-tag" @click="clickTag(g)">#{{ g }}</button>
           <span v-if="task.tags.length > 2" class="text-[11px]" :title="task.tags.slice(2).map(g => '#' + g).join(' ')">+{{ task.tags.length - 2 }}</span>
         </template>
         <span v-if="isRunning" class="font-semibold tabular-nums text-accent">⏱ идёт {{ fmtClock(liveSeconds) }}</span>

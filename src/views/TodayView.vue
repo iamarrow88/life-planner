@@ -277,6 +277,7 @@ async function add() {
         <!-- отбор по сфере / проекту: в календаре — рядом с «День / Месяц», в списке — рядом с 🏷 -->
         <TaskFilter v-model="taskFilter" class="!mb-0 ml-auto" />
       </div>
+      <TagBar v-model="taskFilter.tags" />
     <div v-if="calMode === 'day'" class="mb-3 flex items-center justify-between" data-test="day-nav">
       <button class="btn-ghost !px-3" aria-label="Предыдущий день" @click="calDay = addDays(calDay, -1)">‹</button>
       <button class="text-sm font-semibold first-letter:uppercase" @click="calDay = app.today">{{ longDate(calDay) }}</button>
@@ -349,7 +350,7 @@ async function add() {
         <QuickTags v-model="text" large class="!w-auto min-w-0 max-w-full" />
       </div>
     </form>
-    <TagBar />
+    <TagBar v-model="taskFilter.tags" />
     <RecurrenceForm v-if="showRecForm" class="mb-3" v-bind="recurrenceDefaults()" @done="showRecForm = false" />
     <div v-if="list.length" v-drag-sort="onTaskSort" class="card divide-y divide-line" data-test="task-list">
       <div v-for="t in list" :key="t.id" :data-id="t.id">
