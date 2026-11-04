@@ -14,6 +14,7 @@ import QuickTags from '../components/QuickTags.vue'
 import TagBar from '../components/TagBar.vue'
 import TaskFilter from '../components/TaskFilter.vue'
 import { useTaskFilter } from '../lib/taskFilter'
+import { layoutDay } from '../lib/dayGrid'
 import MonthGrid from '../components/MonthGrid.vue'
 import { GENERATED_DAYS, OVERDUE_COLOR, fmtLoad, monthSummary } from '../lib/monthMarks'
 import { matches } from '../lib/recurrence'
@@ -152,7 +153,9 @@ const timeRange = (t: Task) => {
   const end = Number(start.slice(0, 2)) * 60 + Number(start.slice(3)) + t.estimate_minutes
   return `${start}–${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`
 }
-const hourOf = (t: Task) => Math.min(22, Math.max(6, Number(hhmm(t.start_time).slice(0, 2))))
+/** Раскладка сетки дня: короткие задачи — в ячейке часа по порядку времени, от часа — растянуты на свои часы */
+const dayLayout = computed(() => layoutDay(timedOnDay.value, hours[0], hours[hours.length - 1]))
+const blockColor = (t: Task) => ({ borderColor: app.sphereById(t.sphere_id)?.color ?? '#1F6F6B' })
 
 const habits = computed(() => app.dueHabits)
 
@@ -449,16 +452,25 @@ async function add() {
         <TaskRow v-for="t in untimedOnDay" :key="t.id" :data-id="t.id" :task="t" sortable />
       </div>
     </div>
-    <div class="card divide-y divide-line">
-      <div v-for="h in hours" :key="h" class="flex min-h-[3.25rem]">
-        <div class="w-14 shrink-0 px-3 py-2 text-xs text-mute">{{ String(h).padStart(2, '0') }}:00</div>
-        <div class="min-w-0 flex-1 space-y-1 border-l border-line p-1">
-          <template v-for="t in timedOnDay" :key="t.id">
-            <div v-if="hourOf(t) === h" class="rounded-xl border-l-4 bg-accent-soft"
-              :style="{ borderColor: app.sphereById(t.sphere_id)?.color ?? '#1F6F6B' }">
-              <TaskRow :task="t"><span class="shrink-0 text-xs text-mute">{{ timeRange(t) }}</span></TaskRow>
-            </div>
-          </template>
+    <!-- Сетка дня: строка на час; блоки от часа занимают несколько строк, пересекающиеся стоят рядом колонками.
+         В узком блоке (рядом есть другие) строка задачи упрощена, кнопки таймера и переноса — в карточке задачи.
+         На телефоне диапазон времени скрыт: время и план уже есть под названием -->
+    <div class="card grid overflow-hidden" data-test="day-grid"
+      :style="{ gridTemplateColumns: `3.5rem repeat(${dayLayout.columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${hours.length}, minmax(3.25rem, auto))` }">
+      <template v-for="(h, i) in hours" :key="h">
+        <div class="border-line" :class="{ 'border-t': i > 0 }" :style="{ gridRow: i + 1, gridColumn: '1 / -1' }"></div>
+        <div class="border-r border-line px-2 py-2 text-xs text-mute" :class="{ 'border-t': i > 0 }" :style="{ gridRow: i + 1, gridColumn: 1 }">{{ String(h).padStart(2, '0') }}:00</div>
+      </template>
+      <div v-for="c in dayLayout.shorts" :key="'h' + c.hour" class="z-10 grid min-w-0 auto-rows-fr grid-cols-[minmax(0,1fr)] gap-1 p-1" data-test="day-short"
+        :style="{ gridRow: c.hour - hours[0] + 1, gridColumn: `${c.col + 2} / span ${c.span}` }">
+        <div v-for="t in c.tasks" :key="t.id" class="flex min-w-0 flex-col overflow-hidden rounded-xl border-l-4 bg-accent-soft" :style="blockColor(t)" :data-task="t.id">
+          <TaskRow :task="t" class="min-w-0 flex-1" wrap-title :dense="c.span < dayLayout.columns"><span v-if="c.span === dayLayout.columns" class="hidden shrink-0 text-xs text-mute sm:inline">{{ timeRange(t) }}</span></TaskRow>
+        </div>
+      </div>
+      <div v-for="l in dayLayout.longs" :key="l.task.id" class="z-10 flex min-w-0 p-1" data-test="day-long"
+        :style="{ gridRow: `${l.from - hours[0] + 1} / span ${l.to - l.from + 1}`, gridColumn: `${l.col + 2} / span ${l.span}` }">
+        <div class="flex w-full min-w-0 flex-col overflow-hidden rounded-xl border-l-4 bg-accent-soft" :style="blockColor(l.task)" :data-task="l.task.id">
+          <TaskRow :task="l.task" class="min-w-0 flex-1" wrap-title :dense="l.span < dayLayout.columns"><span v-if="l.span === dayLayout.columns" class="hidden shrink-0 text-xs text-mute sm:inline">{{ timeRange(l.task) }}</span></TaskRow>
         </div>
       </div>
     </div>
