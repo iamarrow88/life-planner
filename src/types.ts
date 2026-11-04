@@ -1,5 +1,12 @@
 export type TaskStatus = 'inbox' | 'planned' | 'done'
 /** Подзадача — пункт чек-листа внутри задачи */
+/** Пункт ежемесячного чек-листа. done_month — месяц ('2026-11'), когда отмечен: в другом месяце пункт снова не сделан */
+export interface MonthlyItem {
+  id: string; title: string; note: string | null; position: number
+  done_month: string | null; task_id: string | null; task_month: string | null; created_at?: string
+}
+export type NewMonthlyItem = Pick<MonthlyItem, 'title' | 'position'>
+export type MonthlyPatch = Partial<Omit<MonthlyItem, 'id' | 'created_at'>>
 /** Книга: queue — в очереди, reading — читаю, done — прочитано */
 export type BookStatus = 'queue' | 'reading' | 'done'
 export interface BookNote { id: string; at: string; page: number | null; text: string }
@@ -118,6 +125,8 @@ export interface Snapshot {
   tagsReady?: boolean           // false — в базе ещё нет тегов (не выполнен planner_tags.sql)
   budgetReady?: boolean         // false — в базе ещё нет бюджета задач (не выполнен planner_budget.sql)
   orderReady?: boolean          // false — в базе ещё нет порядка задач (не выполнен planner_task_order.sql)
+  monthlyItems?: MonthlyItem[]
+  monthlyReady?: boolean         // false — в базе ещё нет чек-листа (не выполнен planner_monthly.sql)
   books?: Book[]
   booksReady?: boolean           // false — в базе ещё нет библиотеки (не выполнен planner_books.sql)
   wishes?: Wish[]
@@ -243,6 +252,11 @@ export interface Repo {
   removeEntry(id: string): Promise<void>
   weekData(weekStart: string): Promise<WeekData>
   setWeekGoal(sphereId: string, weekStart: string, minutes: number, makeDefault: boolean): Promise<void>
+  addMonthlyItem(i: NewMonthlyItem): Promise<MonthlyItem>
+  updateMonthlyItem(id: string, patch: MonthlyPatch): Promise<MonthlyItem>
+  removeMonthlyItem(id: string): Promise<void>
+  /** Порядок чек-листа: id в нужном порядке (position = номер в списке) */
+  reorderMonthlyItems(ids: string[]): Promise<void>
   addBook(b: NewBook): Promise<Book>
   updateBook(id: string, patch: BookPatch): Promise<Book>
   removeBook(id: string): Promise<void>

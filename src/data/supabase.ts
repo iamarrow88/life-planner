@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish, Book } from '../types'
+import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish, Book, MonthlyItem } from '../types'
 import { todayStr, weekStart as weekStartOf } from '../lib/time'
 import { DEFAULT_CYCLE_SETTINGS } from '../lib/cycle'
 
@@ -95,6 +95,7 @@ async function dropFuture(recId: string, keep?: string) {
 
 /** День, когда это устройство последний раз запускало generate_recurring_tasks */
 const GEN_DAY_KEY = 'kola-recurring-generated'
+const MONTHLY_COLS = 'id,title,note,position,done_month,task_id,task_month,created_at'
 const BOOK_COLS = 'id,title,author,status,position,total_pages,current_page,started_on,finished_on,rating,notes,created_at'
 const WISH_COLS = 'id,title,note,url,price,category,position,fulfilled_at,task_id,created_at'
 
@@ -124,7 +125,7 @@ export const supabaseRepo: Repo = {
       if (!g.error) try { localStorage.setItem(GEN_DAY_KEY, today) } catch { /* см. выше */ }
     }
     const ws = weekStartOf(today)
-    const [spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, cDays, cSet, cCourses] = await Promise.all([
+    const [spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, monthlyRes, cDays, cSet, cCourses] = await Promise.all([
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
       c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
@@ -144,6 +145,8 @@ export const supabaseRepo: Repo = {
       c.from('wishes').select(WISH_COLS).order('position').order('created_at', { ascending: false }),
       // библиотека — тоже отдельный патч базы (planner_books.sql)
       c.from('books').select(BOOK_COLS).order('position').order('created_at'),
+      // ежемесячный чек-лист — тоже отдельный патч базы (planner_monthly.sql)
+      c.from('monthly_items').select(MONTHLY_COLS).order('position').order('created_at'),
       c.from('cycle_days').select(cycleDayCols).order('day'),
       c.from('cycle_settings').select(CYCLE_SETTINGS_COLS).maybeSingle(),
       c.from('pill_courses').select(COURSE_COLS).order('starts_on'),
@@ -180,6 +183,8 @@ export const supabaseRepo: Repo = {
       // бюджет времени — отдельный патч базы: если его ещё не выполнили, экран просто подскажет это
       timeBudget: budget.error || work.error ? null : ((budget.data as TimeBudget | null) ?? { sleep_minutes_per_day: 480, routine_minutes_per_day: 180 }),
       weekWork: work.error ? [] : (work.data as WeekWork[]),
+      monthlyReady: !monthlyRes.error,
+      monthlyItems: monthlyRes.error ? [] : (monthlyRes.data as unknown as MonthlyItem[]),
       booksReady: !booksRes.error,
       books: booksRes.error ? [] : (booksRes.data as unknown as Book[]),
       wishesReady: !wishesRes.error,
@@ -275,6 +280,13 @@ export const supabaseRepo: Repo = {
       ...optFields(r),
     }))
     ok(await db().rpc('generate_recurring_tasks'))
+  },
+  async addMonthlyItem(i) { return ok(await db().from('monthly_items').insert(i).select(MONTHLY_COLS).single()) as unknown as MonthlyItem },
+  async updateMonthlyItem(id, patch) { return ok(await db().from('monthly_items').update(patch).eq('id', id).select(MONTHLY_COLS).single()) as unknown as MonthlyItem },
+  async removeMonthlyItem(id) { ok(await db().from('monthly_items').delete().eq('id', id)) },
+  async reorderMonthlyItems(ids) {
+    const rs = await Promise.all(ids.map((id, i) => db().from('monthly_items').update({ position: i }).eq('id', id)))
+    for (const r of rs) if (r.error) throw new Error(r.error.message)
   },
   async addBook(b) { return ok(await db().from('books').insert(b).select(BOOK_COLS).single()) as unknown as Book },
   async updateBook(id, patch) { return ok(await db().from('books').update(patch).eq('id', id).select(BOOK_COLS).single()) as unknown as Book },

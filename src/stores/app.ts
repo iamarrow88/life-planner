@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch, Book, BookPatch } from '../types'
+import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch, Book, BookPatch, MonthlyItem, MonthlyPatch } from '../types'
 import { googleClientId } from '../lib/google'
 import { parseTags, uniqTags } from '../lib/tags'
 import { byPosition } from '../lib/taskOrder'
@@ -446,7 +446,7 @@ export const useApp = defineStore('app', () => {
     if (task) {
       const i = data.value.tasks.findIndex(t => t.id === id)
       if (i >= 0) data.value.tasks[i] = task
-      if (wasDone !== (task.status === 'done')) await syncWishWithTask(task)
+      if (wasDone !== (task.status === 'done')) { await syncWishWithTask(task); await syncMonthlyWithTask(task) }
       // выполнили повторяющуюся задачу — следующая могла создаться (режим «после выполнения»)
       if (patch.status === 'done' && task.recurrence_id) await load()
       syncGoogleSoon()
@@ -459,6 +459,57 @@ export const useApp = defineStore('app', () => {
   async function removeTask(id: string) {
     await guard(() => repo.removeTask(id)); data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
   }
+  // ---- Ежемесячный чек-лист: в общий список задач пункты не попадают. Отметка действует только в своём месяце,
+  // поэтому 1-го числа список обнуляется сам
+  const monthlyReady = computed(() => data.value.monthlyReady !== false)
+  const thisMonth = computed(() => today.value.slice(0, 7))
+  const monthlyItems = computed(() => [...(data.value.monthlyItems ?? [])].sort((a, b) => a.position - b.position))
+  const monthlyDone = (i: MonthlyItem) => i.done_month === thisMonth.value
+  /** Задача пункта, если её создали в этом месяце (прошломесячная к новому чек-листу не относится) */
+  const monthlyTask = (i: MonthlyItem) => (i.task_id && i.task_month === thisMonth.value ? data.value.tasks.find(t => t.id === i.task_id) ?? null : null)
+  async function addMonthlyItem(title: string) {
+    const position = Math.max(-1, ...monthlyItems.value.map(i => i.position)) + 1
+    const i = await guard(() => repo.addMonthlyItem({ title, position }))
+    if (i) (data.value.monthlyItems ??= []).push(i)
+    return !!i
+  }
+  async function updateMonthlyItem(id: string, patch: MonthlyPatch) {
+    const i = await guard(() => repo.updateMonthlyItem(id, patch))
+    if (i) { const k = (data.value.monthlyItems ?? []).findIndex(x => x.id === id); if (k >= 0) data.value.monthlyItems![k] = i }
+    return !!i
+  }
+  async function removeMonthlyItem(id: string) {
+    const ok = await guard(async () => { await repo.removeMonthlyItem(id); return true })
+    if (ok) data.value.monthlyItems = (data.value.monthlyItems ?? []).filter(x => x.id !== id)
+    return !!ok
+  }
+  async function reorderMonthlyItems(ids: string[]) {
+    const before = new Map(monthlyItems.value.map(i => [i.id, i.position]))
+    ids.forEach((id, k) => { const x = data.value.monthlyItems?.find(y => y.id === id); if (x) x.position = k })
+    const ok = await guard(async () => { await repo.reorderMonthlyItems(ids); return true })
+    if (!ok) for (const x of data.value.monthlyItems ?? []) x.position = before.get(x.id) ?? 0
+    return !!ok
+  }
+  /** Отметить вручную. Если из пункта есть задача, она меняется вместе с ним — а её выполнение отмечает пункт (syncMonthlyWithTask) */
+  async function toggleMonthlyItem(i: MonthlyItem) {
+    const task = monthlyTask(i), done = monthlyDone(i)
+    if (task && (task.status === 'done') === done) { await toggleDone(task); return }
+    await updateMonthlyItem(i.id, { done_month: done ? null : thisMonth.value })
+  }
+  /** Сделать задачей: во «Входящие», заметка — в описание. Пункт остаётся в чек-листе */
+  async function monthlyToTask(id: string) {
+    const i = monthlyItems.value.find(x => x.id === id); if (!i) return false
+    const task = await addTask({ title: i.title, status: 'inbox', note: i.note })
+    return task ? updateMonthlyItem(id, { task_id: task.id, task_month: thisMonth.value }) : false
+  }
+  /** Задачу из пункта выполнили — пункт отмечен; вернули в работу — снова не отмечен. Задачи прошлых месяцев этот месяц не трогают */
+  async function syncMonthlyWithTask(task: Task) {
+    const i = (data.value.monthlyItems ?? []).find(x => x.task_id === task.id && x.task_month === thisMonth.value); if (!i) return
+    const done = monthlyDone(i)
+    if (task.status === 'done' && !done) await updateMonthlyItem(i.id, { done_month: thisMonth.value })
+    else if (task.status !== 'done' && done) await updateMonthlyItem(i.id, { done_month: null })
+  }
+
   // ---- Библиотека: очередь, «читаю сейчас», прочитанное
   const booksReady = computed(() => data.value.booksReady !== false)
   const books = computed(() => data.value.books ?? [])
@@ -876,10 +927,10 @@ export const useApp = defineStore('app', () => {
   }
   const savePush = (sub: PushSub) => guard(async () => { await repo.savePushSubscription(sub); return true }) as Promise<boolean | undefined>
   const removePush = (endpoint: string) => guard(async () => { await repo.removePushSubscription(endpoint); return true }) as Promise<boolean | undefined>
-  // желания и книги добавляем здесь: серверная export_all про них не знает
+  // желания, книги и чек-лист добавляем здесь: серверная export_all про них не знает
   const exportAll = async () => {
     const d = await (guard(() => repo.exportAll()) as Promise<ExportData | undefined>)
-    return d ? { ...d, wishes: wishes.value, books: books.value } : d
+    return d ? { ...d, wishes: wishes.value, books: books.value, monthly_items: monthlyItems.value } : d
   }
 
   /** Отметка привычки; day — другой день (например, вечерняя таблетка, отмеченная после полуночи) */
@@ -1025,7 +1076,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

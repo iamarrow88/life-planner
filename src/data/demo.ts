@@ -1,5 +1,5 @@
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData, Wish, Book } from '../types'
+import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData, Wish, Book, MonthlyItem } from '../types'
 import { addDays, dayOf, entrySeconds, todayStr } from '../lib/time'
 import { matches, nextAfter } from '../lib/recurrence'
 import { dueOn, scheduledOn } from '../lib/habitSchedule'
@@ -316,6 +316,19 @@ export const demoRepo: Repo = {
     s.tasks = s.tasks.filter(t => !drop.has(t.id))
     for (const t of s.tasks) if (t.recurrence_id === id) t.recurrence_id = null
     s.recurrences = s.recurrences.filter(r => r.id !== id); write(s)
+  },
+  async addMonthlyItem(i) {
+    const s = read(); const item: MonthlyItem = { id: uid(), note: null, done_month: null, task_id: null, task_month: null, created_at: new Date().toISOString(), ...i }
+    ;(s.monthlyItems ??= []).push(item); write(s); return item
+  },
+  async updateMonthlyItem(id, patch) {
+    const s = read(); const item = s.monthlyItems?.find(x => x.id === id)
+    if (!item) throw new Error('Пункт не найден')
+    Object.assign(item, patch); write(s); return item
+  },
+  async removeMonthlyItem(id) { const s = read(); s.monthlyItems = (s.monthlyItems ?? []).filter(x => x.id !== id); write(s) },
+  async reorderMonthlyItems(ids) {
+    const s = read(); ids.forEach((id, i) => { const x = s.monthlyItems?.find(y => y.id === id); if (x) x.position = i }); write(s)
   },
   async addBook(b) {
     const s = read(); const book: Book = { id: uid(), author: null, total_pages: null, current_page: 0, started_on: null, finished_on: null, rating: null, notes: [], created_at: new Date().toISOString(), ...b }
