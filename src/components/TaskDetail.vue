@@ -216,7 +216,8 @@ async function remove() {
       <p v-if="app.error" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert" data-test="card-error">{{ app.error }}</p>
 
       <AutoTextarea v-model="title" single-line :maxlength="500" required placeholder="Название задачи" @submit="save()" />
-      <AutoTextarea v-model="note" :min-rows="2" placeholder="Описание задачи" />
+      <!-- Описание растёт, пока карточка помещается на экран; дальше сжимается, и текст прокручивается внутри поля -->
+      <AutoTextarea v-model="note" class="!shrink !overflow-y-auto min-h-[4.5rem] max-h-[40vh]" :min-rows="2" placeholder="Описание задачи" data-test="task-note" />
       <TagInput v-if="app.tagsReady" ref="tagInput" v-model="tags" />
       <SubtaskList v-if="app.subtasksReady" :task="task" />
 
@@ -317,7 +318,8 @@ async function remove() {
         <span v-if="totals && totals.month > 0">потрачено: неделя {{ fmtSec(totals.week) }} · месяц {{ fmtSec(totals.month) }}</span>
       </div>
 
-      <div class="flex gap-2">
+      <!-- Кнопки всегда на виду, даже если карточка выше экрана (много подзадач, раскрытый повтор) -->
+      <div class="sticky -bottom-5 z-10 -mx-5 -mb-5 flex gap-2 bg-bg px-5 pb-5 pt-2" data-test="task-actions">
         <button class="btn-primary flex-1" :disabled="busy || needDays">Сохранить</button>
         <button v-if="task.status !== 'done'" type="button" class="btn-ghost whitespace-nowrap !px-3" :disabled="busy || needDays" data-test="task-done" :title="isRunning ? 'Остановить таймер и отметить выполненной' : 'Отметить выполненной'" @click="save(true)">✓ Выполнено</button>
         <button type="button" class="btn-ghost !px-3 !text-red-700" @click="remove">Удалить</button>
