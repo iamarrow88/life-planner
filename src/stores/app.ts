@@ -434,7 +434,8 @@ export const useApp = defineStore('app', () => {
 
   /** Новая задача: «#теги» из названия становятся тегами (если теги не переданы явно). Пока тегов в базе нет — текст не трогаем */
   async function addTask(t: NewTask) {
-    if (!t.tags && tagsReady.value) { const p = parseTags(t.title); t = { ...t, title: p.title, tags: p.tags } }
+    // теги из отбора и «#теги», написанные в названии, объединяются
+    if (tagsReady.value) { const p = parseTags(t.title); t = { ...t, title: p.title, tags: uniqTags([...(t.tags ?? []), ...p.tags]) } }
     const task = await guard(() => repo.addTask(t)); if (task) { data.value.tasks.unshift(task); syncGoogleSoon() }
     return task
   }
@@ -804,7 +805,7 @@ export const useApp = defineStore('app', () => {
     return !error.value
   }
   async function addRecurrence(r: NewRecurrence) {
-    if (!r.tags && tagsReady.value) { const p = parseTags(r.title); r = { ...r, title: p.title, tags: p.tags } }
+    if (tagsReady.value) { const p = parseTags(r.title); r = { ...r, title: p.title, tags: uniqTags([...(r.tags ?? []), ...p.tags]) } }
     const ok = await guard(async () => { await repo.addRecurrence(r); return true })
     if (ok) { await load(); syncGoogleSoon() }
     return !!ok

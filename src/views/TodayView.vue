@@ -27,7 +27,7 @@ import type { Habit, HabitDay, Task } from '../types'
 
 const app = useApp()
 // Отбор по сфере / проекту — свой у «Сегодня»: действует на списки, календарь дня и месяца и сумму бюджета
-const { filter: taskFilter, active: filterOn, match } = useTaskFilter('today')
+const { filter: taskFilter, active: filterOn, match, newTaskFields } = useTaskFilter('today')
 const fTasks = computed(() => (filterOn.value ? app.data.tasks.filter(match) : app.data.tasks))
 const fRecurrences = computed(() => (filterOn.value ? app.data.recurrences.filter(match) : app.data.recurrences))
 type Filter = 'today' | 'tomorrow' | 'week' | 'nodate'
@@ -225,13 +225,15 @@ async function toggleM() {
 }
 async function confirmStart() { if (await app.markCycleStart(app.today)) askStart.value = false }
 
+/** Форма повтора открывается с тем же, что выбрано в отборе */
+const recurrenceDefaults = () => { const f = newTaskFields(); return { sphereId: f.sphere_id ?? undefined, projectId: f.project_id ?? undefined, tags: f.tags } }
 async function add() {
   const title = text.value.trim()
   if (!title) return
   const est = estimate.value
   text.value = ''; estimate.value = null
   const due = filter.value === 'tomorrow' ? addDays(app.today, 1) : filter.value === 'nodate' ? null : app.today
-  await app.addTask({ title, status: due ? 'planned' : 'inbox', due_date: due, estimate_minutes: est })
+  await app.addTask({ title, status: due ? 'planned' : 'inbox', due_date: due, estimate_minutes: est, ...newTaskFields() })
 }
 </script>
 
@@ -348,7 +350,7 @@ async function add() {
       </div>
     </form>
     <TagBar />
-    <RecurrenceForm v-if="showRecForm" class="mb-3" @done="showRecForm = false" />
+    <RecurrenceForm v-if="showRecForm" class="mb-3" v-bind="recurrenceDefaults()" @done="showRecForm = false" />
     <div v-if="list.length" v-drag-sort="onTaskSort" class="card divide-y divide-line" data-test="task-list">
       <div v-for="t in list" :key="t.id" :data-id="t.id">
         <TaskRow :task="t" sortable>

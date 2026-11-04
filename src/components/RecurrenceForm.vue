@@ -5,8 +5,8 @@ import AutoTextarea from './AutoTextarea.vue'
 import QuickTags from './QuickTags.vue'
 import type { RecurrenceFreq, RecurrenceMode } from '../types'
 
-/** sphereId — сфера, выбранная заранее (форма открыта из карточки сферы) */
-const props = defineProps<{ sphereId?: string }>()
+/** sphereId, projectId, tags — выбраны заранее (форма открыта из карточки сферы или при включённом отборе) */
+const props = defineProps<{ sphereId?: string; projectId?: string; tags?: string[] }>()
 const emit = defineEmits<{ done: [] }>()
 const app = useApp()
 const title = ref('')
@@ -37,6 +37,9 @@ async function save() {
   busy.value = true
   const ok = await app.addRecurrence({
     title: title.value.trim(), sphere_id: sphereId.value || null,
+    // сферу в форме сменили — проект из отбора уже не подходит
+    project_id: sphereId.value && sphereId.value === props.sphereId ? props.projectId ?? null : null,
+    ...(props.tags?.length ? { tags: props.tags } : {}),
     start_time: time.value ? `${time.value}:00` : null,
     estimate_minutes: estimate.value && estimate.value > 0 ? Math.floor(estimate.value) : null,
     remind_before_minutes: time.value && remind.value !== '' ? Number(remind.value) : null,

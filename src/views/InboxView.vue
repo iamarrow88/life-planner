@@ -21,11 +21,11 @@ async function add() {
   if (!title) return
   const est = estimate.value
   text.value = ''; estimate.value = null
-  await app.addTask({ title, status: 'inbox', estimate_minutes: est })
+  await app.addTask({ title, status: 'inbox', estimate_minutes: est, ...newTaskFields() })
 }
 // ---- Отложено без даты: залежавшиеся — наверху основного списка с вопросом «решить?», остальные — в свёрнутом блоке внизу
 // отбор по сфере / проекту — свой у «Входящих»
-const { filter, match } = useTaskFilter('inbox')
+const { filter, active: filterOn, match, newTaskFields } = useTaskFilter('inbox')
 const rows = computed(() => [...app.staleDeferred, ...app.inbox].filter(match))
 const deferredRows = computed(() => app.freshDeferred.filter(match))
 const staleIds = computed(() => new Set(app.staleDeferred.map(t => t.id)))
@@ -130,7 +130,7 @@ function pickedDate(id: string, e: Event) {
   <TagBar />
 
   <div v-if="!rows.length && !app.loading" class="card p-8 text-center text-mute">
-    {{ filter.sphere ? 'В этой сфере во «Входящих» пусто' : 'Пусто — отличное состояние ✨' }}
+    {{ filterOn ? 'С таким отбором во «Входящих» пусто' : 'Пусто — отличное состояние ✨' }}
   </div>
   <ul v-else v-drag-sort="(ids: string[]) => app.reorderTasks(ids)" class="space-y-3" data-test="inbox-list">
     <li v-for="t in rows" :key="t.id" :data-id="t.id" class="card" :class="staleIds.has(t.id) && 'border-amber-300'" :data-stale="staleIds.has(t.id) || undefined">
