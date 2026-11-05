@@ -5,6 +5,7 @@ import { addDays, dayOf, shortDate, weekStart } from '../lib/time'
 import TaskRow from '../components/TaskRow.vue'
 import AutoTextarea from '../components/AutoTextarea.vue'
 import EstimateInput from '../components/EstimateInput.vue'
+import ComplexityPicker from '../components/ComplexityPicker.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import QuickTags from '../components/QuickTags.vue'
 import TagBar from '../components/TagBar.vue'
@@ -15,13 +16,14 @@ import { vDragSort } from '../lib/dragSort'
 const app = useApp()
 const text = ref('')
 const estimate = ref<number | null>(null)
+const complexity = ref<number | null>(null)
 
 async function add() {
   const title = text.value.trim()
   if (!title) return
-  const est = estimate.value
-  text.value = ''; estimate.value = null
-  await app.addTask({ title, status: 'inbox', estimate_minutes: est, ...newTaskFields() })
+  const est = estimate.value, level = complexity.value
+  text.value = ''; estimate.value = null; complexity.value = null
+  await app.addTask({ title, status: 'inbox', estimate_minutes: est, complexity: level, ...newTaskFields() })
 }
 // ---- Отложено без даты: залежавшиеся — наверху основного списка с вопросом «решить?», остальные — в свёрнутом блоке внизу
 // отбор по сфере / проекту — свой у «Входящих»
@@ -120,6 +122,7 @@ function pickedDate(id: string, e: Event) {
   <form class="mb-5 flex flex-wrap items-start gap-2" @submit.prevent="add">
     <AutoTextarea v-model="text" single-line :maxlength="500" class="!w-auto min-w-[12rem] flex-1" placeholder="Что нужно запомнить?" autofocus @submit="add" />
     <EstimateInput v-model="estimate" />
+    <ComplexityPicker v-model="complexity" />
     <button class="btn-primary shrink-0" :disabled="!text.trim()">Добавить</button>
     <!-- Отбор по сфере / проекту, за ним 🏷 — одной строкой; если места нет, теги переносятся ниже -->
     <div class="flex w-full flex-wrap items-start gap-2">

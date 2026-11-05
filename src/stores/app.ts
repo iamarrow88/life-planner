@@ -7,6 +7,7 @@ import { parseTags, uniqTags } from '../lib/tags'
 import { byPosition } from '../lib/taskOrder'
 import { DEFAULT_CYCLE_SETTINGS, PILL_NAMES, courseFrom, courseOn, cycleDayNo, cycleStarts } from '../lib/cycle'
 import { DEFAULT_SPHERE_COLORS } from '../lib/colors'
+import { dayOverloads } from '../lib/dayLoad'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
 const WISH_CATEGORIES = ['Купить', 'Поехать', 'Попробовать', 'Научиться']
@@ -218,6 +219,10 @@ export const useApp = defineStore('app', () => {
   // время начала не меняется. Каждый перенос записывается в историю задачи (postpones)
   const postponesReady = computed(() => data.value.postponesReady !== false)
   const priorityReady = computed(() => data.value.priorityReady !== false)
+  const complexityReady = computed(() => data.value.complexityReady !== false)
+  const overloadByDay = computed(() => dayOverloads(data.value.tasks))
+  /** Какие лимиты сложности превышены в этот день; пусто — день не перегружен */
+  const overloadOn = (day: string) => overloadByDay.value.get(day) ?? []
   /** Окно переноса (кнопка «Перенести…» в уведомлении) */
   const postponeSheetId = ref<string | null>(null)
   const openPostponeSheet = (id: string) => { postponeSheetId.value = id }
@@ -1097,7 +1102,7 @@ export const useApp = defineStore('app', () => {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
     nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
-    tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
+    tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
     plannedTodayMinutes, init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,

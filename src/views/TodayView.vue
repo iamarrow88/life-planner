@@ -8,6 +8,8 @@ import HabitForm from '../components/HabitForm.vue'
 import RecurrenceForm from '../components/RecurrenceForm.vue'
 import AutoTextarea from '../components/AutoTextarea.vue'
 import EstimateInput from '../components/EstimateInput.vue'
+import ComplexityPicker from '../components/ComplexityPicker.vue'
+import DayOverload from '../components/DayOverload.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import PillCheck from '../components/PillCheck.vue'
 import QuickTags from '../components/QuickTags.vue'
@@ -230,13 +232,16 @@ async function confirmStart() { if (await app.markCycleStart(app.today)) askStar
 
 /** Форма повтора открывается с тем же, что выбрано в отборе */
 const recurrenceDefaults = () => { const f = newTaskFields(); return { sphereId: f.sphere_id ?? undefined, projectId: f.project_id ?? undefined, tags: f.tags } }
+const complexity = ref<number | null>(null)
+/** День списка для индикатора перегрузки: неделя и «без даты» — не один день */
+const listDay = computed(() => (filter.value === 'today' ? app.today : filter.value === 'tomorrow' ? addDays(app.today, 1) : ''))
 async function add() {
   const title = text.value.trim()
   if (!title) return
-  const est = estimate.value
-  text.value = ''; estimate.value = null
+  const est = estimate.value, level = complexity.value
+  text.value = ''; estimate.value = null; complexity.value = null
   const due = filter.value === 'tomorrow' ? addDays(app.today, 1) : filter.value === 'nodate' ? null : app.today
-  await app.addTask({ title, status: due ? 'planned' : 'inbox', due_date: due, estimate_minutes: est, ...newTaskFields() })
+  await app.addTask({ title, status: due ? 'planned' : 'inbox', due_date: due, estimate_minutes: est, complexity: level, ...newTaskFields() })
 }
 </script>
 
@@ -334,6 +339,7 @@ async function add() {
     <div class="mb-3 flex flex-wrap gap-2">
       <button v-for="f in filters" :key="f.v" class="chip py-1.5 text-sm" :class="filter === f.v && 'chip-on'" @click="filter = f.v">{{ f.label }}</button>
     </div>
+    <DayOverload v-if="listDay" :day="listDay" />
     <div v-if="budget && (budget.count || budget.overdue)" class="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-xl bg-accent-soft px-3 py-2 text-sm" data-test="budget-sum">
       <span class="text-mute">Бюджет {{ budgetPeriod.label }}:</span>
       <span class="font-semibold text-accent">{{ fmtMoney(budget.total) }}</span>
@@ -345,6 +351,7 @@ async function add() {
     <form class="mb-3 flex flex-wrap items-start gap-2" @submit.prevent="add">
       <AutoTextarea v-model="text" single-line :maxlength="500" class="!w-auto min-w-[10rem] flex-1" placeholder="Новое дело…" @submit="add" />
       <EstimateInput v-model="estimate" />
+      <ComplexityPicker v-model="complexity" />
       <button class="btn-primary shrink-0" :disabled="!text.trim()">+</button>
       <button type="button" class="btn-ghost shrink-0" title="Повторяющаяся задача" @click="showRecForm = !showRecForm">↻</button>
       <!-- Отбор по сфере / проекту, за ним 🏷 — одной строкой; если места нет, теги переносятся ниже -->
@@ -387,7 +394,7 @@ async function add() {
           <button type="button" :data-day="d"
             class="flex min-h-[4rem] flex-col items-center gap-0.5 rounded-xl px-0.5 pb-1 pt-1 text-sm transition hover:ring-2 hover:ring-accent/40"
             :class="[!inMonth && d !== monthSel && 'opacity-35', d === app.today ? 'bg-accent-soft font-bold text-accent' : 'bg-white', d === monthSel && 'ring-2 ring-accent']"
-            :aria-pressed="d === monthSel" :aria-label="longDate(d) + (summary.get(d)?.label ? ': ' + summary.get(d)!.label : '')" @click="pickDay(d)">
+            :aria-pressed="d === monthSel" :aria-label="longDate(d) + (summary.get(d)?.label ? ': ' + summary.get(d)!.label : '') + (app.overloadOn(d).length ? ', день перегружен' : '')" @click="pickDay(d)">
             <span class="leading-none">{{ Number(d.slice(8)) }}</span>
             <span class="flex flex-wrap justify-center gap-0.5">
               <span v-for="m in (summary.get(d)?.marks ?? []).slice(0, MAX_MARKS)" :key="m.key" :data-kind="m.kind"
@@ -397,6 +404,7 @@ async function add() {
               <span v-if="(summary.get(d)?.marks.length ?? 0) > MAX_MARKS" class="text-[10px] font-semibold leading-[18px] text-mute">+{{ summary.get(d)!.marks.length - MAX_MARKS }}</span>
             </span>
             <span v-if="(summary.get(d)?.minutes ?? 0) >= 30" class="text-[9px] font-normal leading-none text-mute" data-test="day-load">≈{{ fmtLoad(summary.get(d)!.minutes) }}</span>
+            <span v-if="app.overloadOn(d).length" class="h-1.5 w-1.5 rounded-full bg-amber-500" title="День перегружен" data-test="overload-mark"></span>
           </button>
         </template>
       </MonthGrid>
@@ -406,6 +414,7 @@ async function add() {
         <span class="inline-flex items-center gap-1"><span class="grid h-4 min-w-4 place-items-center rounded-full border-[1.5px] px-1 text-[9px] font-semibold" :style="{ borderColor: OVERDUE_COLOR, color: OVERDUE_COLOR }">1</span>просрочено</span>
         <span class="inline-flex items-center gap-1"><span class="grid h-4 min-w-4 place-items-center rounded-full border-[1.5px] border-dashed border-accent px-1 text-[9px] font-semibold text-accent">1</span>повтор (ещё не создан)</span>
         <span>≈ ч — по оценкам времени</span>
+        <span class="inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>день перегружен</span>
       </div>
 
       <!-- Задачи выбранного дня: за ⋮⋮ их можно перетащить на другой день (подержать над ‹ › — листается месяц) -->
@@ -415,6 +424,7 @@ async function add() {
           <button type="button" class="text-sm font-semibold text-accent" data-test="month-open-day" @click="openDay(monthSel)">Открыть день ›</button>
         </div>
         <p v-if="moveMsg" class="mb-1.5 text-xs text-accent" data-test="move-msg">{{ moveMsg }}</p>
+        <DayOverload :day="monthSel" />
         <div v-if="selTasks.length" v-drag-to-day class="card divide-y divide-line" data-test="month-day-tasks">
           <div v-for="t in selTasks" :key="t.id" :data-task-id="t.id" class="flex items-center">
             <span data-drag-handle class="shrink-0 cursor-grab touch-none select-none py-3 pl-2 text-base leading-none text-mute/70 hover:text-accent" role="button"
@@ -431,6 +441,7 @@ async function add() {
     </template>
 
     <template v-else>
+    <DayOverload :day="calDay" />
     <section v-if="calDay !== app.today && dayHabitList.length" class="mb-3" data-test="day-habits">
       <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-mute">Привычки за день</div>
       <div class="card divide-y divide-line">

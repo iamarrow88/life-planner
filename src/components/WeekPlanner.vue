@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, type Directive } from 'vue'
 import { useApp } from '../stores/app'
+import DayOverload from './DayOverload.vue'
 import { addDays, fmtMinutes, shortDate } from '../lib/time'
 import { dragToDay } from '../lib/dragToDay'
 import { byPosition } from '../lib/taskOrder'
@@ -71,11 +72,12 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
         <button v-for="(d, i) in days" :key="d" type="button" :data-day="d" :aria-pressed="sel === d" data-test="plan-day"
           class="flex flex-col items-center rounded-xl border px-0.5 py-1.5 text-center transition"
           :class="sel === d ? 'border-accent bg-accent-soft text-accent' : 'border-line bg-white'"
-          :aria-label="`${WD[i]}, ${shortDate(d)}: задач ${dayInfo[d].count}${dayInfo[d].minutes ? ', ≈ ' + fmtMinutes(dayInfo[d].minutes) : ''}`" @click="sel = d">
+          :aria-label="`${WD[i]}, ${shortDate(d)}: задач ${dayInfo[d].count}${dayInfo[d].minutes ? ', ≈ ' + fmtMinutes(dayInfo[d].minutes) : ''}${app.overloadOn(d).length ? ', день перегружен' : ''}`" @click="sel = d">
           <span class="text-[11px] text-mute">{{ WD[i] }}</span>
           <span class="text-sm font-semibold leading-tight">{{ Number(d.slice(8)) }}</span>
           <span class="text-[11px] font-medium" :class="dayInfo[d].count ? 'text-ink' : 'text-mute/60'">{{ dayInfo[d].count || '—' }}</span>
           <span v-if="dayInfo[d].minutes" class="text-[9px] leading-none text-mute">≈{{ fmtMinutes(dayInfo[d].minutes) }}</span>
+          <span v-if="app.overloadOn(d).length" class="mt-0.5 h-1.5 w-1.5 rounded-full bg-amber-500" title="День перегружен" data-test="overload-mark"></span>
         </button>
       </div>
       <p v-if="msg" class="mt-1 text-xs text-accent" data-test="plan-msg">{{ msg }}</p>
@@ -84,6 +86,7 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
     <!-- Выбранный день -->
     <div class="mb-4">
       <div class="mb-1 text-sm font-semibold">{{ WD[days.indexOf(sel)] }}, {{ shortDate(sel) }}</div>
+      <DayOverload :day="sel" />
       <div v-if="selTasks.length" class="card divide-y divide-line" data-test="plan-day-tasks">
         <div v-for="t in selTasks" :key="t.id" :data-task-id="t.id" class="flex items-center">
           <span data-drag-handle class="shrink-0 cursor-grab touch-none select-none py-3 pl-2 text-base leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить задачу на другой день">⋮⋮</span>

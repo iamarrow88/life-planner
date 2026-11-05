@@ -4,6 +4,7 @@ import { useApp } from '../stores/app'
 import { fmtSec, shortDate, ymd } from '../lib/time'
 import AutoTextarea from './AutoTextarea.vue'
 import EstimateInput from './EstimateInput.vue'
+import ComplexityPicker from './ComplexityPicker.vue'
 import TagInput from './TagInput.vue'
 import SubtaskList from './SubtaskList.vue'
 import { parseTags, uniqTags } from '../lib/tags'
@@ -76,12 +77,13 @@ const scheduleOf = (r: Recurrence): Schedule => ({
 /** Состояние формы: с ним сравниваем, есть ли несохранённые изменения */
 /** Приоритет: 1 высокий, 2 средний, 3 низкий, null — нет; повторное нажатие снимает */
 const priority = ref<number | null>(null)
+const complexity = ref<number | null>(null)
 const priorities = [
   { v: 1, label: 'Высокий', cls: 'bg-red-300' },
   { v: 2, label: 'Средний', cls: 'bg-orange-300' },
   { v: 3, label: 'Низкий', cls: 'bg-yellow-300' },
 ]
-const formState = () => JSON.stringify([priority.value, title.value, note.value, tags.value, budget.value, date.value, time.value, estimate.value, noDate.value, sphereId.value, projectId.value,
+const formState = () => JSON.stringify([priority.value, complexity.value, title.value, note.value, tags.value, budget.value, date.value, time.value, estimate.value, noDate.value, sphereId.value, projectId.value,
   remind.value, repeat.value, schedule.value, repeatScope.value, newProject.value])
 let saved = ''
 /** × и подложка: правки сохраняются, карточка закрывается. Сохранить нельзя — спрашиваем, закрыть ли без них */
@@ -100,6 +102,7 @@ watch(() => task.value?.id, () => {
   const t = task.value
   if (!t) return
   priority.value = t.priority ?? null
+  complexity.value = t.complexity ?? null
   title.value = t.title; note.value = t.note ?? ''; tags.value = [...(t.tags ?? [])]; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
   // у задачи по повтору длительность берётся из правила — 15 по умолчанию не подставляем, чтобы не менять правило
   estimate.value = t.estimate_minutes ?? (t.recurrence_id ? null : DEFAULT_ESTIMATE); budget.value = t.budget == null ? null : Number(t.budget); noDate.value = t.status === 'planned' && !t.due_date; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
@@ -139,6 +142,7 @@ function templateFrom(due: string | null): Pick<NewRecurrence, (typeof TEMPLATE_
   const p = app.tagsReady ? parseTags(title.value) : { title: title.value.trim(), tags: [] }
   return {
     ...(app.tagsReady ? { tags: uniqTags([...tags.value, ...p.tags]) } : {}),
+    ...(app.complexityReady ? { complexity: complexity.value } : {}),
     ...(app.budgetReady ? { budget: budget.value == null || (budget.value as unknown) === '' || !(Number(budget.value) > 0) ? null : Math.round(Number(budget.value) * 100) / 100 } : {}),
     title: p.title, note: note.value.trim() || null, sphere_id: sphereId.value || null,
     project_id: sphereId.value && projectId.value ? projectId.value : null, start_time: st, estimate_minutes: estimate.value,
@@ -320,6 +324,11 @@ async function remove() {
             <button type="button" class="chip flex-1 justify-center py-1.5" :class="repeatScope === 'all' && 'chip-on'" @click="repeatScope = 'all'">И к следующим</button>
           </div>
         </div>
+      </div>
+
+      <div v-if="app.complexityReady" class="flex flex-wrap items-center gap-2 text-xs text-mute">
+        <span>Сложность</span>
+        <ComplexityPicker v-model="complexity" labels />
       </div>
 
       <!-- Таймер и потраченное время — одной строкой -->

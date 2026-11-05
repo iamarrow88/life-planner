@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ComplexityPicker from './ComplexityPicker.vue'
 import { ref, watch } from 'vue'
 import { useApp } from '../stores/app'
 import AutoTextarea from './AutoTextarea.vue'
@@ -19,6 +20,7 @@ const remind = ref('')
 const remindTouched = ref(false)
 watch(time, (now, before) => { if (now && !before && !remindTouched.value) remind.value = '10' })
 const estimate = ref<number | null>(null)
+const complexity = ref<number | null>(null)
 const sphereId = ref(props.sphereId ?? '')
 const startsOn = ref(app.today)
 const busy = ref(false)
@@ -42,6 +44,7 @@ async function save() {
     ...(props.tags?.length ? { tags: props.tags } : {}),
     start_time: time.value ? `${time.value}:00` : null,
     estimate_minutes: estimate.value && estimate.value > 0 ? Math.floor(estimate.value) : null,
+    complexity: complexity.value,
     remind_before_minutes: time.value && remind.value !== '' ? Number(remind.value) : null,
     freq: freq.value, interval_n: Math.max(1, Math.floor(interval.value || 1)),
     weekdays: freq.value === 'week' && mode.value === 'schedule' ? [...weekdays.value].sort() : null,
@@ -91,6 +94,10 @@ async function save() {
         </select>
       </label>
       <label class="text-xs text-mute">План, минут<input v-model.number="estimate" type="number" min="1" class="input mt-1" /></label>
+      <div v-if="app.complexityReady" class="col-span-full text-xs text-mute">
+        <div class="mb-1">Сложность</div>
+        <ComplexityPicker v-model="complexity" labels />
+      </div>
       <label class="text-xs text-mute">Сфера
         <select v-model="sphereId" class="input mt-1"><option value="">Без сферы</option><option v-for="s in app.spheres" :key="s.id" :value="s.id">{{ s.name }}</option></select>
       </label>

@@ -44,6 +44,7 @@ export interface Task {
   position?: number | null                // место в списке, заданное перетаскиванием (null — не двигали)
   subtasks?: Subtask[]
   priority?: number | null                // 1 высокий (красный), 2 средний (оранжевый), 3 низкий (жёлтый); null — нет
+  complexity?: number | null              // 1 мелочь, 2 средняя, 3 большая; null — не выбрана
   postpones?: Postpone[]                  // переносы кнопкой «↷ Перенести»: откуда, куда, когда
   updated_at?: string                     // когда задачу последний раз меняли (для «залежавшихся» отложенных)
 }
@@ -56,13 +57,14 @@ export interface Recurrence {
   starts_on: string; ends_on: string | null
   tags?: string[]
   budget?: number | null
+  complexity?: number | null
   subtasks?: Subtask[]                     // шаблон: новые задачи по правилу получают их невыполненными
 }
 export type NewRecurrence = Omit<Recurrence, 'id' | 'month_day' | 'ends_on'>
 /** Правка правила: поля расписания (freq…starts_on) пересоздают будущие задачи, поля шаблона (title…) переносятся в будущие невыполненные */
 export type RecurrencePatch = Partial<NewRecurrence>
 export const RULE_KEYS = ['freq', 'interval_n', 'weekdays', 'mode', 'starts_on'] as const
-export const TEMPLATE_KEYS = ['title', 'note', 'sphere_id', 'project_id', 'start_time', 'estimate_minutes', 'remind_before_minutes', 'tags', 'budget', 'subtasks'] as const
+export const TEMPLATE_KEYS = ['title', 'note', 'sphere_id', 'project_id', 'start_time', 'estimate_minutes', 'remind_before_minutes', 'tags', 'budget', 'subtasks', 'complexity'] as const
 /** Расписание привычки: как часто и от какой даты отсчитывать (как у повторяющихся задач) */
 export interface HabitSchedule {
   freq: RecurrenceFreq; interval_n: number; weekdays: number[]
@@ -135,6 +137,7 @@ export interface Snapshot {
   sphereColors?: string[] | null  // свой набор цветов для сфер (null — набор по умолчанию)
   colorsReady?: boolean          // false — в базе ещё нет набора цветов (не выполнен planner_sphere_colors.sql)
   priorityReady?: boolean        // false — в базе ещё нет приоритета (не выполнен planner_task_priority.sql)
+  complexityReady?: boolean      // false — в базе ещё нет сложности (не выполнен planner_task_complexity.sql)
   postponesReady?: boolean      // false — в базе ещё нет истории переносов (не выполнен planner_task_postpone.sql)
   subtasksReady?: boolean       // false — в базе ещё нет подзадач (не выполнен planner_subtasks.sql)
 }
@@ -145,6 +148,7 @@ export interface NewTask {
   note?: string | null
   tags?: string[]
   budget?: number | null
+  complexity?: number | null
   subtasks?: Subtask[]
   postpones?: Postpone[]
   priority?: number | null

@@ -9,6 +9,7 @@ import { fmtMoney } from '../lib/budget'
 import { ref } from 'vue'
 import SubtaskList from './SubtaskList.vue'
 import PostponeOptions from './PostponeOptions.vue'
+import ComplexityBall from './ComplexityBall.vue'
 
 /** sortable — показать ручку ⋮⋮ для перетаскивания (список с v-drag-sort) */
 // затраченное время правится в карточке задачи (⏱ Время), отдельной кнопки в строке нет
@@ -53,7 +54,10 @@ function closePostpone() { postponeMenu.value = null }
       <svg v-if="done" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10" /></svg>
     </button>
     <div class="min-w-0 flex-1" :class="dense && 'w-full'">
-      <button class="block w-full text-left hover:text-accent" :class="[dense ? 'text-[13px] leading-tight' : 'text-[15px]', dense || wrapTitle ? '[overflow-wrap:anywhere]' : 'truncate', done && 'text-mute line-through']" @click="app.openTask(task.id)">{{ task.title }}</button>
+      <button class="flex w-full items-center gap-1.5 text-left hover:text-accent" :class="dense ? 'text-[13px] leading-tight' : 'text-[15px]'" @click="app.openTask(task.id)">
+        <span class="min-w-0" :class="[dense || wrapTitle ? '[overflow-wrap:anywhere]' : 'truncate', done && 'text-mute line-through']">{{ task.title }}</span>
+        <ComplexityBall v-if="task.complexity" :level="task.complexity" class="text-mute/70" />
+      </button>
       <div v-if="dense" class="mt-0.5 text-xs font-medium text-ink/70">{{ hhmm(task.start_time) }}</div>
       <div v-else class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-mute">
         <span v-if="task.recurrence_id" title="Повторяющаяся" class="font-semibold text-accent">↻</span>

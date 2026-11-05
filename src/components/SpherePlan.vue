@@ -5,6 +5,7 @@ import { addDays, fmtMinutes, shortDate } from '../lib/time'
 import type { Task } from '../types'
 import TaskRow from './TaskRow.vue'
 import EstimateInput from './EstimateInput.vue'
+import ComplexityPicker from './ComplexityPicker.vue'
 
 /**
  * Задачи сферы на неделю (в итоге недели, под целью сферы): что уже запланировано по дням
@@ -41,14 +42,15 @@ const title = ref('')
 const day = ref(props.weekStart)
 const time = ref('')
 const estimate = ref<number | null>(null)
+const complexity = ref<number | null>(null)
 const busy = ref(false)
 async function add() {
   const name = title.value.trim(); if (!name || busy.value) return
   busy.value = true
-  await app.addTask({ title: name, status: 'planned', sphere_id: props.sphereId, due_date: day.value, start_time: time.value ? `${time.value}:00` : null, estimate_minutes: estimate.value })
+  await app.addTask({ title: name, status: 'planned', sphere_id: props.sphereId, due_date: day.value, start_time: time.value ? `${time.value}:00` : null, estimate_minutes: estimate.value, complexity: complexity.value })
   busy.value = false
   // день оставляем: удобно добавить несколько задач подряд на один день
-  title.value = ''; time.value = ''; estimate.value = null
+  title.value = ''; time.value = ''; estimate.value = null; complexity.value = null
 }
 </script>
 
@@ -87,6 +89,7 @@ async function add() {
       </select>
       <input v-model="time" type="time" class="input !w-auto !py-1.5 !text-sm" aria-label="Время (необязательно)" title="Время (необязательно)" />
       <EstimateInput v-model="estimate" class="!py-1.5 !text-sm" />
+      <ComplexityPicker v-model="complexity" />
       <button class="btn-primary !px-3 !py-1.5 !text-sm" :disabled="!title.trim() || busy">Добавить</button>
     </form>
   </div>
