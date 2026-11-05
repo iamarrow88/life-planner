@@ -5,7 +5,7 @@ import { useApp } from '../stores/app'
 import AutoTextarea from '../components/AutoTextarea.vue'
 import NavIcon from '../components/NavIcon.vue'
 import { fmtMinutes, shortDate, weekStart, addDays, monthStart } from '../lib/time'
-import { budgetRing, type Arc } from '../lib/timeBudget'
+import { factRing, planRing, type Arc } from '../lib/timeBudget'
 import { vDragSort } from '../lib/dragSort'
 
 const app = useApp()
@@ -23,9 +23,7 @@ const color = ref(COLORS.value[0])
 const goalHours = ref(5)
 const description = ref('')
 
-const total = computed(() => app.spheres.reduce((s, x) => s + (minutesBy.value[x.id] ?? 0), 0))
-
-// ---- Бюджет времени: всё кольцо — время периода без сна, текучки и работы
+// ---- Бюджет времени: время периода без сна, текучки и работы
 const periodDays = computed(() => {
   const from = period.value === 'week' ? weekStart(app.today) : monthStart(app.today)
   const [y, m] = from.split('-').map(Number)
@@ -45,7 +43,22 @@ const elapsed = computed(() => {
 })
 const availableNow = computed(() => Math.max(0, capacity.value * elapsed.value))
 const planOf = (id: string) => perPeriod(w => app.goalFor(id, w))
-const ring = computed(() => budgetRing(capacity.value, app.spheres.map(x => ({ id: x.id, color: x.color, goal: planOf(x.id), spent: minutesBy.value[x.id] ?? 0 }))))
+/** Какое кольцо показано: «План» или «Факт» (запоминается на этом устройстве) */
+const RING_VIEW_KEY = 'kola-ring-view'
+const ringView = ref<'plan' | 'fact'>((() => { try { return localStorage.getItem(RING_VIEW_KEY) === 'fact' ? 'fact' : 'plan' } catch { return 'plan' } })())
+function setRingView(v: 'plan' | 'fact') { ringView.value = v; try { localStorage.setItem(RING_VIEW_KEY, v) } catch { /* без хранилища просто не запомним */ } }
+/** Время без действующей сферы: отдельный сектор на кольце факта */
+const OTHER_ID = 'other', OTHER_COLOR = '#B9B4A8'
+const otherMinutes = computed(() => (period.value === 'week' ? app.otherWeekMinutes : app.otherMonthMinutes))
+const ringSpheres = computed(() => app.spheres.map(x => ({ id: x.id, name: x.name, color: x.color, goal: planOf(x.id), spent: minutesBy.value[x.id] ?? 0 })))
+const factSpheres = computed(() => [...ringSpheres.value, { id: OTHER_ID, name: 'Без сферы', color: OTHER_COLOR, goal: 0, spent: otherMinutes.value }].filter(x => x.spent >= 1))
+const ring = computed(() => (ringView.value === 'plan' ? planRing(ringSpheres.value) : factRing(factSpheres.value)))
+/** Строки под кольцом: на плане все сферы, на факте — те, на которые есть время */
+const ringRows = computed(() => (ringView.value === 'plan' ? ringSpheres.value : factSpheres.value))
+const factTotal = computed(() => factSpheres.value.reduce((sum, x) => sum + x.spent, 0))
+const factPct = (m: number) => { const p = factTotal.value > 0 ? (m / factTotal.value) * 100 : 0; return p > 0 && p < 1 ? '<1' : String(Math.round(p)) }
+/** Выполнено по плану: у каждой сферы не больше её цели, ровно закрашенная часть кольца */
+const planDone = computed(() => ringSpheres.value.reduce((sum, x) => sum + Math.min(x.spent, x.goal), 0))
 const sumGoals = computed(() => app.spheres.reduce((sum, x) => sum + planOf(x.id), 0))
 /** Сколько времени не занято целями; меньше нуля — целей больше, чем времени */
 const notInGoals = computed(() => Math.max(0, capacity.value) - sumGoals.value)
@@ -58,21 +71,19 @@ const freeToday = computed(() => {
 })
 /** Часы для центра кольца: от часа и больше — без минут */
 const hrsShort = (m: number) => (m < 60 ? hrs(m) : Math.round(m / 60) + ' ч')
-const R = 70, C = 2 * Math.PI * R, RO = 86, CO = 2 * Math.PI * RO
-/** Дуга на окружности длиной circ: минуты переводим в длину штриха */
-const arcStyle = (a: Arc, circ: number, gap = 0) => {
-  const k = circ / capacity.value
-  return { 'stroke-dasharray': `${Math.max(0, a.len * k - gap)} ${circ}`, 'stroke-dashoffset': -a.from * k }
+const R = 70, C = 2 * Math.PI * R
+/** Зазор между секторами; единственному сектору он не нужен */
+const arcStyle = (a: Arc) => {
+  const gap = a.cap < 1 ? 2 : 0
+  return { 'stroke-dasharray': `${Math.max(0, Math.min(a.len * C, a.cap * C - gap))} ${C}`, 'stroke-dashoffset': -a.from * C }
 }
 const hrs = (min: number) => fmtMinutes(Math.round(min))
 // ---- Наведение на сектор подсвечивает сферу в списке (и наоборот), клик открывает страницу сферы
 const router = useRouter()
 const hovered = ref<string | null>(null)
-/** id сферы дуги: у факта в нераспределённой части ключ «id:free» */
-const sid = (a: Arc) => a.key.split(':')[0]
-const arcCls = (a: Arc) => ['cursor-pointer transition-[opacity,stroke-width] duration-200', hovered.value && sid(a) !== hovered.value && 'opacity-30']
-const arcWidth = (a: Arc, base: number) => (sid(a) === hovered.value ? base + 4 : base)
-const openSphere = (id: string) => router.push('/spheres/' + id)
+const arcCls = (a: Arc) => ['transition-[opacity,stroke-width] duration-200', a.key !== OTHER_ID && 'cursor-pointer', hovered.value && a.key !== hovered.value && 'opacity-30']
+const arcWidth = (a: Arc) => (a.key === hovered.value ? 22 : 18)
+const openSphere = (id: string) => { if (id !== OTHER_ID) void router.push('/spheres/' + id) }
 const perDayH = (min: number) => `${Math.round((min / 60) * 10) / 10} ч`
 
 // ---- Часы работы этой недели (их же спрашивает итог недели на следующую)
@@ -134,32 +145,44 @@ async function save() {
     <button class="btn-primary w-full">Создать</button>
   </form>
 
-  <!-- Бюджет времени: кольцо — свободное время периода (без сна, текучки и работы) -->
+  <!-- Учёт времени: кольцо плана или факта, под ним плитки бюджета и список сфер -->
   <div class="card mb-4 p-5" data-test="time-budget">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs font-medium">
+      <div class="inline-flex rounded-xl border border-line bg-white p-0.5" data-test="ring-view">
+        <button class="rounded-lg px-3 py-1" :class="ringView === 'plan' ? 'bg-accent text-white' : 'text-mute'" data-test="ring-plan" @click="setRingView('plan')">План</button>
+        <button class="rounded-lg px-3 py-1" :class="ringView === 'fact' ? 'bg-accent text-white' : 'text-mute'" data-test="ring-fact" @click="setRingView('fact')">Факт</button>
+      </div>
+      <div class="inline-flex rounded-xl border border-line bg-white p-0.5">
+        <button class="rounded-lg px-3 py-1" :class="period === 'week' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'week'">Неделя</button>
+        <button class="rounded-lg px-3 py-1" :class="period === 'month' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'month'">Месяц</button>
+      </div>
+    </div>
     <div class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-8">
       <div class="relative h-[190px] w-[190px] shrink-0">
         <svg width="190" height="190" viewBox="0 0 190 190" class="-rotate-90" aria-hidden="true">
-          <circle cx="95" cy="95" :r="R" fill="none" stroke="#E5E1D8" stroke-width="18" />
-          <template v-if="capacity > 0">
-            <circle v-for="a in ring.plan" :key="'p' + a.key" cx="95" cy="95" :r="R" fill="none" :stroke="a.color" stroke-opacity="0.22" :stroke-width="arcWidth(a, 10)" v-bind="arcStyle(a, C, 1.5)"
-              :class="arcCls(a)" data-test="ring-arc" @mouseenter="hovered = sid(a)" @mouseleave="hovered = null" @click="openSphere(sid(a))" />
-            <circle v-for="a in ring.fact" :key="'f' + a.key" cx="95" cy="95" :r="R" fill="none" :stroke="a.color" :stroke-width="arcWidth(a, 18)" v-bind="arcStyle(a, C)"
-              :class="arcCls(a)" data-test="ring-arc" @mouseenter="hovered = sid(a)" @mouseleave="hovered = null" @click="openSphere(sid(a))" />
-            <circle v-for="a in ring.over" :key="'o' + a.key" cx="95" cy="95" :r="RO" fill="none" :stroke="a.color" :stroke-width="arcWidth(a, 6)" v-bind="arcStyle(a, CO)"
-              :class="arcCls(a)" data-test="ring-arc" @mouseenter="hovered = sid(a)" @mouseleave="hovered = null" @click="openSphere(sid(a))" />
-          </template>
+          <circle v-if="!ring.tint.length && !ring.solid.length" cx="95" cy="95" :r="R" fill="none" stroke="#E5E1D8" stroke-width="18" />
+          <circle v-for="a in ring.tint" :key="'t' + a.key" cx="95" cy="95" :r="R" fill="none" :stroke="a.color" stroke-opacity="0.25" :stroke-width="arcWidth(a)" v-bind="arcStyle(a)"
+            :class="arcCls(a)" data-test="ring-tint" @mouseenter="hovered = a.key" @mouseleave="hovered = null" @click="openSphere(a.key)" />
+          <circle v-for="a in ring.solid" :key="'s' + a.key" cx="95" cy="95" :r="R" fill="none" :stroke="a.color" :stroke-width="arcWidth(a)" v-bind="arcStyle(a)"
+            :class="arcCls(a)" data-test="ring-solid" @mouseenter="hovered = a.key" @mouseleave="hovered = null" @click="openSphere(a.key)" />
         </svg>
-        <div class="pointer-events-none absolute inset-0 grid place-content-center text-center">
-          <div class="text-2xl font-bold leading-tight" data-test="tracked" :title="hrs(total)">{{ hrsShort(total) }}</div>
-          <div class="text-[11px] leading-tight text-mute">учтено<br />из ~{{ hrsShort(availableNow) }}<br />к этому моменту</div>
+        <div class="pointer-events-none absolute inset-0 grid place-content-center text-center" data-test="ring-center">
+          <template v-if="ringView === 'plan'">
+            <template v-if="sumGoals > 0">
+              <div class="text-2xl font-bold leading-tight" :title="hrs(planDone)">{{ hrsShort(planDone) }}</div>
+              <div class="text-[11px] leading-tight text-mute">из {{ hrsShort(sumGoals) }}<br />по плану</div>
+            </template>
+            <div v-else class="px-8 text-xs leading-tight text-mute">Цели на {{ period === 'week' ? 'неделю' : 'месяц' }} не заданы</div>
+          </template>
+          <template v-else-if="factSpheres.length">
+            <div class="text-2xl font-bold leading-tight" :title="hrs(factTotal)">{{ hrsShort(factTotal) }}</div>
+            <div class="text-[11px] leading-tight text-mute">учтено<template v-if="availableNow > 0"><br />из ~{{ hrsShort(availableNow) }}</template></div>
+          </template>
+          <div v-else class="px-8 text-xs leading-tight text-mute">Пока ничего не учтено</div>
         </div>
       </div>
 
       <div class="w-full min-w-0 flex-1">
-        <div class="mb-3 inline-flex rounded-xl border border-line bg-white p-0.5 text-xs font-medium">
-          <button class="rounded-lg px-3 py-1" :class="period === 'week' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'week'">Неделя</button>
-          <button class="rounded-lg px-3 py-1" :class="period === 'month' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'month'">Месяц</button>
-        </div>
         <dl class="grid grid-cols-3 gap-2 text-center sm:text-left">
           <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] leading-tight text-mute">Время на {{ period === 'week' ? 'неделю' : 'месяц' }}</dt><dd class="mt-0.5 font-semibold" data-test="capacity">{{ hrs(Math.max(0, capacity)) }}</dd></div>
           <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] leading-tight text-mute">Занято целями</dt><dd class="mt-0.5 font-semibold" data-test="in-goals">{{ hrs(sumGoals) }}</dd></div>
@@ -170,19 +193,18 @@ async function save() {
           </div>
         </dl>
         <ul class="mt-3 space-y-1 text-sm">
-          <li v-for="x in app.spheres" :key="x.id" class="flex cursor-pointer items-center gap-2" :data-hovered="hovered === x.id || undefined"
+          <li v-for="x in ringRows" :key="x.id" class="flex items-center gap-2" :class="x.id !== OTHER_ID && 'cursor-pointer'" data-test="ring-row" :data-hovered="hovered === x.id || undefined"
             @mouseenter="hovered = x.id" @mouseleave="hovered = null" @click="openSphere(x.id)">
             <span class="h-2.5 w-2.5 shrink-0 rounded-full transition-transform duration-200" :class="hovered === x.id && 'scale-110'" :style="{ background: x.color }"></span>
             <span class="min-w-0 flex-1 origin-left truncate transition-all duration-200" :class="hovered === x.id ? 'font-semibold' : hovered && 'opacity-60'" :style="hovered === x.id ? { color: x.color } : undefined">{{ x.name }}</span>
-            <span class="shrink-0 text-xs text-mute"><span class="font-semibold text-ink">{{ hrs(minutesBy[x.id] ?? 0) }}</span> / {{ planOf(x.id) ? hrs(planOf(x.id)) : 'без цели' }}</span>
+            <span v-if="ringView === 'plan'" class="shrink-0 text-xs text-mute"><span class="font-semibold" :class="x.goal > 0 && x.spent >= x.goal + 1 ? 'text-amber-700' : 'text-ink'">{{ hrs(x.spent) }}</span> / {{ x.goal ? hrs(x.goal) : 'без цели' }}</span>
+            <span v-else class="shrink-0 text-xs text-mute"><span class="font-semibold text-ink">{{ hrs(x.spent) }}</span> · {{ factPct(x.spent) }}%</span>
           </li>
         </ul>
       </div>
     </div>
 
     <p v-if="capacity <= 0" class="mt-3 text-xs text-amber-700">Сон, текучка и работа занимают всё время периода — проверь значения ниже.</p>
-    <p v-else-if="ring.overGoals" class="mt-3 text-xs text-amber-700" data-test="over-goals">Целей на {{ hrs(sumGoals) }}, а свободно {{ hrs(capacity) }} — сектора сфер ужаты пропорционально. Стоит пересмотреть цели.</p>
-    <p v-if="ring.over.length" class="mt-2 text-xs text-mute">Тонкое внешнее кольцо — время сверх целей, на которое уже не хватило нераспределённого.</p>
 
     <div class="mt-3 border-t border-line pt-3 text-xs text-mute">
       Из {{ hrs(periodDays.length * 1440) }} вычтено: сон {{ perDayH(app.timeBudget.sleep_minutes_per_day) }}/день · текучка {{ perDayH(app.timeBudget.routine_minutes_per_day) }}/день

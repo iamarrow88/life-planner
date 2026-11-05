@@ -100,6 +100,20 @@ export const useApp = defineStore('app', () => {
   const closedMonthMinutes = computed(() => closedSphereMinutesSince(monthStart(today.value)))
   const weekMinutes = computed(() => withRunning(closedWeekMinutes.value, weekStart(today.value)))
   const monthMinutes = computed(() => withRunning(closedMonthMinutes.value, monthStart(today.value)))
+  /** Минуты без действующей сферы с даты from: записи без сферы и со сферой из архива */
+  function otherMinutesSince(from: string) {
+    const active = new Set(data.value.spheres.map(s => s.id))
+    let min = 0
+    for (const e of data.value.timeEntries) {
+      if (!e.ended_at || dayOf(e.started_at) < from || (e.sphere_id && active.has(e.sphere_id))) continue
+      min += entrySeconds(e) / 60
+    }
+    const r = running.value
+    if (r && dayOf(r.started_at) >= from && !(r.sphere_id && active.has(r.sphere_id))) min += runningSeconds.value / 60
+    return min
+  }
+  const otherWeekMinutes = computed(() => otherMinutesSince(weekStart(today.value)))
+  const otherMonthMinutes = computed(() => otherMinutesSince(monthStart(today.value)))
   /** Секунды по задачам за всё время — только законченные записи */
   const closedTaskSeconds = computed(() => {
     const res: Record<string, number> = { ...data.value.taskSecondsBefore }
@@ -1081,7 +1095,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
