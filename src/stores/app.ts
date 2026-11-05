@@ -100,26 +100,18 @@ export const useApp = defineStore('app', () => {
   const closedMonthMinutes = computed(() => closedSphereMinutesSince(monthStart(today.value)))
   const weekMinutes = computed(() => withRunning(closedWeekMinutes.value, weekStart(today.value)))
   const monthMinutes = computed(() => withRunning(closedMonthMinutes.value, monthStart(today.value)))
-  /** секунды по задачам за неделю и за месяц — только законченные записи */
-  const closedTaskTotals = computed(() => {
-    const w = weekStart(today.value), m = monthStart(today.value)
-    const res: Record<string, { week: number; month: number }> = {}
+  /** Секунды по задачам за всё время — только законченные записи */
+  const closedTaskSeconds = computed(() => {
+    const res: Record<string, number> = { ...data.value.taskSecondsBefore }
     for (const e of data.value.timeEntries) {
-      if (!e.task_id || !e.ended_at) continue
-      const d = dayOf(e.started_at), sec = entrySeconds(e)
-      const r = (res[e.task_id] ??= { week: 0, month: 0 })
-      if (d >= w) r.week += sec
-      if (d >= m) r.month += sec
+      if (e.task_id && e.ended_at) res[e.task_id] = (res[e.task_id] ?? 0) + entrySeconds(e)
     }
     return res
   })
-  /** Время задачи за неделю и месяц; живые секунды читает только строка задачи, на которую идёт таймер */
-  function taskTotal(id: string): { week: number; month: number } {
-    const base = closedTaskTotals.value[id] ?? { week: 0, month: 0 }
-    const r = running.value
-    if (r?.task_id !== id) return base
-    const d = dayOf(r.started_at), sec = runningSeconds.value
-    return { week: base.week + (d >= weekStart(today.value) ? sec : 0), month: base.month + (d >= monthStart(today.value) ? sec : 0) }
+  /** Всё время, потраченное на задачу; живые секунды читает только строка задачи, на которую идёт таймер */
+  function taskSeconds(id: string): number {
+    const base = closedTaskSeconds.value[id] ?? 0
+    return running.value?.task_id === id ? base + runningSeconds.value : base
   }
   /** Цель сферы на неделю: цель именно этой недели или значение по умолчанию */
   function goalFor(sphereId: string, week: string = weekStart(today.value)): number {
@@ -167,8 +159,7 @@ export const useApp = defineStore('app', () => {
     let sum = 0
     for (const t of data.value.tasks) {
       if (t.due_date !== today.value || t.status === 'done' || !t.estimate_minutes) continue
-      const spent = taskTotal(t.id)
-      sum += Math.max(0, t.estimate_minutes - Math.ceil(Math.max(spent.week, spent.month) / 60))
+      sum += Math.max(0, t.estimate_minutes - Math.ceil(taskSeconds(t.id) / 60))
     }
     for (const h of dueHabits.value) if (h.kind === 'timer') sum += Math.max(0, (h.target_value ?? 0) - habitTodayMinutes(h))
     return sum
@@ -866,7 +857,7 @@ export const useApp = defineStore('app', () => {
     if (!ok) return false
     if (!(await guard(async () => { await repo.removeRecurrence(r.id); return true }))) return false
     const left = data.value.tasks.find(x => x.id === taskId)
-    if (left && left.status !== 'done' && !taskTotal(taskId).month) await guard(() => repo.removeTask(taskId))
+    if (left && left.status !== 'done' && !taskSeconds(taskId)) await guard(() => repo.removeTask(taskId))
     await load(); syncGoogleSoon()
     return !error.value
   }
@@ -1090,7 +1081,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, taskTotal, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

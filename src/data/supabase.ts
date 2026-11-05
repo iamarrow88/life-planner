@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
 import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish, Book, MonthlyItem } from '../types'
-import { todayStr, weekStart as weekStartOf } from '../lib/time'
+import { entrySeconds, todayStr, weekStart as weekStartOf } from '../lib/time'
 import { DEFAULT_CYCLE_SETTINGS } from '../lib/cycle'
 
 const env = import.meta.env as Record<string, string | undefined>
@@ -125,7 +125,21 @@ export const supabaseRepo: Repo = {
       if (!g.error) try { localStorage.setItem(GEN_DAY_KEY, today) } catch { /* см. выше */ }
     }
     const ws = weekStartOf(today)
-    const [spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, monthlyRes, cDays, cSet, cCourses] = await Promise.all([
+    /** Время по задачам за всё, что старше since. Без него приложение работает: факт будет только за загруженный период */
+    const olderTaskSeconds = async () => {
+      const res: Record<string, number> = {}
+      const PAGE = 1000 // больше за один запрос Supabase не отдаёт
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await c.from('time_entries').select('task_id,started_at,ended_at')
+          .not('task_id', 'is', null).not('ended_at', 'is', null).lt('local_date', since)
+          .order('started_at').order('id').range(from, from + PAGE - 1)
+        if (error) return res
+        for (const e of data as { task_id: string; started_at: string; ended_at: string }[]) res[e.task_id] = (res[e.task_id] ?? 0) + entrySeconds(e)
+        if (data.length < PAGE) return res
+      }
+    }
+    const [taskSecondsBefore, spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, monthlyRes, cDays, cSet, cCourses] = await Promise.all([
+      olderTaskSeconds(),
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
       c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
@@ -175,7 +189,7 @@ export const supabaseRepo: Repo = {
     const cycleReady = !cycleDays.error && !cSet.error && !cCourses.error
     return {
       spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as unknown as Task[], habits: ok(habits) as unknown as Habit[],
-      habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], recurrences: ok(recs) as unknown as Recurrence[],
+      habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], taskSecondsBefore, recurrences: ok(recs) as unknown as Recurrence[],
       tagsReady: optional.tags, budgetReady: optional.budget, orderReady: optional.position, subtasksReady: optional.subtasks, postponesReady: optional.postpones, priorityReady: optional.priority,
       weekGoals: ok(goals) as WeekGoal[], reviews: ok(reviews) as WeeklyReview[],
       // если состояние привычек не пришло — считаем, что все запланированы на сегодня (список не должен пропасть)

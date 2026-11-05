@@ -53,7 +53,7 @@ const busy = ref(false)
 const DEFAULT_ESTIMATE = 15
 const presets = [30, 45, 60, 90, 120]
 const isRunning = computed(() => !!task.value && app.running?.task_id === task.value.id)
-const totals = computed(() => (task.value ? app.taskTotal(task.value.id) : undefined))
+const spent = computed(() => (task.value ? app.taskSeconds(task.value.id) : 0))
 /** Переносы кнопкой «↷»: больше трёх — повод задуматься, подсвечиваем красным */
 const postpones = computed(() => task.value?.postpones ?? [])
 const showPostpones = ref(false)
@@ -328,7 +328,7 @@ async function remove() {
           {{ isRunning ? '■ Стоп' : '▶ Таймер' }}
         </button>
         <button type="button" class="chip py-1" @click="app.openEditor({ task_id: task.id }, task.title)">⏱ Время</button>
-        <span v-if="totals && totals.month > 0">потрачено: неделя {{ fmtSec(totals.week) }} · месяц {{ fmtSec(totals.month) }}</span>
+        <span v-if="spent > 0" data-test="task-spent">потрачено {{ fmtSec(spent) }}</span>
       </div>
 
       <!-- Кнопки всегда на виду, даже если карточка выше экрана (много подзадач, раскрытый повтор) -->

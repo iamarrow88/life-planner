@@ -118,6 +118,7 @@ export interface Snapshot {
   weekGoals: WeekGoal[]; reviews: WeeklyReview[]
   habitEntries: HabitEntry[]   // за сегодня
   timeEntries: TimeEntry[]     // с начала недели + запущенный
+  taskSecondsBefore?: Record<string, number> // секунды по задачам за всё, что старше загруженных timeEntries
   habitStatus?: HabitStatus[]  // состояние привычек на сегодня (считает база)
   timeBudget?: TimeBudget | null // null — в базе ещё нет этих полей (не выполнен planner_time_budget.sql)
   weekWork?: WeekWork[]

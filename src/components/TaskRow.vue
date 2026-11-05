@@ -20,13 +20,14 @@ const sphere = computed(() => app.sphereById(props.task.sphere_id))
 const project = computed(() => app.projectById(props.task.project_id))
 const isRunning = computed(() => app.running?.task_id === props.task.id)
 const done = computed(() => props.task.status === 'done')
-const totals = computed(() => app.taskTotal(props.task.id))
+const spent = computed(() => app.taskSeconds(props.task.id))
+/** Вышли за план: факт становится янтарным */
+const overPlan = computed(() => !!props.task.estimate_minutes && spent.value >= (props.task.estimate_minutes + 1) * 60)
 const subs = computed(() => props.task.subtasks ?? [])
 const showSubs = ref(false)
 /** На экранах с отбором нажатие на тег добавляет его в отбор, на остальных — открывает поиск */
 const onTagClick = inject<((tag: string) => void) | null>(TAG_CLICK, null)
 const clickTag = (g: string) => (onTagClick ? onTagClick(g) : app.openSearch('#' + g + ' '))
-const liveSeconds = computed(() => (isRunning.value ? app.runningSeconds : 0))
 
 // ---- «↷ Перенести»: у задач с датой — завтра, на выходные, на следующую неделю (время начала сохраняется)
 const canPostpone = computed(() => !done.value && !!props.task.due_date && !props.noTimer && !props.dense)
@@ -67,11 +68,12 @@ function closePostpone() { postponeMenu.value = null }
           <button v-for="g in task.tags.slice(0, 2)" :key="g" type="button" class="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent hover:brightness-95" :title="'Задачи с тегом #' + g" data-test="task-tag" @click="clickTag(g)">#{{ g }}</button>
           <span v-if="task.tags.length > 2" class="text-[11px]" :title="task.tags.slice(2).map(g => '#' + g).join(' ')">+{{ task.tags.length - 2 }}</span>
         </template>
-        <span v-if="isRunning" class="font-semibold tabular-nums text-accent">⏱ идёт {{ fmtClock(liveSeconds) }}</span>
-        <span v-if="task.estimate_minutes">план {{ fmtMinutes(task.estimate_minutes) }}</span>
+        <!-- Потрачено / запланировано: факт зелёный и жирный (за планом — янтарный), план серый; нуля не пишем -->
+        <span v-if="isRunning || spent > 0 || task.estimate_minutes" :title="task.estimate_minutes ? 'Потрачено / запланировано' : 'Потрачено'" data-test="task-time">
+          <span v-if="isRunning || spent > 0" class="font-semibold" :class="[overPlan ? 'text-amber-700' : 'text-accent', isRunning && 'tabular-nums']" data-test="task-fact">{{ isRunning ? '⏱ ' + fmtClock(spent) : fmtSec(spent) }}</span>
+          <template v-if="task.estimate_minutes"><template v-if="isRunning || spent > 0"> / </template>{{ fmtMinutes(task.estimate_minutes) }}</template>
+        </span>
         <span v-if="Number(task.budget) > 0" class="font-medium text-ink/70" data-test="task-budget">{{ fmtMoney(Number(task.budget)) }}</span>
-        <span v-if="totals.week > 0">неделя {{ fmtSec(totals.week) }}</span>
-        <span v-if="totals.month > 0">месяц {{ fmtSec(totals.month) }}</span>
       </div>
     </div>
     <slot />
