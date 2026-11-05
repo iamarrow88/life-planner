@@ -75,7 +75,7 @@
 Этот порядок целиком на настоящем новом проекте ещё не проверялся. Схема и загрузка данных проверены на тестовой базе. Можно пройти его заранее на пробном проекте: на бесплатном тарифе их два.
 
 1. Создай новый проект на supabase.com.
-2. В **SQL Editor** выполни `planner_full_schema.sql` один раз. Отдельные файлы `planner_*.sql` не нужны.
+2. В **SQL Editor** выполни `supabase/scripts/planner_full_schema.sql` один раз. Отдельные файлы `planner_*.sql` не нужны.
 3. Впиши новые `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env` и в секреты репозитория на GitHub: **Settings → Secrets and variables → Actions**.
 4. Выложи сайт и обнови приложение: `npm run release`.
 5. Зарегистрируйся в приложении и [загрузи файл с данными](#как-восстановить-данные-из-файла).
@@ -96,7 +96,7 @@
 
 ## Как восстановить данные из файла
 
-В действующей базе один раз выполни `planner_import.sql`. В базе из `planner_full_schema.sql` эта функция уже есть.
+В действующей базе один раз выполни `supabase/scripts/planner_import.sql`. В базе из `supabase/scripts/planner_full_schema.sql` эта функция уже есть.
 
 1. «Ещё» → «Экспорт данных» → «Восстановить из файла», выбери JSON-файл. CSV не подходит.
 2. Проверь сводку: дата файла и количество записей.
@@ -154,11 +154,11 @@
 
 ## Когда меняется схема базы
 
-Новый SQL сохраняй файлом в репозиторий, а не только выполняй в SQL Editor. Иначе `planner_full_schema.sql` разойдётся с настоящей базой.
+Новый SQL сохраняй файлом в репозиторий, а не только выполняй в SQL Editor. Иначе `supabase/scripts/planner_full_schema.sql` разойдётся с настоящей базой.
 
 После изменения обнови полную схему:
 
-1. Выполни `supabase/dump_schema.sql` в **SQL Editor**.
+1. Выполни `supabase/scripts/dump_schema.sql` в **SQL Editor**.
 2. Сохрани результат как `schema-dump.csv` в корне проекта: этот файл не попадает в git.
 3. Проверь текст на секреты: в него входит текст функций.
-4. Замени им содержимое `planner_full_schema.sql` между `begin;` и `commit;`.
+4. Замени им содержимое `supabase/scripts/planner_full_schema.sql` между `begin;` и `commit;`.
