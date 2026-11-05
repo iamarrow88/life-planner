@@ -164,7 +164,7 @@ const timeRange = (t: Task) => {
 }
 /** Раскладка сетки дня: короткие задачи — в ячейке часа по порядку времени, от часа — растянуты на свои часы */
 const dayLayout = computed(() => layoutDay(timedOnDay.value, hours[0], hours[hours.length - 1]))
-const blockColor = (t: Task) => ({ borderColor: app.sphereById(t.sphere_id)?.color ?? '#1F6F6B' })
+const blockColor = (t: Task) => ({ borderColor: app.sphereById(t.sphere_id)?.color ?? '#5F4BC9' })
 
 const habits = computed(() => app.dueHabits)
 
@@ -468,9 +468,9 @@ async function add() {
       <div class="card divide-y divide-line">
         <div v-for="x in dayHabitList" :key="x.h.id" class="flex items-center gap-3 px-3 py-2.5" data-test="day-habit">
           <button v-if="x.h.kind === 'plain' && calDay < app.today" type="button" class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 text-xs font-bold transition"
-            :class="x.d.done ? 'border-accent bg-accent text-white' : 'border-line hover:border-accent'" :aria-label="(x.d.done ? 'Снять отметку: ' : 'Отметить: ') + x.h.name"
+            :class="x.d.done ? 'border-success bg-success text-white' : 'border-line hover:border-accent'" :aria-label="(x.d.done ? 'Снять отметку: ' : 'Отметить: ') + x.h.name"
             data-test="day-habit-toggle" @click="toggleDayHabit(x.h, x.d)">{{ x.d.done ? '✓' : '' }}</button>
-          <span v-else class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold" :class="x.d.done ? 'bg-accent text-white' : 'bg-accent-soft text-accent'">{{ x.d.done ? '✓' : x.h.kind === 'timer' ? '⏱' : '#' }}</span>
+          <span v-else class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold" :class="x.d.done ? 'bg-success text-white' : 'bg-accent-soft text-accent'">{{ x.d.done ? '✓' : x.h.kind === 'timer' ? '⏱' : '#' }}</span>
           <div class="min-w-0 flex-1">
             <div class="truncate text-[15px]">{{ x.h.name }}</div>
             <div class="text-xs text-mute"><span v-if="app.sphereById(x.h.sphere_id)" class="mr-1.5 inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full" :style="{ background: app.sphereById(x.h.sphere_id)?.color }"></span>{{ app.sphereById(x.h.sphere_id)?.name }}</span>{{ habitValueText(x.h, x.d) }}</div>

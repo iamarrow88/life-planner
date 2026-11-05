@@ -209,10 +209,10 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
         <button class="font-medium text-accent" @click="app.openEditor({ sphere_id: sphere.id }, sphere.name)">Править время</button>
       </div>
       <dl class="mt-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
-        <div class="rounded-xl bg-bg p-2"><dt class="text-xs text-mute">За месяц</dt><dd class="font-semibold">{{ fmtMinutes(monthMin) }}</dd></div>
-        <div class="rounded-xl bg-bg p-2"><dt class="text-xs text-mute">Открытых задач</dt><dd class="font-semibold">{{ openTasks.length }}</dd></div>
-        <div class="rounded-xl bg-bg p-2"><dt class="text-xs text-mute">Сделано за неделю</dt><dd class="font-semibold">{{ doneThisWeek }}</dd></div>
-        <div class="rounded-xl bg-bg p-2"><dt class="text-xs text-mute">Проектов</dt><dd class="font-semibold">{{ projects.length }}</dd></div>
+        <div class="tile tile-violet"><dt class="text-xs text-mute">За месяц</dt><dd class="font-semibold">{{ fmtMinutes(monthMin) }}</dd></div>
+        <div class="tile tile-pink"><dt class="text-xs text-mute">Открытых задач</dt><dd class="font-semibold">{{ openTasks.length }}</dd></div>
+        <div class="tile tile-mint"><dt class="text-xs text-mute">Сделано за неделю</dt><dd class="font-semibold">{{ doneThisWeek }}</dd></div>
+        <div class="tile tile-amber"><dt class="text-xs text-mute">Проектов</dt><dd class="font-semibold">{{ projects.length }}</dd></div>
       </dl>
     </section>
 

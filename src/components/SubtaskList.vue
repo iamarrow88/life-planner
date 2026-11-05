@@ -56,7 +56,7 @@ const onSort = (ids: string[]) => change(ids.map(id => list.value.find(x => x.id
   <!-- В строке задачи: только отметки -->
   <ul v-if="compact" class="space-y-1 pb-2 pl-12 pr-3" data-test="subtasks-compact">
     <li v-for="s in list" :key="s.id" class="flex items-start gap-2 text-sm">
-      <input type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-[#1F6F6B]" :checked="s.done" :aria-label="s.title" @change="toggle(s)" />
+      <input type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-[#1D7052]" :checked="s.done" :aria-label="s.title" @change="toggle(s)" />
       <span :class="s.done && 'text-mute line-through'">{{ s.title }}</span>
     </li>
   </ul>
@@ -71,7 +71,7 @@ const onSort = (ids: string[]) => change(ids.map(id => list.value.find(x => x.id
     <ul v-if="list.length" v-drag-sort="onSort" class="mb-1.5 divide-y divide-line rounded-xl border border-line bg-white">
       <li v-for="s in list" :key="s.id" :data-id="s.id" class="flex items-center gap-2 px-2 py-1.5">
         <span data-drag-handle class="shrink-0 cursor-grab touch-none select-none px-0.5 text-sm leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить подзадачу">⋮⋮</span>
-        <input type="checkbox" class="h-4 w-4 shrink-0 accent-[#1F6F6B]" :checked="s.done" :aria-label="'Выполнено: ' + s.title" data-test="subtask-check" @change="toggle(s)" />
+        <input type="checkbox" class="h-4 w-4 shrink-0 accent-[#1D7052]" :checked="s.done" :aria-label="'Выполнено: ' + s.title" data-test="subtask-check" @change="toggle(s)" />
         <input :value="s.title" class="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none" :class="s.done && 'text-mute line-through'" maxlength="300"
           :aria-label="'Подзадача: ' + s.title" @change="rename(s, $event)" @keydown.enter.prevent="($event.target as HTMLInputElement).blur()" />
         <button type="button" class="shrink-0 px-1 text-base leading-none text-mute hover:text-red-700" :aria-label="'Удалить подзадачу ' + s.title" @click="remove(s)">×</button>

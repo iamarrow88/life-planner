@@ -160,7 +160,7 @@ async function save() {
     <div class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-8">
       <div class="relative h-[190px] w-[190px] shrink-0">
         <svg width="190" height="190" viewBox="0 0 190 190" class="-rotate-90" aria-hidden="true">
-          <circle v-if="!ring.tint.length && !ring.solid.length" cx="95" cy="95" :r="R" fill="none" stroke="#E5E1D8" stroke-width="18" />
+          <circle v-if="!ring.tint.length && !ring.solid.length" cx="95" cy="95" :r="R" fill="none" stroke="#E8E4F3" stroke-width="18" />
           <circle v-for="a in ring.tint" :key="'t' + a.key" cx="95" cy="95" :r="R" fill="none" :stroke="a.color" stroke-opacity="0.25" :stroke-width="arcWidth(a)" v-bind="arcStyle(a)"
             :class="arcCls(a)" data-test="ring-tint" @mouseenter="hovered = a.key" @mouseleave="hovered = null" @click="openSphere(a.key)" />
           <circle v-for="a in ring.solid" :key="'s' + a.key" cx="95" cy="95" :r="R" fill="none" :stroke="a.color" :stroke-width="arcWidth(a)" v-bind="arcStyle(a)"
@@ -184,12 +184,12 @@ async function save() {
 
       <div class="w-full min-w-0 flex-1">
         <dl class="grid grid-cols-3 gap-2 text-center sm:text-left">
-          <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] leading-tight text-mute">Время на {{ period === 'week' ? 'неделю' : 'месяц' }}</dt><dd class="mt-0.5 font-semibold" data-test="capacity">{{ hrs(Math.max(0, capacity)) }}</dd></div>
-          <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] leading-tight text-mute">Занято целями</dt><dd class="mt-0.5 font-semibold" data-test="in-goals">{{ hrs(sumGoals) }}</dd></div>
-          <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] leading-tight text-mute">Не занято целями</dt><dd class="mt-0.5 font-semibold" :class="notInGoals < 0 && 'text-red-600'" data-test="not-in-goals">{{ notInGoals < 0 ? '−' : '' }}{{ hrs(Math.abs(notInGoals)) }}</dd></div>
+          <div class="tile tile-violet"><dt class="text-[11px] leading-tight text-mute">Время на {{ period === 'week' ? 'неделю' : 'месяц' }}</dt><dd class="mt-0.5 font-semibold" data-test="capacity">{{ hrs(Math.max(0, capacity)) }}</dd></div>
+          <div class="tile tile-pink"><dt class="text-[11px] leading-tight text-mute">Занято целями</dt><dd class="mt-0.5 font-semibold" data-test="in-goals">{{ hrs(sumGoals) }}</dd></div>
+          <div class="tile tile-mint"><dt class="text-[11px] leading-tight text-mute">Не занято целями</dt><dd class="mt-0.5 font-semibold" :class="notInGoals < 0 && 'text-red-700'" data-test="not-in-goals">{{ notInGoals < 0 ? '−' : '' }}{{ hrs(Math.abs(notInGoals)) }}</dd></div>
           <div class="col-span-3 flex flex-wrap items-baseline justify-between gap-x-3 rounded-xl bg-accent-soft px-3 py-2 text-left" data-test="today-load">
             <dt class="text-[11px] leading-tight text-mute">Сегодня: свободно / запланировано</dt>
-            <dd class="font-semibold">{{ hrs(freeToday) }} / <span :class="app.plannedTodayMinutes > freeToday && 'text-red-600'" data-test="today-planned">{{ hrs(app.plannedTodayMinutes) }}</span></dd>
+            <dd class="font-semibold">{{ hrs(freeToday) }} / <span :class="app.plannedTodayMinutes > freeToday && 'text-red-700'" data-test="today-planned">{{ hrs(app.plannedTodayMinutes) }}</span></dd>
           </div>
         </dl>
         <ul class="mt-3 space-y-1 text-sm">

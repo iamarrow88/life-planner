@@ -32,7 +32,7 @@ const Handle = 'shrink-0 cursor-grab touch-none select-none px-1 text-base leadi
   <div>
     <div v-if="!open" class="flex items-center gap-2.5 px-3 py-2.5">
       <span data-drag-handle class="-ml-1" :class="Handle" role="button" aria-label="Перетащить пункт" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
-      <button type="button" class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition" :class="done ? 'border-accent bg-accent text-white' : 'border-line hover:border-accent'"
+      <button type="button" class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition" :class="done ? 'border-success bg-success text-white' : 'border-line hover:border-accent'"
         :aria-label="done ? 'Снять отметку' : 'Отметить сделанным'" :aria-pressed="done" data-test="monthly-check" @click="app.toggleMonthlyItem(item)">
         <svg v-if="done" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10" /></svg>
       </button>

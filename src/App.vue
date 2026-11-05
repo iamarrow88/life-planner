@@ -44,7 +44,7 @@ async function logout() { await app.signOut(); router.push('/login') }
   <div v-else class="flex h-full flex-col md:flex-row">
     <!-- Боковое меню на ПК -->
     <aside class="hidden w-60 shrink-0 flex-col border-r border-line bg-white/60 p-4 md:flex">
-      <div class="mb-6 flex items-center gap-2 px-2 text-lg font-bold text-accent">
+      <div class="mb-6 flex items-center gap-2 px-2 text-lg font-bold text-accent-deep">
         <img :src="logo" alt="" class="h-8 w-8" /> KolaApp
       </div>
       <nav class="flex flex-col gap-1">
@@ -86,13 +86,13 @@ async function logout() { await app.signOut(); router.push('/login') }
     <LongTimerFix />
 
     <!-- Нижняя панель на телефоне -->
-    <nav class="safe-bottom fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-white md:hidden">
+    <nav class="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] z-20 flex gap-0.5 rounded-[1.75rem] border border-white/70 bg-white/80 p-1 shadow-[0_6px_24px_rgba(76,58,160,0.18)] backdrop-blur-md md:hidden">
       <RouterLink v-for="t in tabs" :key="t.to" :to="t.to"
-        class="relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium text-mute"
-        :class="t.to === parentTab && '!text-accent'" active-class="!text-accent">
+        class="relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-3xl py-1.5 text-[11px] font-medium text-mute transition"
+        :class="t.to === parentTab && '!bg-accent-soft !text-accent'" active-class="!bg-accent-soft !text-accent">
         <NavIcon :name="t.icon" />
         {{ t.label }}
-        <span v-if="t.to === '/inbox' && badge" class="absolute right-[28%] top-1 rounded-full bg-accent px-1.5 text-[10px] font-semibold text-white">{{ badge }}</span>
+        <span v-if="t.to === '/inbox' && badge" class="absolute right-[22%] top-0.5 rounded-full bg-accent px-1.5 text-[10px] font-semibold text-white">{{ badge }}</span>
       </RouterLink>
     </nav>
   </div>

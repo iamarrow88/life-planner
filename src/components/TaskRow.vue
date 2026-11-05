@@ -49,7 +49,7 @@ function closePostpone() { postponeMenu.value = null }
   <div class="flex" :class="dense ? 'flex-col items-start gap-1 px-1.5 py-1.5' : 'items-center gap-3 px-3 py-2.5'">
     <span v-if="sortable && app.orderReady" data-drag-handle class="-ml-1 -mr-1.5 shrink-0 cursor-grab touch-none select-none px-1 text-base leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить задачу" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
     <button class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition"
-      :class="done ? 'border-accent bg-accent text-white' : 'border-line hover:border-accent'"
+      :class="done ? 'border-success bg-success text-white' : 'border-line hover:border-accent'"
       :aria-label="done ? 'Вернуть в работу' : 'Выполнено'" @click="app.toggleDone(task)">
       <svg v-if="done" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10" /></svg>
     </button>
@@ -74,7 +74,7 @@ function closePostpone() { postponeMenu.value = null }
         </template>
         <!-- Потрачено / запланировано: факт зелёный и жирный (за планом — янтарный), план серый; нуля не пишем -->
         <span v-if="isRunning || spent > 0 || task.estimate_minutes" :title="task.estimate_minutes ? 'Потрачено / запланировано' : 'Потрачено'" data-test="task-time">
-          <span v-if="isRunning || spent > 0" class="font-semibold" :class="[overPlan ? 'text-amber-700' : 'text-accent', isRunning && 'tabular-nums']" data-test="task-fact">{{ isRunning ? '⏱ ' + fmtClock(spent) : fmtSec(spent) }}</span>
+          <span v-if="isRunning || spent > 0" class="font-semibold" :class="[overPlan ? 'text-amber-700' : 'text-success', isRunning && 'tabular-nums']" data-test="task-fact">{{ isRunning ? '⏱ ' + fmtClock(spent) : fmtSec(spent) }}</span>
           <template v-if="task.estimate_minutes"><template v-if="isRunning || spent > 0"> / </template>{{ fmtMinutes(task.estimate_minutes) }}</template>
         </span>
         <span v-if="Number(task.budget) > 0" class="font-medium text-ink/70" data-test="task-budget">{{ fmtMoney(Number(task.budget)) }}</span>

@@ -43,12 +43,12 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
     <span v-if="sortable" data-drag-handle class="-ml-1 -mr-1.5 shrink-0 cursor-grab touch-none select-none px-1 text-base leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить привычку" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
     <!-- Без таймера: одно нажатие -->
     <button v-if="habit.kind === 'plain'" class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition"
-      :class="done ? 'border-accent bg-accent text-white' : 'border-line hover:border-accent'"
+      :class="done ? 'border-success bg-success text-white' : 'border-line hover:border-accent'"
       @click="app.bumpHabit(habit, done ? -1 : 1)">
       <svg v-if="done" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10" /></svg>
     </button>
     <span v-else class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold"
-      :class="done ? 'bg-accent text-white' : 'bg-accent-soft text-accent'">{{ done ? '✓' : habit.kind === 'timer' ? '⏱' : '#' }}</span>
+      :class="done ? 'bg-success text-white' : 'bg-accent-soft text-accent'">{{ done ? '✓' : habit.kind === 'timer' ? '⏱' : '#' }}</span>
 
     <div class="min-w-0 flex-1">
       <button type="button" class="block max-w-full truncate text-left text-[15px] hover:text-accent" :class="done && 'text-mute line-through'" title="Редактировать привычку" :aria-label="'Редактировать привычку: ' + habit.name" @click="app.openHabit(habit.id)">{{ habit.name }}</button>
@@ -61,7 +61,7 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
         <span v-else-if="habit.kind === 'timer'">{{ value }} / {{ target }} мин</span>
       </div>
       <div v-if="habit.kind !== 'plain'" class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-line">
-        <div class="h-full rounded-full transition-all" :style="{ width: pct + '%', background: sphere?.color ?? '#1F6F6B' }"></div>
+        <div class="h-full rounded-full transition-all" :style="{ width: pct + '%', background: sphere?.color ?? '#5F4BC9' }"></div>
       </div>
     </div>
 

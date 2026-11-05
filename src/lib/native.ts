@@ -20,7 +20,7 @@ export async function initNative(app: ReturnType<typeof useApp>, router: Router)
 
   // светлая полоса сверху, тёмные значки — как фон приложения
   StatusBar.setStyle({ style: Style.Light }).catch(() => {})
-  StatusBar.setBackgroundColor({ color: '#F6F4EF' }).catch(() => {})
+  StatusBar.setBackgroundColor({ color: '#E6E0FB' }).catch(() => {})
 
   // «Назад» на Android: сначала закрыть открытое окно, потом вернуться по истории, на главном экране — свернуть приложение
   App.addListener('backButton', ({ canGoBack }) => {

@@ -31,7 +31,7 @@ async function submit() {
     <form class="card w-full max-w-sm space-y-4 p-6" @submit.prevent="submit">
       <div class="text-center">
         <img :src="logo" alt="" class="mx-auto mb-3 h-14 w-14" />
-        <h1 class="text-xl font-bold">KolaApp</h1>
+        <h1 class="text-xl font-bold text-accent-deep">KolaApp</h1>
       </div>
       <div class="flex rounded-xl border border-line bg-bg p-0.5 text-sm font-semibold">
         <button type="button" class="flex-1 rounded-lg py-2 transition" :class="mode === 'in' ? 'bg-accent text-white' : 'text-mute'" @click="mode = 'in'">Войти</button>

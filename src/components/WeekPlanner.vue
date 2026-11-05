@@ -93,7 +93,7 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
 
     <template v-if="open">
     <!-- Неделя: всегда на виду при прокрутке, сюда бросают задачи -->
-    <div class="sticky top-[var(--timer-h,0px)] z-10 -mx-1 bg-bg px-1 pb-2 pt-1">
+    <div class="sticky top-[var(--timer-h,0px)] z-10 -mx-1 rounded-2xl bg-white/60 px-1 pb-2 pt-1 backdrop-blur-md">
       <div class="grid grid-cols-7 gap-1">
         <button v-for="(d, i) in days" :key="d" type="button" :data-day="d" :aria-pressed="sel === d" data-test="plan-day"
           class="flex flex-col items-center rounded-xl border px-0.5 py-1.5 text-center transition"

@@ -4,18 +4,26 @@
 
 :root { color-scheme: light; }
 html, body, #app { height: 100%; }
-body { @apply bg-bg text-ink font-sans antialiased; -webkit-tap-highlight-color: transparent; }
+body { @apply text-ink font-sans antialiased; background: linear-gradient(160deg, #E6E0FB 0%, #F1E8FB 50%, #FBE8F1 100%); -webkit-tap-highlight-color: transparent; }
 button { @apply cursor-pointer; }
 
 @layer components {
-  .card { @apply bg-card rounded-2xl border border-line; }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50; }
+  .card { @apply bg-card rounded-[1.25rem] border border-white/70 shadow-[0_2px_14px_rgba(76,58,160,0.08)]; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50; }
   .btn-primary { @apply btn bg-accent text-white hover:brightness-110; }
-  .btn-ghost { @apply btn bg-accent-soft text-accent hover:brightness-95; }
-  .input { @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-[15px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/20; }
+  .btn-ghost { @apply btn border border-accent/15 bg-accent-soft text-accent hover:brightness-95; }
+  .input { @apply w-full rounded-2xl border border-line bg-white px-3.5 py-2.5 text-[15px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/20; }
   .chip { @apply inline-flex items-center rounded-full border border-line bg-white px-3 py-1 text-xs font-medium text-mute transition; }
-  .chip-on { @apply border-accent bg-accent-soft text-accent; }
+  .chip-on { @apply border-accent bg-accent text-white; }
+  /* Пастельные плитки с показателями */
+  .tile { @apply rounded-2xl p-2; }
+  .tile-violet { background-color: #EDE9FE; }
+  .tile-pink { background-color: #FCE7F3; }
+  .tile-mint { background-color: #E1F3EB; }
+  .tile-amber { background-color: #FEF3DC; }
 }
+/* Подпись внутри активной кнопки: на заливке серый не читается */
+.chip-on .text-mute { color: rgb(255 255 255 / 0.85); }
 /* День календаря, над которым держат перетаскиваемую задачу */
 [data-drop-target] { @apply ring-2 ring-accent bg-accent-soft; }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
@@ -39,10 +47,10 @@ button { @apply cursor-pointer; }
 .task-pri-3, :has(> .task-pri-3.flex-1), li.card:has(> .task-pri-3) { background-color: #fef9c3; }
 /* цвет не должен вылезать за скруглённые углы карточки со списком */
 .card > .task-pri:first-child, .card > :first-child .task-pri, .card > :first-child:has(> .task-pri.flex-1), .card > :first-child :has(> .task-pri.flex-1) {
-  border-top-left-radius: calc(1rem - 1px); border-top-right-radius: calc(1rem - 1px);
+  border-top-left-radius: calc(1.25rem - 1px); border-top-right-radius: calc(1.25rem - 1px);
 }
 .card > .task-pri:last-child, .card > :last-child .task-pri, .card > :last-child:has(> .task-pri.flex-1), .card > :last-child :has(> .task-pri.flex-1) {
-  border-bottom-left-radius: calc(1rem - 1px); border-bottom-right-radius: calc(1rem - 1px);
+  border-bottom-left-radius: calc(1.25rem - 1px); border-bottom-right-radius: calc(1.25rem - 1px);
 }
 /* во «Входящих» под строкой есть ряд кнопок, низ блока скругляет сама карточка */
 li.card > .task-pri { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
