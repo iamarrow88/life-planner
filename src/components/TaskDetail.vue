@@ -101,6 +101,7 @@ const bd = useBackdrop(closeCard)
 watch(() => task.value?.id, () => {
   const t = task.value
   if (!t) return
+  askDelete.value = false
   priority.value = t.priority ?? null
   complexity.value = t.complexity ?? null
   title.value = t.title; note.value = t.note ?? ''; tags.value = [...(t.tags ?? [])]; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
@@ -212,9 +213,20 @@ async function toHabit() {
   busy.value = false
   if (ok) app.closeTask()
 }
+/** Удаление задачи по повтору: только эту или вместе с будущими */
+const askDelete = ref(false)
+const nextDate = computed(() => (task.value ? app.nextAfterRemoving(task.value) : null))
 async function remove() {
-  const t = task.value
-  if (t && confirm('Удалить задачу?')) { await app.removeTask(t.id); app.closeTask() }
+  const t = task.value; if (!t) return
+  if (rule.value) { askDelete.value = true; return }
+  if (confirm('Удалить задачу?') && await app.removeTask(t.id)) app.closeTask()
+}
+async function removeRepeating(all: boolean) {
+  const t = task.value; if (!t) return
+  busy.value = true
+  const ok = all ? await app.removeOccurrenceAndRule(t) : await app.removeOccurrence(t)
+  busy.value = false
+  if (ok) app.closeTask()
 }
 </script>
 
@@ -341,10 +353,21 @@ async function remove() {
       </div>
 
       <!-- Кнопки всегда на виду, даже если карточка выше экрана (много подзадач, раскрытый повтор) -->
-      <div class="sticky -bottom-5 z-10 -mx-5 -mb-5 flex gap-2 bg-bg px-5 pb-5 pt-2" data-test="task-actions">
+      <div class="sticky -bottom-5 z-10 -mx-5 -mb-5 bg-bg px-5 pb-5 pt-2" data-test="task-actions">
+        <!-- Задача по повтору: удалить только её или вместе с будущими -->
+        <div v-if="askDelete" class="mb-2 space-y-2 rounded-xl border border-line bg-white p-3" role="group" aria-label="Что удалить" data-test="delete-choice">
+          <p class="text-sm font-semibold">Это повторяющаяся задача. Что удалить?</p>
+          <button type="button" class="btn-ghost w-full" :disabled="busy" data-test="delete-one" @click="removeRepeating(false)">Только эту</button>
+          <p v-if="nextDate" class="text-xs text-mute" data-test="delete-next">Следующая появится {{ shortDate(nextDate) }}.</p>
+          <button type="button" class="btn-ghost w-full !text-red-700" :disabled="busy" data-test="delete-all" @click="removeRepeating(true)">Эту и все будущие</button>
+          <p class="text-xs text-mute">Выполненные задачи и задачи с записанным временем останутся.</p>
+          <button type="button" class="w-full text-sm font-semibold text-mute" :disabled="busy" data-test="delete-cancel" @click="askDelete = false">Отмена</button>
+        </div>
+        <div class="flex gap-2">
         <button class="btn-primary flex-1" :disabled="busy || needDays">Сохранить</button>
         <button v-if="task.status !== 'done'" type="button" class="btn-ghost whitespace-nowrap !px-3" :disabled="busy || needDays" data-test="task-done" :title="isRunning ? 'Остановить таймер и отметить выполненной' : 'Отметить выполненной'" @click="save(true)">✓ Выполнено</button>
-        <button type="button" class="btn-ghost !px-3 !text-red-700" @click="remove">Удалить</button>
+        <button type="button" class="btn-ghost !px-3 !text-red-700" data-test="task-remove" @click="remove">Удалить</button>
+        </div>
       </div>
     </form>
   </div>

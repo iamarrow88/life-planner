@@ -239,6 +239,9 @@ async function confirmStart() { if (await app.markCycleStart(app.today)) askStar
 
 /** Форма повтора открывается с тем же, что выбрано в отборе */
 const recurrenceDefaults = () => { const f = newTaskFields(); return { sphereId: f.sphere_id ?? undefined, projectId: f.project_id ?? undefined, tags: f.tags } }
+function removeRule(id: string, title: string) {
+  if (window.confirm(`Удалить повтор «${title}»? Будущие задачи удалятся. Выполненные и задачи с записанным временем останутся.`)) void app.removeRecurrence(id)
+}
 const complexity = ref<number | null>(null)
 /** День списка для индикатора перегрузки: неделя и «без даты» — не один день */
 const listDay = computed(() => (filter.value === 'today' ? app.today : filter.value === 'tomorrow' ? addDays(app.today, 1) : ''))
@@ -392,7 +395,7 @@ async function add() {
       <ul v-if="showRules" class="card mt-2 divide-y divide-line">
         <li v-for="r in app.data.recurrences" :key="r.id" class="flex items-center gap-3 px-3 py-2.5">
           <div class="min-w-0 flex-1"><div class="truncate text-[15px]">{{ r.title }}</div><div class="text-xs text-mute">{{ describe(r) }}</div></div>
-          <button class="text-xs text-mute hover:text-red-600" @click="app.removeRecurrence(r.id)">Удалить</button>
+          <button class="text-xs text-mute hover:text-red-600" data-test="rule-remove" @click="removeRule(r.id, r.title)">Удалить</button>
         </li>
       </ul>
     </section>

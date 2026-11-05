@@ -8,6 +8,7 @@ import { byPosition } from '../lib/taskOrder'
 import { DEFAULT_CYCLE_SETTINGS, PILL_NAMES, courseFrom, courseOn, cycleDayNo, cycleStarts } from '../lib/cycle'
 import { DEFAULT_SPHERE_COLORS } from '../lib/colors'
 import { dayOverloads } from '../lib/dayLoad'
+import { nextAfter } from '../lib/recurrence'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
 
 const WISH_CATEGORIES = ['Купить', 'Поехать', 'Попробовать', 'Научиться']
@@ -481,7 +482,40 @@ export const useApp = defineStore('app', () => {
     await updateTask(t.id, { status: t.status === 'done' ? (t.due_date || t.sphere_id ? 'planned' : 'inbox') : 'done' })
   }
   async function removeTask(id: string) {
-    await guard(() => repo.removeTask(id)); data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
+    const ok = await guard(async () => { await repo.removeTask(id); return true })
+    if (!ok) return false
+    data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
+    return true
+  }
+  /** Дата следующей задачи, если удалить эту. Нужна только повтору «после выполнения»: следующая создаётся при выполнении текущей, без неё цепочка оборвётся */
+  function nextAfterRemoving(t: Task): string | null {
+    const r = data.value.recurrences.find(x => x.id === t.recurrence_id)
+    if (!r || r.mode !== 'after_completion' || t.status === 'done') return null
+    if (data.value.tasks.some(x => x.recurrence_id === r.id && x.id !== t.id && x.status !== 'done')) return null
+    const from = t.due_date && t.due_date > today.value ? t.due_date : today.value
+    const next = nextAfter(r, from)
+    if ((r.ends_on && next > r.ends_on) || data.value.tasks.some(x => x.recurrence_id === r.id && x.due_date === next)) return null
+    return next
+  }
+  /** Удалить только эту задачу повтора. Сначала создаём следующую: при ошибке задача останется на месте */
+  async function removeOccurrence(t: Task) {
+    const next = nextAfterRemoving(t)
+    const r = data.value.recurrences.find(x => x.id === t.recurrence_id)
+    if (next && r) {
+      const created = await addTask({
+        title: r.title, note: r.note ?? null, status: 'planned', sphere_id: r.sphere_id, project_id: r.project_id ?? null, due_date: next,
+        start_time: r.start_time, estimate_minutes: r.estimate_minutes, remind_before_minutes: r.remind_before_minutes ?? null, recurrence_id: r.id,
+        tags: r.tags, budget: r.budget, complexity: r.complexity, subtasks: (r.subtasks ?? []).map(s => ({ ...s, done: false })),
+      })
+      if (!created) return false
+    }
+    return removeTask(t.id)
+  }
+  /** Удалить эту задачу и весь повтор: будущие невыполненные уйдут, выполненные и с записанным временем останутся */
+  async function removeOccurrenceAndRule(t: Task) {
+    const ruleId = t.recurrence_id
+    if (!(await removeTask(t.id))) return false
+    return ruleId ? removeRecurrence(ruleId) : true
   }
   // ---- Задача из «Входящих» становится желанием, книгой или фильмом: запись создаётся сразу с описанием, а задача удаляется
   // только после этого — при ошибке ничего не теряется. Учтённое время остаётся в статистике сфер
@@ -960,7 +994,9 @@ export const useApp = defineStore('app', () => {
     return !!ok
   }
   async function removeRecurrence(id: string) {
-    await guard(() => repo.removeRecurrence(id)); await load()
+    const ok = await guard(async () => { await repo.removeRecurrence(id); return true })
+    await load()
+    return !!ok
   }
   /** Повтор из карточки задачи: подключить, изменить, отключить. После — перечитываем: будущие задачи пересоздаются в базе */
   async function recurrenceOp(fn: () => Promise<void>) {
@@ -1185,7 +1221,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, taskToWish, taskToBook, taskToMovie, moviesReady, movies, queueMovies, watchedMovies, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, moviesReady, movies, queueMovies, watchedMovies, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

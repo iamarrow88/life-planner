@@ -153,7 +153,7 @@ export const demoRepo: Repo = {
     const s = read()
     const task: Task = { id: uid(), title: t.title, note: t.note ?? null, tags: t.tags ?? [], budget: t.budget ?? null, complexity: t.complexity ?? null, subtasks: t.subtasks ?? [], status: t.status, sphere_id: t.sphere_id ?? null, project_id: t.project_id ?? null,
       due_date: t.due_date ?? null, start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null,
-      remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null, done_at: null, updated_at: new Date().toISOString() }
+      remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null, recurrence_id: t.recurrence_id ?? null, done_at: null, updated_at: new Date().toISOString() }
     s.tasks.unshift(task); write(s); return task
   },
   async updateTask(id, patch) {
@@ -405,7 +405,7 @@ export const demoRepo: Repo = {
   async removeCourse(id) { const s = read(); s.cycle!.courses = s.cycle!.courses.filter(c => c.id !== id); write(s) },
   async removeRecurrence(id) {
     const s = read(); const t = todayStr()
-    s.tasks = s.tasks.filter(x => !(x.recurrence_id === id && x.status !== 'done' && (x.due_date ?? '') >= t))
+    s.tasks = s.tasks.filter(x => !(x.recurrence_id === id && x.status !== 'done' && (x.due_date ?? '') >= t && !hasTime(s, x.id)))
     s.recurrences = s.recurrences.filter(r => r.id !== id); write(s)
   },
   async listEntries(target: EditorTarget) {

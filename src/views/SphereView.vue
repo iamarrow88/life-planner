@@ -105,7 +105,7 @@ const showHabitForm = ref(false)
 const recurrences = computed(() => app.data.recurrences.filter(r => r.sphere_id === id.value))
 const showRecForm = ref(false)
 async function removeRecurrence(rid: string, title: string) {
-  if (window.confirm(`Удалить повтор «${title}»? Уже созданные задачи останутся.`)) await app.removeRecurrence(rid)
+  if (window.confirm(`Удалить повтор «${title}»? Будущие задачи удалятся. Выполненные и задачи с записанным временем останутся.`)) await app.removeRecurrence(rid)
 }
 
 // ---- Редактирование сферы (название, цвет, описание, цель по умолчанию)

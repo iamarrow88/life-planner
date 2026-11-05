@@ -155,6 +155,7 @@ export interface Snapshot {
 }
 export interface NewTask {
   title: string; status: TaskStatus; sphere_id?: string | null; project_id?: string | null
+  recurrence_id?: string | null
   due_date?: string | null; start_time?: string | null; estimate_minutes?: number | null
   remind_before_minutes?: number | null
   note?: string | null

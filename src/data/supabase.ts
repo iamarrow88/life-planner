@@ -223,6 +223,7 @@ export const supabaseRepo: Repo = {
       title: t.title, note: t.note ?? null, status: t.status, sphere_id: t.sphere_id ?? null, project_id: t.project_id ?? null, due_date: t.due_date ?? null,
       start_time: t.start_time ?? null, estimate_minutes: t.estimate_minutes ?? null,
       remind_before_minutes: t.start_time ? (t.remind_before_minutes ?? null) : null,
+      ...(t.recurrence_id ? { recurrence_id: t.recurrence_id } : {}),
       ...optFields(t),
     }).select(TASK_COLS).single()) as unknown as Task
   },
