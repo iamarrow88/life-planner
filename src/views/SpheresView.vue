@@ -44,11 +44,20 @@ const elapsed = computed(() => {
   return Math.min(1, Math.max(0, (app.now - start) / (periodDays.value.length * 86400000)))
 })
 const availableNow = computed(() => Math.max(0, capacity.value * elapsed.value))
-const untracked = computed(() => Math.max(0, availableNow.value - total.value))
-const trackedPct = computed(() => (availableNow.value > 0 ? Math.min(100, Math.round((total.value / availableNow.value) * 100)) : 0))
 const planOf = (id: string) => perPeriod(w => app.goalFor(id, w))
 const ring = computed(() => budgetRing(capacity.value, app.spheres.map(x => ({ id: x.id, color: x.color, goal: planOf(x.id), spent: minutesBy.value[x.id] ?? 0 }))))
 const sumGoals = computed(() => app.spheres.reduce((sum, x) => sum + planOf(x.id), 0))
+/** Сколько времени не занято целями; меньше нуля — целей больше, чем времени */
+const notInGoals = computed(() => Math.max(0, capacity.value) - sumGoals.value)
+/** Свободно сегодня: меньшее из «до полуночи» и дневного запаса (сутки без сна, текучки и доли работы) */
+const freeToday = computed(() => {
+  const d = new Date(app.now)
+  const toMidnight = 1440 - d.getHours() * 60 - d.getMinutes()
+  const dayBudget = 1440 - app.timeBudget.sleep_minutes_per_day - app.timeBudget.routine_minutes_per_day - app.workFor(weekStart(app.today)) / 7
+  return Math.max(0, Math.min(toMidnight, dayBudget))
+})
+/** Часы для центра кольца: от часа и больше — без минут */
+const hrsShort = (m: number) => (m < 60 ? hrs(m) : Math.round(m / 60) + ' ч')
 const R = 70, C = 2 * Math.PI * R, RO = 86, CO = 2 * Math.PI * RO
 /** Дуга на окружности длиной circ: минуты переводим в длину штриха */
 const arcStyle = (a: Arc, circ: number, gap = 0) => {
@@ -141,8 +150,8 @@ async function save() {
           </template>
         </svg>
         <div class="pointer-events-none absolute inset-0 grid place-content-center text-center">
-          <div class="text-2xl font-bold leading-tight" data-test="untracked" :title="hrs(untracked)">{{ untracked < 60 ? hrs(untracked) : Math.round(untracked / 60) + ' ч' }}</div>
-          <div class="text-[11px] leading-tight text-mute">не учтено<br />к этому моменту</div>
+          <div class="text-2xl font-bold leading-tight" data-test="tracked" :title="hrs(total)">{{ hrsShort(total) }}</div>
+          <div class="text-[11px] leading-tight text-mute">учтено<br />из ~{{ hrsShort(availableNow) }}<br />к этому моменту</div>
         </div>
       </div>
 
@@ -151,11 +160,14 @@ async function save() {
           <button class="rounded-lg px-3 py-1" :class="period === 'week' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'week'">Неделя</button>
           <button class="rounded-lg px-3 py-1" :class="period === 'month' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'month'">Месяц</button>
         </div>
-        <dl class="grid grid-cols-2 gap-2 text-center sm:text-left">
-          <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] text-mute">Учтено по сферам</dt><dd class="font-semibold" data-test="tracked">{{ hrs(total) }} <span class="text-xs font-normal text-mute">· {{ trackedPct }}%</span></dd></div>
-          <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] text-mute">Доступно к этому моменту</dt><dd class="font-semibold">~{{ hrs(availableNow) }}</dd></div>
-          <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] text-mute">Свободно за {{ period === 'week' ? 'неделю' : 'месяц' }}</dt><dd class="font-semibold" data-test="capacity">{{ hrs(Math.max(0, capacity)) }}</dd></div>
-          <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] text-mute">Цели сфер</dt><dd class="font-semibold">{{ hrs(sumGoals) }}</dd></div>
+        <dl class="grid grid-cols-3 gap-2 text-center sm:text-left">
+          <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] leading-tight text-mute">Время на {{ period === 'week' ? 'неделю' : 'месяц' }}</dt><dd class="mt-0.5 font-semibold" data-test="capacity">{{ hrs(Math.max(0, capacity)) }}</dd></div>
+          <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] leading-tight text-mute">Занято целями</dt><dd class="mt-0.5 font-semibold" data-test="in-goals">{{ hrs(sumGoals) }}</dd></div>
+          <div class="rounded-xl bg-bg p-2"><dt class="text-[11px] leading-tight text-mute">Не занято целями</dt><dd class="mt-0.5 font-semibold" :class="notInGoals < 0 && 'text-red-600'" data-test="not-in-goals">{{ notInGoals < 0 ? '−' : '' }}{{ hrs(Math.abs(notInGoals)) }}</dd></div>
+          <div class="col-span-3 flex flex-wrap items-baseline justify-between gap-x-3 rounded-xl bg-accent-soft px-3 py-2 text-left" data-test="today-load">
+            <dt class="text-[11px] leading-tight text-mute">Сегодня: свободно / запланировано</dt>
+            <dd class="font-semibold">{{ hrs(freeToday) }} / <span :class="app.plannedTodayMinutes > freeToday && 'text-red-600'" data-test="today-planned">{{ hrs(app.plannedTodayMinutes) }}</span></dd>
+          </div>
         </dl>
         <ul class="mt-3 space-y-1 text-sm">
           <li v-for="x in app.spheres" :key="x.id" class="flex cursor-pointer items-center gap-2" :data-hovered="hovered === x.id || undefined"
@@ -163,11 +175,6 @@ async function save() {
             <span class="h-2.5 w-2.5 shrink-0 rounded-full transition-transform duration-200" :class="hovered === x.id && 'scale-110'" :style="{ background: x.color }"></span>
             <span class="min-w-0 flex-1 origin-left truncate transition-all duration-200" :class="hovered === x.id ? 'font-semibold' : hovered && 'opacity-60'" :style="hovered === x.id ? { color: x.color } : undefined">{{ x.name }}</span>
             <span class="shrink-0 text-xs text-mute"><span class="font-semibold text-ink">{{ hrs(minutesBy[x.id] ?? 0) }}</span> / {{ planOf(x.id) ? hrs(planOf(x.id)) : 'без цели' }}</span>
-          </li>
-          <li v-if="ring.free" class="flex items-center gap-2 text-mute">
-            <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-line"></span>
-            <span class="flex-1">Не распределено целями</span>
-            <span class="shrink-0 text-xs">{{ hrs(ring.free.len) }}</span>
           </li>
         </ul>
       </div>

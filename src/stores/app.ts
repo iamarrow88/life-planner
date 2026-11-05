@@ -152,13 +152,27 @@ export const useApp = defineStore('app', () => {
   /** Вне окна активности (например, таблетки между курсами) */
   const inactiveHabits = computed(() => data.value.habits.filter(h => !activeToday(h)))
   /** Выполнена ли привычка сегодня (для таймера — по минутам сегодняшних записей) */
+  const habitTodayMinutes = (h: Habit) => {
+    let sec = 0
+    for (const e of data.value.timeEntries) if (e.habit_id === h.id && dayOf(e.started_at) === today.value) sec += entrySeconds(e, now.value)
+    return Math.floor(sec / 60)
+  }
   const habitIsDone = (h: Habit) => {
     const target = h.target_value ?? 1
     if (h.kind !== 'timer') return (data.value.habitEntries.find(e => e.habit_id === h.id && e.entry_date === today.value)?.value ?? 0) >= target
-    let sec = 0
-    for (const e of data.value.timeEntries) if (e.habit_id === h.id && dayOf(e.started_at) === today.value) sec += entrySeconds(e, now.value)
-    return Math.floor(sec / 60) >= target
+    return habitTodayMinutes(h) >= target
   }
+  /** Сколько минут ещё запланировано на сегодня: остаток по невыполненным задачам с длительностью и по привычкам с таймером */
+  const plannedTodayMinutes = computed(() => {
+    let sum = 0
+    for (const t of data.value.tasks) {
+      if (t.due_date !== today.value || t.status === 'done' || !t.estimate_minutes) continue
+      const spent = taskTotal(t.id)
+      sum += Math.max(0, t.estimate_minutes - Math.ceil(Math.max(spent.week, spent.month) / 60))
+    }
+    for (const h of dueHabits.value) if (h.kind === 'timer') sum += Math.max(0, (h.target_value ?? 0) - habitTodayMinutes(h))
+    return sum
+  })
   /** Новый порядок привычек. ids — привычки, показанные в новом порядке (могут быть не все): остальные остаются на своих местах */
   async function reorderHabits(ids: string[]) {
     const all = data.value.habits.map(h => h.id)
@@ -1081,7 +1095,7 @@ export const useApp = defineStore('app', () => {
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
-    init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
+    plannedTodayMinutes, init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     timeBudget, timeBudgetReady, workFor, hasOwnWork, saveTimeBudget, setWeekWork,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,
