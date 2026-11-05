@@ -19,6 +19,14 @@ const monthlyLeft = computed(() => app.monthlyItems.filter(i => !app.monthlyDone
       </span>
       <span class="text-mute">›</span>
     </RouterLink>
+    <RouterLink to="/movies" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-movies">
+      <NavIcon name="movies" class="shrink-0 text-accent" />
+      <span class="min-w-0 flex-1">
+        <span class="block font-semibold">Фильмы</span>
+        <span class="block text-xs text-mute">Хочу посмотреть: {{ app.queueMovies.length }} · посмотрено: {{ app.watchedMovies.length }}</span>
+      </span>
+      <span class="text-mute">›</span>
+    </RouterLink>
     <RouterLink to="/monthly" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-monthly">
       <NavIcon name="monthly" class="shrink-0 text-accent" />
       <span class="min-w-0 flex-1">

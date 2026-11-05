@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch, Book, BookPatch, MonthlyItem, MonthlyPatch } from '../types'
+import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch, Book, BookPatch, Movie, MoviePatch, MonthlyItem, MonthlyPatch } from '../types'
 import { googleClientId } from '../lib/google'
 import { parseTags, uniqTags } from '../lib/tags'
 import { byPosition } from '../lib/taskOrder'
@@ -534,6 +534,42 @@ export const useApp = defineStore('app', () => {
     else if (task.status !== 'done' && done) await updateMonthlyItem(i.id, { done_month: null })
   }
 
+  // ---- Фильмы: что хочется посмотреть и посмотренное
+  const moviesReady = computed(() => data.value.moviesReady !== false)
+  const movies = computed(() => data.value.movies ?? [])
+  const queueMovies = computed(() => movies.value.filter(m => m.status === 'queue').sort((a, b) => a.position - b.position))
+  const watchedMovies = computed(() => movies.value.filter(m => m.status === 'watched').sort((a, b) => (b.watched_on ?? '').localeCompare(a.watched_on ?? '')))
+  async function addMovie(title: string) {
+    const position = Math.max(-1, ...queueMovies.value.map(m => m.position)) + 1
+    const m = await guard(() => repo.addMovie({ title, status: 'queue', position }))
+    if (m) (data.value.movies ??= []).push(m)
+    return !!m
+  }
+  async function updateMovie(id: string, patch: MoviePatch) {
+    const m = await guard(() => repo.updateMovie(id, patch))
+    if (m) { const i = movies.value.findIndex(x => x.id === id); if (i >= 0) data.value.movies![i] = m }
+    return !!m
+  }
+  async function removeMovie(id: string) {
+    const ok = await guard(async () => { await repo.removeMovie(id); return true })
+    if (ok) data.value.movies = movies.value.filter(x => x.id !== id)
+    return !!ok
+  }
+  async function reorderMovies(ids: string[]) {
+    const before = new Map(movies.value.map(m => [m.id, m.position]))
+    ids.forEach((id, i) => { const m = movies.value.find(x => x.id === id); if (m) m.position = i })
+    const ok = await guard(async () => { await repo.reorderMovies(ids); return true })
+    if (!ok) for (const m of movies.value) m.position = before.get(m.id) ?? 0
+    return !!ok
+  }
+  const watchMovie = (m: Movie) => updateMovie(m.id, { status: 'watched', watched_on: today.value })
+  /** Обратно в список: в конец, без даты просмотра. Оценка и заметки остаются: фильм могут захотеть пересмотреть */
+  const requeueMovie = (m: Movie) => updateMovie(m.id, { status: 'queue', watched_on: null, position: Math.max(-1, ...queueMovies.value.map(x => x.position)) + 1 })
+  function addMovieNote(m: Movie, text: string) {
+    return updateMovie(m.id, { notes: [...(m.notes ?? []), { id: crypto.randomUUID(), at: new Date().toISOString(), text }] })
+  }
+  const removeMovieNote = (m: Movie, noteId: string) => updateMovie(m.id, { notes: (m.notes ?? []).filter(n => n.id !== noteId) })
+
   // ---- Библиотека: очередь, «читаю сейчас», прочитанное
   const booksReady = computed(() => data.value.booksReady !== false)
   const books = computed(() => data.value.books ?? [])
@@ -954,7 +990,7 @@ export const useApp = defineStore('app', () => {
   // желания, книги и чек-лист добавляем здесь: серверная export_all про них не знает
   const exportAll = async () => {
     const d = await (guard(() => repo.exportAll()) as Promise<ExportData | undefined>)
-    return d ? { ...d, wishes: wishes.value, books: books.value, monthly_items: monthlyItems.value } : d
+    return d ? { ...d, wishes: wishes.value, books: books.value, movies: movies.value, monthly_items: monthlyItems.value } : d
   }
 
   /** Отметка привычки; day — другой день (например, вечерняя таблетка, отмеченная после полуночи) */
@@ -1100,7 +1136,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, moviesReady, movies, queueMovies, watchedMovies, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

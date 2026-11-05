@@ -17,6 +17,14 @@ export interface Book {
 }
 export type NewBook = Pick<Book, 'title' | 'status' | 'position'>
 export type BookPatch = Partial<Omit<Book, 'id' | 'created_at'>>
+export type MovieStatus = 'queue' | 'watched'
+export interface MovieNote { id: string; at: string; text: string }
+export interface Movie {
+  id: string; title: string; director: string | null; year: number | null; status: MovieStatus; position: number
+  watched_on: string | null; rating: number | null; notes: MovieNote[]; created_at?: string
+}
+export type NewMovie = Pick<Movie, 'title' | 'status' | 'position'>
+export type MoviePatch = Partial<Omit<Movie, 'id' | 'created_at'>>
 /** Желание: просто запись «хочу», без дат и сроков. fulfilled_at — когда исполнилось, task_id — задача, созданная из желания */
 export interface Wish {
   id: string; title: string; note: string | null; url: string | null; price: number | null; category: string | null
@@ -132,6 +140,8 @@ export interface Snapshot {
   monthlyReady?: boolean         // false — в базе ещё нет чек-листа (не выполнен planner_monthly.sql)
   books?: Book[]
   booksReady?: boolean           // false — в базе ещё нет библиотеки (не выполнен planner_books.sql)
+  movies?: Movie[]
+  moviesReady?: boolean          // false — в базе ещё нет фильмов (не выполнен planner_movies.sql)
   wishes?: Wish[]
   wishesReady?: boolean          // false — в базе ещё нет желаний (не выполнен planner_wishes.sql)
   sphereColors?: string[] | null  // свой набор цветов для сфер (null — набор по умолчанию)
@@ -267,6 +277,11 @@ export interface Repo {
   removeBook(id: string): Promise<void>
   /** Порядок очереди: id в нужном порядке (position = номер в списке) */
   reorderBooks(ids: string[]): Promise<void>
+  addMovie(m: NewMovie): Promise<Movie>
+  updateMovie(id: string, patch: MoviePatch): Promise<Movie>
+  removeMovie(id: string): Promise<void>
+  /** Порядок списка: id в нужном порядке (position = номер в списке) */
+  reorderMovies(ids: string[]): Promise<void>
   addWish(w: NewWish): Promise<Wish>
   updateWish(id: string, patch: WishPatch): Promise<Wish>
   removeWish(id: string): Promise<void>

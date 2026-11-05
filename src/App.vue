@@ -30,7 +30,7 @@ const tabs = [
   { to: '/more', label: 'Ещё', icon: 'more' },
 ] as const
 /** Разделы без своей вкладки: пока они открыты, подсвечена вкладка, из которой в них приходят */
-const parentTab = computed(() => (route.path === '/review' ? '/spheres' : ['/wishes', '/library', '/monthly'].includes(route.path) ? '/misc' : null))
+const parentTab = computed(() => (route.path === '/review' ? '/spheres' : ['/wishes', '/library', '/movies', '/monthly'].includes(route.path) ? '/misc' : null))
 const showShell = computed(() => !!app.user && route.path !== '/login')
 const badge = computed(() => app.inbox.length + app.staleDeferred.length)
 /** Прокручиваемая часть экрана: на ней работает «потяни вниз — обновится» */

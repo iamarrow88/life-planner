@@ -1,5 +1,5 @@
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData, Wish, Book, MonthlyItem } from '../types'
+import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData, Wish, Book, Movie, MonthlyItem } from '../types'
 import { addDays, dayOf, entrySeconds, todayStr } from '../lib/time'
 import { matches, nextAfter } from '../lib/recurrence'
 import { dueOn, scheduledOn } from '../lib/habitSchedule'
@@ -342,6 +342,19 @@ export const demoRepo: Repo = {
   async removeBook(id) { const s = read(); s.books = (s.books ?? []).filter(x => x.id !== id); write(s) },
   async reorderBooks(ids) {
     const s = read(); ids.forEach((id, i) => { const b = s.books?.find(x => x.id === id); if (b) b.position = i }); write(s)
+  },
+  async addMovie(m) {
+    const s = read(); const movie: Movie = { id: uid(), director: null, year: null, watched_on: null, rating: null, notes: [], created_at: new Date().toISOString(), ...m }
+    ;(s.movies ??= []).push(movie); write(s); return movie
+  },
+  async updateMovie(id, patch) {
+    const s = read(); const movie = s.movies?.find(x => x.id === id)
+    if (!movie) throw new Error('Фильм не найден')
+    Object.assign(movie, patch); write(s); return movie
+  },
+  async removeMovie(id) { const s = read(); s.movies = (s.movies ?? []).filter(x => x.id !== id); write(s) },
+  async reorderMovies(ids) {
+    const s = read(); ids.forEach((id, i) => { const m = s.movies?.find(x => x.id === id); if (m) m.position = i }); write(s)
   },
   async addWish(w) {
     const s = read(); const wish: Wish = { id: uid(), note: null, url: null, price: null, fulfilled_at: null, task_id: null, created_at: new Date().toISOString(), ...w }
