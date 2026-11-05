@@ -5,3 +5,6 @@ supabase/.env.push
 supabase/cron.sql
 release/
 /android/.idea
+
+# выгрузка схемы: может содержать секреты в тексте функций, в git только после проверки
+/schema-dump*.csv

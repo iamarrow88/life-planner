@@ -9,7 +9,7 @@ npm run dev        # http://localhost:5173
 Экран «Войти / Регистрация» появляется, когда подключён Supabase (см. ниже).
 
 ## Подключение Supabase
-1. Создай проект на supabase.com, в SQL Editor выполни `planner_schema.sql` (один раз).
+1. Создай проект на supabase.com, в SQL Editor выполни `planner_full_schema.sql` (один раз).
 2. Скопируй `.env.example` в `.env`, впиши `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY`
    (Project Settings → API; нужен именно anon/public ключ).
 3. Authentication → Providers → Email: для личного использования можно отключить подтверждение почты.
@@ -63,7 +63,18 @@ Push-напоминания (задачи со временем, таймер, �
 
 **Восстановление.** Там же, «Восстановить из файла» (один раз выполни `planner_import.sql`). Файл добавляет записи и заменяет те же записи, новые остаются; при ошибке база не меняется. Перед началом скачивается копия текущих данных. Запущенный таймер и связь с Google Календарём не восстанавливаются: Google подключи заново.
 
-**Если пропал весь проект Supabase: пока собрать его только из этого репозитория нельзя.** В действующей базе есть то, чего нет в SQL-файлах: расписание привычек (`habits.freq`, `interval_n`, `mode`, `starts_on`), `spheres.description`, `tasks.google_calendar_id`, функции `habit_status`, `habit_days`, функции токенов часов, таблицы `capture_tokens` и `google_ignored`. Сначала нужно выгрузить полную схему из действующей базы и сохранить её в репозиторий. Файл JSON с данными при этом остаётся полной копией данных и загружается в действующую базу.
+**Если пропал весь проект Supabase:**
+1. Создай новый проект на supabase.com.
+2. В SQL Editor выполни `planner_full_schema.sql` один раз. Отдельные файлы `planner_*.sql` для нового проекта не нужны.
+3. Впиши новые `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY` в `.env` и в секреты сборки на GitHub, собери и выложи сайт и приложение заново.
+4. Зарегистрируйся и загрузи JSON-файл: «Ещё» → «Восстановить из файла».
+5. Серверная часть, по желанию (сайт и приложение работают и без неё):
+   - загрузи функции: `npx supabase functions deploy send-reminders`, `google-sync`, `capture`;
+   - задай секреты: `CRON_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`;
+   - настрой расписание pg_cron с новым адресом и секретом: `send-reminders` раз в минуту, `google-sync` раз в 5 минут (образец — `supabase/cron.sql`, он не хранится в git);
+   - обнови адрес проекта в настройках Google OAuth и подключи календарь заново.
+
+**Когда схема меняется.** Новый SQL сохраняй файлом в репозиторий, а не только выполняй в SQL Editor. После этого обнови `planner_full_schema.sql`: выполни `supabase/dump_schema.sql`, проверь результат на секреты и замени текст файла.
 
 ## Деплой
 `npm run build` → папка `dist` на Cloudflare Pages / Netlify / Vercel (нужен HTTPS для PWA).

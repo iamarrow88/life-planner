@@ -1,0 +1,139 @@
+-- =====================================================================
+-- KolaApp: выгрузка полной схемы действующей базы одним текстом.
+-- Выполнить в Supabase → SQL Editor. Только читает служебные каталоги: ничего не меняет и не читает записи пользователей.
+-- Результат — одна строка с SQL, который создаёт такую же схему в новом проекте. Сохрани её как CSV: Results → Export → Download CSV.
+-- В схему public входит текст функций. Перед сохранением в git результат нужно проверить на секреты.
+-- Расписание pg_cron сюда не входит: оно лежит в supabase/cron.sql вместе с секретом.
+-- =====================================================================
+with recursive
+tbl as (
+  select c.oid, c.relname, c.relacl, c.relrowsecurity
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relkind in ('r', 'p')
+    and not exists (select 1 from pg_depend d where d.classid = 'pg_class'::regclass and d.objid = c.oid and d.deptype = 'e')
+),
+fn as (
+  select p.oid, p.proname, p.proacl, pg_get_function_identity_arguments(p.oid) as args
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.prokind in ('f', 'p')
+    and not exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
+),
+-- функции создаём после тех, что вызываются в значениях их параметров
+fn_dep as (
+  select distinct d.objid as fn_oid, d.refobjid as dep_oid
+  from pg_depend d
+  where d.classid = 'pg_proc'::regclass and d.refclassid = 'pg_proc'::regclass
+    and d.objid in (select oid from fn) and d.refobjid in (select oid from fn) and d.refobjid <> d.objid
+),
+fn_level as (
+  select f.oid, 0 as lvl from fn f where not exists (select 1 from fn_dep x where x.fn_oid = f.oid)
+  union all
+  select x.fn_oid, l.lvl + 1 from fn_level l join fn_dep x on x.dep_oid = l.oid where l.lvl < 20
+),
+vw as (
+  select c.oid, c.relname, c.relacl, c.reloptions
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and c.relkind = 'v'
+    and not exists (select 1 from pg_depend d where d.classid = 'pg_class'::regclass and d.objid = c.oid and d.deptype = 'e')
+),
+-- представления создаём после тех, от которых они зависят
+vw_dep as (
+  select distinct r.ev_class as view_oid, d.refobjid as dep_oid
+  from pg_rewrite r join pg_depend d on d.classid = 'pg_rewrite'::regclass and d.objid = r.oid
+  where r.ev_class in (select oid from vw) and d.refobjid in (select oid from vw) and d.refobjid <> r.ev_class
+),
+vw_level as (
+  select v.oid, 0 as lvl from vw v where not exists (select 1 from vw_dep x where x.view_oid = v.oid)
+  union all
+  select x.view_oid, l.lvl + 1 from vw_level l join vw_dep x on x.dep_oid = l.oid where l.lvl < 20
+),
+parts(ord, name, ddl) as (
+  select 0, '', 'set check_function_bodies = off;'
+
+  union all
+  select 1, e.extname, format('create extension if not exists %I;', e.extname)
+  from pg_extension e where e.extname not in ('plpgsql')
+
+  union all
+  select 2, t.typname, format('create type public.%I as enum (%s);', t.typname,
+    (select string_agg(quote_literal(l.enumlabel), ', ' order by l.enumsortorder) from pg_enum l where l.enumtypid = t.oid))
+  from pg_type t join pg_namespace n on n.oid = t.typnamespace
+  where n.nspname = 'public' and t.typtype = 'e'
+
+  union all
+  select 3, t.relname, format(E'create table public.%I (\n%s\n);', t.relname, (
+    select string_agg(
+      format('  %I %s', a.attname, format_type(a.atttypid, a.atttypmod))
+      || case when a.attgenerated = 's' then format(' generated always as (%s) stored', pg_get_expr(ad.adbin, ad.adrelid))
+              when ad.adbin is not null then ' default ' || pg_get_expr(ad.adbin, ad.adrelid) else '' end
+      || case when a.attnotnull then ' not null' else '' end,
+      E',\n' order by a.attnum)
+    from pg_attribute a left join pg_attrdef ad on ad.adrelid = a.attrelid and ad.adnum = a.attnum
+    where a.attrelid = t.oid and a.attnum > 0 and not a.attisdropped))
+  from tbl t
+
+  -- ключи и проверки раньше внешних ключей: те ссылаются на уникальные индексы
+  union all
+  select case when con.contype = 'f' then 5 else 4 end, t.relname || con.conname,
+         format('alter table public.%I add constraint %I %s;', t.relname, con.conname, pg_get_constraintdef(con.oid))
+  from pg_constraint con join tbl t on t.oid = con.conrelid
+  where con.contype in ('p', 'u', 'c', 'f', 'x')
+
+  union all
+  select 6, lpad((select max(l.lvl) from fn_level l where l.oid = f.oid)::text, 3, '0') || f.proname || f.args, pg_get_functiondef(f.oid) || ';' from fn f
+
+  union all
+  select 7, lpad((select max(l.lvl) from vw_level l where l.oid = v.oid)::text, 3, '0') || v.relname,
+         format(E'create view public.%I%s as\n%s', v.relname,
+           case when v.reloptions is not null then ' with (' || array_to_string(v.reloptions, ', ') || ')' else '' end,
+           pg_get_viewdef(v.oid))
+  from vw v
+
+  union all
+  select 8, i.relname, pg_get_indexdef(i.oid) || ';'
+  from pg_index x join pg_class i on i.oid = x.indexrelid join tbl t on t.oid = x.indrelid
+  where not exists (select 1 from pg_constraint con where con.conindid = i.oid)
+
+  -- триггеры, в том числе на auth.users: он создаёт настройки новому пользователю
+  union all
+  select 9, tg.tgname || tg.tgrelid::regclass::text, pg_get_triggerdef(tg.oid) || ';'
+  from pg_trigger tg join pg_class c on c.oid = tg.tgrelid join pg_namespace n on n.oid = c.relnamespace
+  join pg_proc p on p.oid = tg.tgfoid join pg_namespace pn on pn.oid = p.pronamespace
+  where not tg.tgisinternal and (n.nspname = 'public' or (n.nspname = 'auth' and pn.nspname = 'public'))
+
+  union all
+  select 10, t.relname, format('alter table public.%I enable row level security;', t.relname) from tbl t where t.relrowsecurity
+
+  union all
+  select 11, po.tablename || po.policyname,
+    format('create policy %I on public.%I as %s for %s to %s%s%s;', po.policyname, po.tablename, po.permissive, po.cmd,
+      array_to_string(po.roles, ', '),
+      case when po.qual is not null then format(' using (%s)', po.qual) else '' end,
+      case when po.with_check is not null then format(' with check (%s)', po.with_check) else '' end)
+  from pg_policies po where po.schemaname = 'public'
+
+  union all
+  select 12, t.relname, format('revoke all on public.%I from anon, authenticated, service_role;', t.relname)
+  from (select relname from tbl union all select relname from vw) t
+
+  union all
+  select 13, t.relname || r.rolname, format('grant %s on public.%I to %I;', string_agg(acl.privilege_type, ', ' order by acl.privilege_type), t.relname, r.rolname)
+  from (select relname, relacl from tbl union all select relname, relacl from vw) t
+  cross join lateral aclexplode(t.relacl) acl join pg_roles r on r.oid = acl.grantee
+  where r.rolname in ('anon', 'authenticated', 'service_role')
+  group by t.relname, r.rolname
+
+  union all
+  -- пустой список прав значит «по умолчанию, выполнять могут все»: такие функции не трогаем
+  select 14, f.proname || f.args, format('revoke all on function public.%I(%s) from public, anon, authenticated, service_role;', f.proname, f.args) from fn f where f.proacl is not null
+
+  union all
+  select 15, f.proname || f.args || coalesce(r.rolname, 'public'), format('grant execute on function public.%I(%s) to %s;', f.proname, f.args, coalesce(quote_ident(r.rolname), 'public'))
+  from fn f cross join lateral aclexplode(f.proacl) acl left join pg_roles r on r.oid = acl.grantee
+  where acl.privilege_type = 'EXECUTE' and (acl.grantee = 0 or r.rolname in ('anon', 'authenticated', 'service_role'))
+
+  union all
+  select 16, pt.tablename, format($f$do $$ begin if exists (select 1 from pg_publication where pubname = %L) then alter publication %I add table public.%I; end if; end $$;$f$, pt.pubname, pt.pubname, pt.tablename)
+  from pg_publication_tables pt where pt.schemaname = 'public' and pt.pubname = 'supabase_realtime'
+)
+select string_agg(ddl, E'\n\n' order by ord, name) as schema_sql from parts;
