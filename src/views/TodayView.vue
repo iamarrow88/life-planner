@@ -164,7 +164,7 @@ const timeRange = (t: Task) => {
 }
 /** Раскладка сетки дня: короткие задачи — в ячейке часа по порядку времени, от часа — растянуты на свои часы */
 const dayLayout = computed(() => layoutDay(timedOnDay.value, hours[0], hours[hours.length - 1]))
-const blockColor = (t: Task) => ({ borderColor: app.sphereById(t.sphere_id)?.color ?? '#5F4BC9' })
+const blockColor = (t: Task) => ({ borderColor: app.sphereById(t.sphere_id)?.color ?? '#6456B6' })
 
 const habits = computed(() => app.dueHabits)
 

@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => {
         lang: 'ru',
         display: 'standalone',
         background_color: '#E6E0FB',
-        theme_color: '#5F4BC9',
+        theme_color: '#6456B6',
         start_url: base,
         scope: base,
         id: base,

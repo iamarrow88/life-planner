@@ -61,7 +61,7 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
         <span v-else-if="habit.kind === 'timer'">{{ value }} / {{ target }} мин</span>
       </div>
       <div v-if="habit.kind !== 'plain'" class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-line">
-        <div class="h-full rounded-full transition-all" :style="{ width: pct + '%', background: sphere?.color ?? '#5F4BC9' }"></div>
+        <div class="h-full rounded-full transition-all" :style="{ width: pct + '%', background: sphere?.color ?? '#6456B6' }"></div>
       </div>
     </div>
 
