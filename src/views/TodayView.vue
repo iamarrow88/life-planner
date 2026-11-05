@@ -453,7 +453,7 @@ async function add() {
     </template>
 
     <!-- Неделя: полоска дней, задачи выбранного дня и списки, откуда их можно поставить на день -->
-    <WeekPlanner v-else-if="calMode === 'week'" v-model:day="calDay" :week-start="calWeek" calendar :match="filterOn ? match : undefined" data-test="cal-week" />
+    <WeekPlanner v-else-if="calMode === 'week'" v-model:day="calDay" :week-start="calWeek" calendar :match="filterOn ? match : undefined" :new-task-fields="newTaskFields" data-test="cal-week" />
 
     <template v-else>
     <DayOverload :day="calDay" />

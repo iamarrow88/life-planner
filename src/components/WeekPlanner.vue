@@ -7,17 +7,21 @@ import { dragToDay } from '../lib/dragToDay'
 import { byPosition } from '../lib/taskOrder'
 import { GENERATED_DAYS } from '../lib/monthMarks'
 import { matches } from '../lib/recurrence'
-import type { Task } from '../types'
+import type { NewTask, Task } from '../types'
 import TaskRow from './TaskRow.vue'
+import AutoTextarea from './AutoTextarea.vue'
+import EstimateInput from './EstimateInput.vue'
+import ComplexityPicker from './ComplexityPicker.vue'
 
 /**
  * Неделя: полоска из 7 дней (всегда видна при прокрутке — на неё можно бросать задачи),
  * под ней — задачи выбранного дня, затем «Входящие», «Отложено без даты» и проекты. Каждой задаче можно выбрать день
  * из списка или перетащить её за ⋮⋮ на день в полоске.
  * В итогах недели это свёрнутый блок планирования. calendar — вид «Неделя» в календаре: там с задачами работают
- * (таймер и перенос в строке, видны выполненные), выбранным днём управляет экран (day), а match — его отбор
+ * (таймер и перенос в строке, видны выполненные, можно добавить задачу на выбранный день), выбранным днём управляет экран (day),
+ * а match и newTaskFields — его отбор: новая задача получает то, что выбрано в отборе
  */
-const props = defineProps<{ weekStart: string; calendar?: boolean; day?: string; match?: (t: Task) => boolean }>()
+const props = defineProps<{ weekStart: string; calendar?: boolean; day?: string; match?: (t: Task) => boolean; newTaskFields?: () => Partial<NewTask> }>()
 const emit = defineEmits<{ 'update:day': [day: string] }>()
 const app = useApp()
 const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -45,6 +49,17 @@ const selVirtual = computed(() => (!props.calendar || sel.value <= addDays(app.t
   .filter(r => r.mode === 'schedule' && shown(r as unknown as Task) && matches(r, sel.value) && !app.data.tasks.some(t => t.recurrence_id === r.id && t.due_date === sel.value))))
 const inboxRows = computed(() => app.inbox.filter(shown))
 const deferredRows = computed(() => app.deferred.filter(shown))
+
+// ---- Новая задача на выбранный день (в календаре)
+const text = ref('')
+const estimate = ref<number | null>(null)
+const complexity = ref<number | null>(null)
+async function addTask() {
+  const title = text.value.trim(); if (!title) return
+  const est = estimate.value, level = complexity.value
+  text.value = ''; estimate.value = null; complexity.value = null
+  await app.addTask({ title, status: 'planned', due_date: sel.value, estimate_minutes: est, complexity: level, ...props.newTaskFields?.() })
+}
 
 const staleIds = computed(() => new Set(app.staleDeferred.map(t => t.id)))
 /** Проекты по сферам: только с невыполненными задачами */
@@ -111,6 +126,12 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
     <div class="mb-4">
       <div class="mb-1 text-sm font-semibold">{{ WD[days.indexOf(sel)] }}, {{ shortDate(sel) }}</div>
       <DayOverload :day="sel" />
+      <form v-if="calendar" class="mb-3 flex flex-wrap items-start gap-2" data-test="week-add" @submit.prevent="addTask">
+        <AutoTextarea v-model="text" single-line :maxlength="500" class="!w-auto min-w-[10rem] flex-1" placeholder="Новое дело на этот день…" @submit="addTask" />
+        <EstimateInput v-model="estimate" />
+        <ComplexityPicker v-model="complexity" />
+        <button class="btn-primary shrink-0" :disabled="!text.trim()" aria-label="Добавить задачу">+</button>
+      </form>
       <div v-if="calendar && selTasks.length" class="card divide-y divide-line" data-test="plan-day-tasks">
         <div v-for="t in selTasks" :key="t.id" :data-task-id="t.id" class="flex items-center">
           <span data-drag-handle class="shrink-0 cursor-grab touch-none select-none py-3 pl-2 text-base leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить задачу на другой день" title="Перетащи на другой день в полоске">⋮⋮</span>
