@@ -11,6 +11,7 @@ import EstimateInput from '../components/EstimateInput.vue'
 import ComplexityPicker from '../components/ComplexityPicker.vue'
 import DayOverload from '../components/DayOverload.vue'
 import WeekPlanner from '../components/WeekPlanner.vue'
+import DayTaskForm from '../components/DayTaskForm.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import PillCheck from '../components/PillCheck.vue'
 import QuickTags from '../components/QuickTags.vue'
@@ -437,6 +438,7 @@ async function add() {
         </div>
         <p v-if="moveMsg" class="mb-1.5 text-xs text-accent" data-test="move-msg">{{ moveMsg }}</p>
         <DayOverload :day="monthSel" />
+        <DayTaskForm :day="monthSel" :new-task-fields="newTaskFields" />
         <div v-if="selTasks.length" v-drag-to-day class="card divide-y divide-line" data-test="month-day-tasks">
           <div v-for="t in selTasks" :key="t.id" :data-task-id="t.id" class="flex items-center">
             <span data-drag-handle class="shrink-0 cursor-grab touch-none select-none py-3 pl-2 text-base leading-none text-mute/70 hover:text-accent" role="button"
@@ -457,6 +459,7 @@ async function add() {
 
     <template v-else>
     <DayOverload :day="calDay" />
+    <DayTaskForm :day="calDay" :new-task-fields="newTaskFields" />
     <section v-if="calDay !== app.today && dayHabitList.length" class="mb-3" data-test="day-habits">
       <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-mute">Привычки за день</div>
       <div class="card divide-y divide-line">
