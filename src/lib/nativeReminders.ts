@@ -5,6 +5,7 @@
 //   * таймер: раз в 40 минут «Всё ещё занимаешься этим?», после 3 часов — «Возможно, ты забыла его выключить»;
 //   * итог недели: в воскресенье в 19:00, если итог этой недели не завершён.
 // Расписание пересобирается при каждом изменении данных: всё старое снимается и ставится заново на 14 дней вперёд.
+// Заодно из шторки убираются уведомления, которые больше не актуальны: задачу выполнили, перенесли или удалили, таймер остановили.
 import { LocalNotifications, type LocalNotificationSchema } from '@capacitor/local-notifications'
 import type { PostponeKind } from '../stores/app'
 import type { Habit, Task, TimeEntry } from '../types'
@@ -40,11 +41,10 @@ function idOf(key: string): number {
 }
 const at = (day: string, time: string) => new Date(`${day}T${time.length === 5 ? time + ':00' : time}`)
 
-/** Все напоминания, которые должны стоять сейчас (только в будущем) */
-export function plan(i: ReminderInput, now = Date.now()): LocalNotificationSchema[] {
+/** Все напоминания по текущим данным: и те, что ещё впереди, и те, чьё время уже прошло */
+function collect(i: ReminderInput): LocalNotificationSchema[] {
   const out: LocalNotificationSchema[] = []
   const push = (key: string, when: Date, title: string, body: string, url = '/today', taskId?: string) => {
-    if (when.getTime() <= now) return
     out.push({
       id: idOf(key), title, body, schedule: { at: when, allowWhileIdle: true }, channelId: CHANNEL, extra: { url, taskId }, smallIcon: 'ic_stat_kola',
       ...(taskId ? { actionTypeId: TASK_ACTIONS } : {}),
@@ -54,7 +54,7 @@ export function plan(i: ReminderInput, now = Date.now()): LocalNotificationSchem
 
   for (const t of i.tasks) {
     if (t.status === 'done' || !t.due_date || !t.start_time || t.remind_before_minutes == null) continue
-    if (t.due_date < i.today || t.due_date > last) continue
+    if (t.due_date > last) continue // просроченная и не выполненная остаётся: её уведомление ещё актуально
     const start = at(t.due_date, t.start_time)
     const before = t.remind_before_minutes
     push('task:' + t.id, new Date(start.getTime() - before * 60000), t.title, before > 0 ? `Через ${fmtMinutes(before)} · ${hhmm(t.start_time)}` : `Пора начинать · ${hhmm(t.start_time)}`, '/today', t.id)
@@ -85,6 +85,20 @@ export function plan(i: ReminderInput, now = Date.now()): LocalNotificationSchem
   return out
 }
 
+/** Напоминания, которые должны стоять сейчас (только в будущем) */
+export function plan(i: ReminderInput, now = Date.now()): LocalNotificationSchema[] {
+  return collect(i).filter(n => +n.schedule!.at! > now)
+}
+
+/**
+ * Какие из показанных уведомлений убрать. Актуально только то, что данные породили бы и сейчас: тот же id, время уже прошло, тот же текст
+ * (в тексте есть время начала — значит, задачу не передвинули). Служебные id и уведомления без текста не трогаем.
+ */
+export function staleDelivered(delivered: { id: number; body?: string }[], i: ReminderInput, now = Date.now()): number[] {
+  const actual = new Map(collect(i).filter(n => +n.schedule!.at! <= now).map(n => [n.id, n.body]))
+  return delivered.filter(n => n.id >= RESERVED_IDS && (!actual.has(n.id) || (!!n.body && n.body !== actual.get(n.id)))).map(n => n.id)
+}
+
 let channelReady = false
 async function ensureChannel() {
   if (channelReady) return
@@ -96,8 +110,8 @@ async function ensureChannel() {
   channelReady = true
 }
 
-/** Снять все поставленные напоминания и поставить заново по текущим данным */
-export async function syncReminders(i: ReminderInput): Promise<number> {
+/** Снять все поставленные напоминания и поставить заново по текущим данным. dataFresh — данные загружены полностью: только тогда можно убирать уведомления из шторки */
+export async function syncReminders(i: ReminderInput, dataFresh: boolean): Promise<number> {
   const perm = await LocalNotifications.checkPermissions()
   if (perm.display !== 'granted') return 0
   await ensureChannel()
@@ -110,6 +124,12 @@ export async function syncReminders(i: ReminderInput): Promise<number> {
   list.sort((a, b) => +a.schedule!.at! - +b.schedule!.at!)
   const top = list.slice(0, 400)
   if (top.length) await LocalNotifications.schedule({ notifications: top })
+  if (dataFresh) {
+    const { notifications } = await LocalNotifications.getDeliveredNotifications()
+    // время берём после запроса к шторке: всё, что в ней уже есть, сработало раньше этого момента
+    const stale = staleDelivered(notifications, i)
+    if (stale.length) await LocalNotifications.removeDeliveredNotificationsById({ ids: stale })
+  }
   return top.length
 }
 

@@ -84,7 +84,8 @@ export async function initNative(app: ReturnType<typeof useApp>, router: Router)
       void reminders.syncReminders({
         today: app.today, tasks: app.data.tasks, habits: app.data.habits, running: app.running, runningTitle: app.runningTitle,
         habitActiveOn: app.habitActiveOn, habitIsDone: app.habitIsDone, reviewDone: !!app.reviewFor(weekStart(app.today))?.completed_at,
-      }).catch(e => console.warn('reminders', e))
+        // при запуске данные могут быть ещё пустыми или из кэша: по ним уведомления из шторки не убираем, дождёмся загрузки
+      }, !!app.user && app.ready && !app.loading && !app.syncing && !app.error).catch(e => console.warn('reminders', e))
     }, 800)
   }
   resyncFn = resync
