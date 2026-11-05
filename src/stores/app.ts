@@ -216,6 +216,7 @@ export const useApp = defineStore('app', () => {
   const orderReady = computed(() => data.value.orderReady !== false)
   /** false — в Supabase не выполнен planner_subtasks.sql */
   const subtasksReady = computed(() => data.value.subtasksReady !== false)
+  const checklistSyncReady = computed(() => data.value.checklistSyncReady !== false)
   // ---- «↷ Перенести»: завтра / на выходные (суббота) / на следующую неделю (понедельник), от сегодняшнего дня;
   // время начала не меняется. Каждый перенос записывается в историю задачи (postpones)
   const postponesReady = computed(() => data.value.postponesReady !== false)
@@ -485,6 +486,27 @@ export const useApp = defineStore('app', () => {
     const ok = await guard(async () => { await repo.removeTask(id); return true })
     if (!ok) return false
     data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
+    return true
+  }
+  // ---- Подзадачи повтора: копируются в следующие невыполненные задачи, отметки «сделано» не копируются
+  const freshList = (list: Subtask[]) => list.map(s => ({ ...s, done: false }))
+  function applyListLocally(ruleId: string, keepId: string, fresh: Subtask[]) {
+    const r = data.value.recurrences.find(x => x.id === ruleId); if (r) r.subtasks = fresh
+    for (const t of data.value.tasks) if (t.recurrence_id === ruleId && t.id !== keepId && t.status !== 'done' && (t.due_date ?? '') >= today.value) t.subtasks = fresh
+  }
+  async function copySubtasksToNext(ruleId: string, keepId: string, list: Subtask[]) {
+    const fresh = freshList(list)
+    const ok = await guard(async () => { await repo.updateRecurrence(ruleId, { subtasks: fresh }, keepId); return true })
+    if (ok) applyListLocally(ruleId, keepId, fresh)
+    return !!ok
+  }
+  /** Выбор для всего повтора. Включили — список сразу уходит в следующие; выключили — они остаются какими были */
+  async function setChecklistSync(ruleId: string, on: boolean, keepId: string, list: Subtask[]) {
+    const fresh = freshList(list)
+    const ok = await guard(async () => { await repo.updateRecurrence(ruleId, { checklist_sync: on, ...(on ? { subtasks: fresh } : {}) }, keepId); return true })
+    if (!ok) return false
+    const r = data.value.recurrences.find(x => x.id === ruleId); if (r) r.checklist_sync = on
+    if (on) applyListLocally(ruleId, keepId, fresh)
     return true
   }
   /** Дата следующей задачи, если удалить эту. Нужна только повтору «после выполнения»: следующая создаётся при выполнении текущей, без неё цепочка оборвётся */
@@ -1221,7 +1243,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, moviesReady, movies, queueMovies, watchedMovies, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, checklistSyncReady, copySubtasksToNext, setChecklistSync, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, moviesReady, movies, queueMovies, watchedMovies, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

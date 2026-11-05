@@ -66,6 +66,7 @@ export interface Recurrence {
   tags?: string[]
   budget?: number | null
   complexity?: number | null
+  checklist_sync?: boolean | null          // подзадачи: true — менять и в следующих задачах, false — только в этой, null — ещё не выбрано
   subtasks?: Subtask[]                     // шаблон: новые задачи по правилу получают их невыполненными
 }
 export type NewRecurrence = Omit<Recurrence, 'id' | 'month_day' | 'ends_on'>
@@ -151,6 +152,7 @@ export interface Snapshot {
   priorityReady?: boolean        // false — в базе ещё нет приоритета (не выполнен planner_task_priority.sql)
   complexityReady?: boolean      // false — в базе ещё нет сложности (не выполнен planner_task_complexity.sql)
   postponesReady?: boolean      // false — в базе ещё нет истории переносов (не выполнен planner_task_postpone.sql)
+  checklistSyncReady?: boolean   // false — в базе нет настройки подзадач (не выполнен planner_recurrence_checklist.sql)
   subtasksReady?: boolean       // false — в базе ещё нет подзадач (не выполнен planner_subtasks.sql)
 }
 export interface NewTask {

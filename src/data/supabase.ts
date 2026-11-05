@@ -53,15 +53,17 @@ const TASK_BASE_COLS = 'id,title,note,status,sphere_id,project_id,due_date,start
 const REC_BASE_COLS = 'id,title,note,sphere_id,project_id,start_time,estimate_minutes,remind_before_minutes,freq,interval_n,weekdays,month_day,mode,starts_on,ends_on'
 // Необязательные колонки задач и повторов: их добавляют отдельные SQL-патчи (planner_tags.sql, planner_budget.sql, planner_task_order.sql, planner_subtasks.sql).
 // Пока патч не выполнен, колонку не читаем и не пишем — приложение работает без неё
-const optional = { tags: true, budget: true, position: true, subtasks: true, postpones: true, priority: true, complexity: true }
+const optional = { tags: true, budget: true, position: true, subtasks: true, postpones: true, priority: true, complexity: true, checklist_sync: true }
 type Opt = keyof typeof optional
 const OPTS = Object.keys(optional) as Opt[]
+/** Настройка подзадач есть только у повторов. Имя не должно содержать другие ключи: отсутствующую колонку ищем по тексту ошибки */
+const TASK_OPTS = OPTS.filter(k => k !== 'checklist_sync')
 /** position есть только у задач */
-const REC_OPTS: Opt[] = ['tags', 'budget', 'subtasks', 'complexity']
+const REC_OPTS: Opt[] = ['tags', 'budget', 'subtasks', 'complexity', 'checklist_sync']
 const optCols = (keys: Opt[]) => keys.filter(k => optional[k]).map(k => ',' + k).join('')
-let TASK_COLS = TASK_BASE_COLS + optCols(OPTS)
+let TASK_COLS = TASK_BASE_COLS + optCols(TASK_OPTS)
 let REC_COLS = REC_BASE_COLS + optCols(REC_OPTS)
-function dropOpt(k: Opt) { optional[k] = false; TASK_COLS = TASK_BASE_COLS + optCols(OPTS); REC_COLS = REC_BASE_COLS + optCols(REC_OPTS) }
+function dropOpt(k: Opt) { optional[k] = false; TASK_COLS = TASK_BASE_COLS + optCols(TASK_OPTS); REC_COLS = REC_BASE_COLS + optCols(REC_OPTS) }
 /** Убрать из записи поля колонок, которых в базе нет (иначе запрос упадёт) */
 const withOpt = <T extends object>(o: T): T => { const r = { ...o } as Record<string, unknown>; for (const k of OPTS) if (!optional[k]) delete r[k]; return r as T }
 /** Необязательные поля новой записи: только заданные и только если колонка есть */
@@ -193,7 +195,7 @@ export const supabaseRepo: Repo = {
     return {
       spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as unknown as Task[], habits: ok(habits) as unknown as Habit[],
       habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], taskSecondsBefore, recurrences: ok(recs) as unknown as Recurrence[],
-      tagsReady: optional.tags, budgetReady: optional.budget, orderReady: optional.position, subtasksReady: optional.subtasks, postponesReady: optional.postpones, priorityReady: optional.priority, complexityReady: optional.complexity,
+      tagsReady: optional.tags, budgetReady: optional.budget, orderReady: optional.position, subtasksReady: optional.subtasks, postponesReady: optional.postpones, priorityReady: optional.priority, complexityReady: optional.complexity, checklistSyncReady: optional.checklist_sync,
       weekGoals: ok(goals) as WeekGoal[], reviews: ok(reviews) as WeeklyReview[],
       // если состояние привычек не пришло — считаем, что все запланированы на сегодня (список не должен пропасть)
       habitStatus: hs.error ? [] : (hs.data as HabitStatus[]),

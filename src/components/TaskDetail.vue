@@ -12,7 +12,7 @@ import { useBackdrop } from '../lib/backdrop'
 import HabitSchedule from './HabitSchedule.vue'
 import { ALL_DAYS, defaultSchedule } from '../lib/habitSchedule'
 import { matches } from '../lib/recurrence'
-import { RULE_KEYS, TEMPLATE_KEYS, type HabitSchedule as Schedule, type NewRecurrence, type Recurrence, type RecurrencePatch } from '../types'
+import { RULE_KEYS, TEMPLATE_KEYS, type HabitSchedule as Schedule, type NewRecurrence, type Recurrence, type RecurrencePatch, type Task } from '../types'
 
 const app = useApp()
 const task = computed(() => app.data.tasks.find(t => t.id === app.detailId) ?? null)
@@ -67,7 +67,6 @@ const rule = computed(() => app.data.recurrences.find(r => r.id === task.value?.
 const repeat = ref(false)
 const schedule = ref<Schedule>(defaultSchedule())
 /** Изменения названия, сферы, времени… у повторяющейся задачи: только эта или и будущие тоже */
-const repeatScope = ref<'one' | 'all'>('one')
 const isodow = (d: string) => { const [y, m, dd] = d.split('-').map(Number); return ((new Date(Date.UTC(y, m - 1, dd)).getUTCDay() + 6) % 7) + 1 }
 const scheduleOf = (r: Recurrence): Schedule => ({
   freq: r.freq, interval_n: r.interval_n, mode: r.mode, starts_on: r.starts_on,
@@ -84,7 +83,7 @@ const priorities = [
   { v: 3, label: 'Низкий', cls: 'bg-yellow-300' },
 ]
 const formState = () => JSON.stringify([priority.value, complexity.value, title.value, note.value, tags.value, budget.value, date.value, time.value, estimate.value, noDate.value, sphereId.value, projectId.value,
-  remind.value, repeat.value, schedule.value, repeatScope.value, newProject.value])
+  remind.value, repeat.value, schedule.value, newProject.value])
 let saved = ''
 /** × и подложка: правки сохраняются, карточка закрывается. Сохранить нельзя — спрашиваем, закрыть ли без них */
 function closeCard() {
@@ -108,7 +107,7 @@ watch(() => task.value?.id, () => {
   // у задачи по повтору длительность берётся из правила — 15 по умолчанию не подставляем, чтобы не менять правило
   estimate.value = t.estimate_minutes ?? (t.recurrence_id ? null : DEFAULT_ESTIMATE); budget.value = t.budget == null ? null : Number(t.budget); noDate.value = t.status === 'planned' && !t.due_date; sphereId.value = t.sphere_id ?? ''; projectId.value = t.project_id ?? ''
   remind.value = t.remind_before_minutes == null ? '' : String(t.remind_before_minutes); remindTouched.value = false
-  repeat.value = !!rule.value; repeatScope.value = 'one'
+  repeat.value = !!rule.value
   schedule.value = rule.value ? scheduleOf(rule.value) : defaultSchedule(t.due_date ?? app.today)
   newProject.value = ''; addingProject.value = false
   saved = formState()
@@ -153,13 +152,10 @@ function templateFrom(due: string | null): Pick<NewRecurrence, (typeof TEMPLATE_
 /** Поменяли ли в этот раз что-то из шаблона (название, описание, сферу, время…) */
 /** Подзадачи для шаблона повтора: те же пункты, все невыполненные */
 const freshSubtasks = () => (task.value?.subtasks ?? []).map(s => ({ ...s, done: false }))
-const subtasksDiffer = computed(() => !same((task.value?.subtasks ?? []).map(s => s.title), (rule.value?.subtasks ?? []).map(s => s.title)))
-const templateChanged = computed(() => {
-  const t = task.value; if (!t) return false
-  const tpl = templateFrom(date.value || t.due_date)
-  // подзадачи сохраняются сразу, а в шаблон повтора попадают, если их состав отличается от правила
-  return TEMPLATE_KEYS.some(k => k !== 'subtasks' && !same(tpl[k], t[k])) || (!!rule.value && subtasksDiffer.value)
-})
+/** Поля, изменённые в этот раз: они сразу применяются и к следующим задачам. Подзадачи живут отдельно: у них своя настройка в SubtaskList */
+function changedFields(t: Task, tpl: ReturnType<typeof templateFrom>): RecurrencePatch {
+  return Object.fromEntries(TEMPLATE_KEYS.filter(k => k !== 'subtasks' && !same(tpl[k], t[k])).map(k => [k, tpl[k] ?? null]))
+}
 // Пользователь впервые поставил время начала задаче без времени — предлагаем напомнить за 10 минут
 function onTimeInput() {
   if (time.value && !remind.value && !remindTouched.value && !task.value?.start_time) remind.value = '10'
@@ -186,7 +182,7 @@ async function save(markDone = false) {
   const due = date.value || (repeat.value ? firstDate() : null)
   const tpl = templateFrom(due) // время без даты не бывает, напоминание — только если есть время
   // запоминаем форму до сохранения: дальше данные перечитываются
-  const changedTpl = templateChanged.value, wantRepeat = repeat.value, fields = { ...ruleFields.value }, scope = repeatScope.value
+  const changed = changedFields(t, tpl), wantRepeat = repeat.value, fields = { ...ruleFields.value }
   const r = rule.value
   if (markDone && isRunning.value) await app.stopTimer()
   await app.updateTask(t.id, { ...tpl, ...(app.priorityReady ? { priority: priority.value } : {}), due_date: due, status: markDone || t.status === 'done' ? 'done' : due || keepsOutOfInbox.value ? 'planned' : 'inbox' })
@@ -196,7 +192,7 @@ async function save(markDone = false) {
     else if (wantRepeat && r) {
       const patch: RecurrencePatch = {}
       if (RULE_KEYS.some(k => !same(fields[k], r[k]))) Object.assign(patch, fields)
-      if (scope === 'all' && changedTpl) Object.assign(patch, tpl, app.subtasksReady ? { subtasks: freshSubtasks() } : {})
+      Object.assign(patch, changed)
       if (Object.keys(patch).length) await app.updateRecurrence(r.id, patch, t.id)
     }
   }
@@ -329,13 +325,7 @@ async function removeRepeating(all: boolean) {
           <button type="button" class="chip py-1 hover:chip-on" :disabled="busy || !task.sphere_id" data-test="task-to-habit" @click="toHabit">Сделать привычкой</button>
           <span v-if="!task.sphere_id">Сначала выбери сферу и сохрани — привычка всегда живёт в сфере.</span>
         </div>
-        <div v-if="repeat && rule && templateChanged" class="rounded-2xl border border-line bg-white p-3 text-xs text-mute" data-test="repeat-scope">
-          <div class="mb-1.5">Изменения названия, сферы, времени и т. п. применить:</div>
-          <div class="flex gap-1.5">
-            <button type="button" class="chip flex-1 justify-center py-1.5" :class="repeatScope === 'one' && 'chip-on'" @click="repeatScope = 'one'">Только к этой</button>
-            <button type="button" class="chip flex-1 justify-center py-1.5" :class="repeatScope === 'all' && 'chip-on'" @click="repeatScope = 'all'">И к следующим</button>
-          </div>
-        </div>
+        <p v-if="rule && repeat" class="text-xs text-mute" data-test="repeat-note">Изменения полей задачи применятся и к следующим задачам повтора. Дату можно поменять только у этой.</p>
       </div>
 
       <div v-if="app.complexityReady" class="flex flex-wrap items-center gap-2 text-xs text-mute">

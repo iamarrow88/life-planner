@@ -2604,4 +2604,6 @@ do $$ begin if exists (select 1 from pg_publication where pubname = 'supabase_re
 
 do $$ begin if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then alter publication supabase_realtime add table public.time_entries; end if; end $$;
 
+alter table public.recurrences add column if not exists checklist_sync boolean;
+
 commit;
