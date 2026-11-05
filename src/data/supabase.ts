@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
 import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish, Book, Movie, MonthlyItem } from '../types'
 import { entrySeconds, todayStr, weekStart as weekStartOf } from '../lib/time'
+import { fetchAllPages } from '../lib/paging'
 import { DEFAULT_CYCLE_SETTINGS } from '../lib/cycle'
 
 const env = import.meta.env as Record<string, string | undefined>
@@ -129,23 +130,21 @@ export const supabaseRepo: Repo = {
     const ws = weekStartOf(today)
     /** Время по задачам за всё, что старше since. Без него приложение работает: факт будет только за загруженный период */
     const olderTaskSeconds = async () => {
+      const { data } = await fetchAllPages((from, to) => c.from('time_entries').select('task_id,started_at,ended_at')
+        .not('task_id', 'is', null).not('ended_at', 'is', null).lt('local_date', since)
+        .order('started_at').order('id').range(from, to))
       const res: Record<string, number> = {}
-      const PAGE = 1000 // больше за один запрос Supabase не отдаёт
-      for (let from = 0; ; from += PAGE) {
-        const { data, error } = await c.from('time_entries').select('task_id,started_at,ended_at')
-          .not('task_id', 'is', null).not('ended_at', 'is', null).lt('local_date', since)
-          .order('started_at').order('id').range(from, from + PAGE - 1)
-        if (error) return res
-        for (const e of data as { task_id: string; started_at: string; ended_at: string }[]) res[e.task_id] = (res[e.task_id] ?? 0) + entrySeconds(e)
-        if (data.length < PAGE) return res
-      }
+      for (const e of (data ?? []) as { task_id: string; started_at: string; ended_at: string }[]) res[e.task_id] = (res[e.task_id] ?? 0) + entrySeconds(e)
+      return res
     }
+    /** Все задачи. Повторы создаются пачкой с одним временем создания, поэтому порядок уточняем по id */
+    const allTasks = () => fetchAllPages((from, to) => c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }).order('id').range(from, to))
     const [taskSecondsBefore, spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, moviesRes, monthlyRes, cDays, cSet, cCourses] = await Promise.all([
       olderTaskSeconds(),
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
       c.from('projects').select('id,sphere_id,name,status').order('position').order('created_at'),
-      c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }),
+      allTasks(),
       c.from('habits').select(HABIT_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('habit_entries').select('habit_id,entry_date,value').eq('entry_date', today),
       c.from('time_entries').select(TE_COLS).or(`local_date.gte.${since},ended_at.is.null`),
@@ -175,7 +174,7 @@ export const supabaseRepo: Repo = {
       if (!missing.length) break
       missing.forEach(dropOpt)
       ;[tasks, recs] = await Promise.all([
-        c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }),
+        allTasks(),
         c.from('recurrences').select(REC_COLS).order('created_at'),
       ])
     }
