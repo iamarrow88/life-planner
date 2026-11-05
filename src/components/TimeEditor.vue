@@ -10,8 +10,11 @@ const entries = ref<TimeEntry[]>([])
 const editingId = ref<string | null>(null)
 const date = ref(app.today)
 const start = ref('09:00')
-const minutes = ref(30)
+const end = ref('09:30')
+const minutes = ref<number | string>(30)
 const busy = ref(false)
+/** Что-то вводили в форме: тогда «Выполнено» сначала сохранит запись */
+const touched = ref(false)
 const bd = useBackdrop(() => app.closeEditor())
 
 const sums = computed(() => {
@@ -31,13 +34,27 @@ const dayOf = (iso: string) => ymd(new Date(iso))
 const showAllDays = ref(false)
 /** Если редактор открыт «за день» (из календаря), показываем записи этого дня; остальные — по кнопке */
 const shownEntries = computed(() => (app.editor?.day && !showAllDays.value ? entries.value.filter(e => dayOf(e.started_at) === app.editor!.day) : entries.value))
+// ---- Начало, конец и минуты связаны: минуты и конец считаются от начала, смотря что ввели
+const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+const fromMin = (m: number) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`
+const validMinutes = computed(() => Number(minutes.value) > 0)
+/** Конец по началу и минутам */
+function syncEnd() { if (start.value && validMinutes.value) end.value = fromMin(toMin(start.value) + Math.round(Number(minutes.value))) }
+/** Минуты по началу и концу. Конец раньше начала — значит, закончила уже на следующий день */
+function syncMinutes() { if (start.value && end.value) minutes.value = (toMin(end.value) - toMin(start.value) + 1440) % 1440 }
+function onStart() { touched.value = true; syncEnd() }
+function onEnd() { touched.value = true; syncMinutes() }
+function onMinutes() { touched.value = true; syncEnd() }
+const nextDay = computed(() => !!start.value && !!end.value && toMin(end.value) < toMin(start.value))
+
 function resetForm() {
-  editingId.value = null; minutes.value = 30
+  editingId.value = null; minutes.value = 30; touched.value = false
   const day = app.editor?.day
-  if (day && day !== app.today) { date.value = day; start.value = '09:00'; return }   // другой день — удобное время по умолчанию
+  if (day && day !== app.today) { date.value = day; start.value = '09:00'; syncEnd(); return }   // другой день — удобное время по умолчанию
   // по умолчанию — «последние 30 минут»
   const n = new Date(Date.now() - 30 * 60000)
   date.value = ymd(n); start.value = `${pad(n.getHours())}:${pad(n.getMinutes())}`
+  syncEnd()
 }
 async function refresh() {
   if (!app.editor) return
@@ -48,18 +65,43 @@ watch(() => app.editor, e => { if (e) { showAllDays.value = false; resetForm(); 
 function edit(e: TimeEntry) {
   editingId.value = e.id; date.value = dayOf(e.started_at); start.value = clock(e.started_at)
   minutes.value = Math.max(1, Math.round(entrySeconds(e) / 60))
+  syncEnd()
+}
+/** Записать то, что в форме. Ошибку показывает над кнопками формы */
+async function writeEntry() {
+  if (!app.editor) return false
+  if (!date.value || !start.value) { app.error = 'Укажи день и время начала'; return false }
+  if (!validMinutes.value) { app.error = 'Конец должен быть позже начала'; return false }
+  const from = new Date(`${date.value}T${start.value}`)
+  const to = new Date(from.getTime() + Math.round(Number(minutes.value)) * 60000)
+  if (to.getTime() > Date.now() + 60000) { app.error = 'Конец получается в будущем: проверь начало, конец или минуты'; return false }
+  app.error = ''
+  return editingId.value
+    ? app.updateEntry(editingId.value, from.toISOString(), to.toISOString())
+    : app.addEntry(app.editor.target, from.toISOString(), to.toISOString())
 }
 async function save() {
-  if (!app.editor || !date.value || !start.value || !(minutes.value > 0)) return
-  const from = new Date(`${date.value}T${start.value}`)
-  const to = new Date(from.getTime() + Math.round(minutes.value) * 60000)
-  if (to.getTime() > Date.now() + 60000) { app.error = 'Время не может быть в будущем'; return }
   busy.value = true
-  const ok = editingId.value
-    ? await app.updateEntry(editingId.value, from.toISOString(), to.toISOString())
-    : await app.addEntry(app.editor.target, from.toISOString(), to.toISOString())
+  const ok = await writeEntry()
   busy.value = false
   if (ok) { resetForm(); await refresh() }
+}
+
+// ---- «Выполнено»: прямо отсюда отметить задачу и закрыть всё, не возвращаясь в карточку
+const task = computed(() => { const id = app.editor?.target.task_id; return id ? app.data.tasks.find(t => t.id === id) ?? null : null })
+async function markDone() {
+  const t = task.value; if (!t) return
+  busy.value = true
+  // введённое время не должно пропасть: сначала запись, при ошибке остаёмся в окне
+  const saved = !touched.value || await writeEntry()
+  if (saved && app.running?.task_id === t.id) await app.stopTimer()
+  if (saved) await app.updateTask(t.id, { status: 'done' })
+  busy.value = false
+  if (!saved || app.error) return
+  app.closeEditor()
+  // карточка под окном сохранит свои правки и закроется; статус «выполнено» она не тронет
+  if (app.detailId === t.id) app.requestCloseTask()
+  app.showNotice(`«${t.title.length > 60 ? t.title.slice(0, 60) + '…' : t.title}» выполнена`)
 }
 async function remove(id: string) {
   if (await app.removeEntry(id)) { if (editingId.value === id) resetForm(); await refresh() }
@@ -86,11 +128,14 @@ async function remove(id: string) {
 
       <form class="card mb-3 space-y-2 p-3" @submit.prevent="save">
         <div class="text-xs font-semibold uppercase tracking-wide text-mute">{{ editingId ? 'Правка записи' : 'Добавить время вручную' }}</div>
+        <label class="block text-xs text-mute">День<input v-model="date" type="date" :max="app.today" class="input mt-1" required @input="touched = true" /></label>
         <div class="grid grid-cols-3 gap-2">
-          <label class="col-span-3 text-xs text-mute sm:col-span-1">День<input v-model="date" type="date" :max="app.today" class="input mt-1" required /></label>
-          <label class="text-xs text-mute">Начало<input v-model="start" type="time" class="input mt-1" required /></label>
-          <label class="text-xs text-mute">Минут<input v-model.number="minutes" type="number" min="1" max="1440" class="input mt-1" required /></label>
+          <label class="min-w-0 text-xs text-mute">Начало<input v-model="start" type="time" class="input mt-1 h-11 !px-2" required data-test="time-start" @input="onStart" /></label>
+          <label class="min-w-0 text-xs text-mute">Конец<input v-model="end" type="time" class="input mt-1 h-11 !px-2" data-test="time-end" @input="onEnd" /></label>
+          <label class="min-w-0 text-xs text-mute">Затрачено, мин<input v-model.number="minutes" type="number" min="1" max="1440" inputmode="numeric" class="input mt-1 h-11 !px-2" required data-test="time-minutes" @input="onMinutes" /></label>
         </div>
+        <p class="text-xs text-mute">Укажи конец или затраченные минуты: второе посчитается от начала.<template v-if="nextDay"> Конец — на следующий день.</template></p>
+        <p v-if="app.error" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert" data-test="time-error">{{ app.error }}</p>
         <div class="flex gap-2">
           <button class="btn-primary flex-1" :disabled="busy">{{ editingId ? 'Сохранить' : 'Добавить' }}</button>
           <button v-if="editingId" type="button" class="btn-ghost" @click="resetForm()">Отмена</button>
@@ -119,6 +164,8 @@ async function remove(id: string) {
         </ul>
         <p v-else class="py-6 text-center text-sm text-mute">{{ app.editor.day && entries.length && !showAllDays ? 'За этот день записей нет' : 'Записей пока нет' }}</p>
       </div>
+      <!-- Сразу отметить задачу выполненной: то, что введено в форме, тоже сохранится -->
+      <button v-if="task && task.status !== 'done'" type="button" class="btn-ghost mt-3 w-full shrink-0" :disabled="busy" title="Сохранить введённое время, отметить задачу выполненной и закрыть" data-test="time-done" @click="markDone">✓ Выполнено</button>
     </div>
   </div>
 </template>
