@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, type Directive } from 'vue'
 import { useApp } from '../stores/app'
-import { addDays, dayOf, longDate, shortDate, hhmm } from '../lib/time'
+import { addDays, dayOf, longDate, shortDate, hhmm, weekStart } from '../lib/time'
 import TaskRow from '../components/TaskRow.vue'
 import HabitRow from '../components/HabitRow.vue'
 import HabitForm from '../components/HabitForm.vue'
@@ -10,6 +10,7 @@ import AutoTextarea from '../components/AutoTextarea.vue'
 import EstimateInput from '../components/EstimateInput.vue'
 import ComplexityPicker from '../components/ComplexityPicker.vue'
 import DayOverload from '../components/DayOverload.vue'
+import WeekPlanner from '../components/WeekPlanner.vue'
 import DoneBlock from '../components/DoneBlock.vue'
 import PillCheck from '../components/PillCheck.vue'
 import QuickTags from '../components/QuickTags.vue'
@@ -40,11 +41,15 @@ const filters: { v: Filter; label: string }[] = [
 const view = ref<'list' | 'cal'>('list')
 const filter = ref<Filter>('today')
 const calDay = ref(app.today)
-// ---- Календарь: день (часовая сетка) или месяц целиком. Выбранный вид помним на этом устройстве
+// ---- Календарь: день (часовая сетка), неделя (полоска дней) или месяц целиком. Выбранный вид помним на этом устройстве
 const CAL_MODE_KEY = 'planner-cal-mode'
-const calMode = ref<'day' | 'month'>((() => { try { return localStorage.getItem(CAL_MODE_KEY) === 'month' ? 'month' : 'day' } catch { return 'day' } })())
+type CalMode = 'day' | 'week' | 'month'
+const calMode = ref<CalMode>((() => { try { const m = localStorage.getItem(CAL_MODE_KEY); return m === 'month' || m === 'week' ? m : 'day' } catch { return 'day' } })())
 const calMonth = ref(app.today.slice(0, 7))
-function setCalMode(m: 'day' | 'month') {
+/** Неделя выбранного дня: листается по 7 дней, день недели сохраняется */
+const calWeek = computed(() => weekStart(calDay.value))
+function setCalMode(m: CalMode) {
+  if (m === 'week' && calMode.value === 'month') calDay.value = monthSel.value // неделя открывается на дне, выбранном в месяце
   if (m === 'month') { calMonth.value = calDay.value.slice(0, 7); monthSel.value = calDay.value } // месяц открывается на том дне, который смотрели
   calMode.value = m
   try { localStorage.setItem(CAL_MODE_KEY, m) } catch { /* не страшно */ }
@@ -92,6 +97,7 @@ const budgetPeriod = computed((): { range: { from: string; to: string } | 'nodat
     return { range: { from: t, to: t }, label: 'на сегодня' }
   }
   if (calMode.value === 'day') return { range: { from: calDay.value, to: calDay.value }, label: calDay.value === t ? 'на сегодня' : `на ${shortDate(calDay.value)}` }
+  if (calMode.value === 'week') return { range: { from: calWeek.value, to: addDays(calWeek.value, 6) }, label: `на неделю (${shortDate(calWeek.value)} – ${shortDate(addDays(calWeek.value, 6))})` }
   // месяц: текущий — от сегодня до конца месяца, другие — целиком
   const [y, m] = calMonth.value.split('-').map(Number)
   const last = `${calMonth.value}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`
@@ -281,8 +287,9 @@ async function add() {
   <template v-if="view === 'cal'">
       <div class="mb-3 flex flex-wrap items-center gap-2" data-test="cal-mode">
         <button type="button" class="chip py-1.5 text-sm" :class="calMode === 'day' && 'chip-on'" data-test="cal-mode-day" @click="setCalMode('day')">День</button>
+        <button type="button" class="chip py-1.5 text-sm" :class="calMode === 'week' && 'chip-on'" data-test="cal-mode-week" @click="setCalMode('week')">Неделя</button>
         <button type="button" class="chip py-1.5 text-sm" :class="calMode === 'month' && 'chip-on'" data-test="cal-mode-month" @click="setCalMode('month')">Месяц</button>
-        <!-- отбор по сфере / проекту: в календаре — рядом с «День / Месяц», в списке — рядом с 🏷 -->
+        <!-- отбор по сфере / проекту: в календаре — рядом с «День / Неделя / Месяц», в списке — рядом с 🏷 -->
         <TaskFilter v-model="taskFilter" class="!mb-0 ml-auto" />
       </div>
       <TagBar v-model="taskFilter.tags" />
@@ -290,6 +297,11 @@ async function add() {
       <button class="btn-ghost !px-3" aria-label="Предыдущий день" @click="calDay = addDays(calDay, -1)">‹</button>
       <button class="text-sm font-semibold first-letter:uppercase" @click="calDay = app.today">{{ longDate(calDay) }}</button>
       <button class="btn-ghost !px-3" aria-label="Следующий день" @click="calDay = addDays(calDay, 1)">›</button>
+    </div>
+    <div v-if="calMode === 'week'" class="mb-3 flex items-center justify-between" data-test="week-nav">
+      <button class="btn-ghost !px-3" aria-label="Предыдущая неделя" @click="calDay = addDays(calDay, -7)">‹</button>
+      <button class="text-sm font-semibold" title="К сегодняшнему дню" @click="calDay = app.today">{{ shortDate(calWeek) }} – {{ shortDate(addDays(calWeek, 6)) }}</button>
+      <button class="btn-ghost !px-3" aria-label="Следующая неделя" @click="calDay = addDays(calDay, 7)">›</button>
     </div>
     <div v-if="budget && (budget.count || budget.overdue)" class="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-xl bg-accent-soft px-3 py-2 text-sm" data-test="budget-sum">
       <span class="text-mute">Бюджет {{ budgetPeriod.label }}:</span>
@@ -439,6 +451,9 @@ async function add() {
         <p v-if="selTasks.length" class="mt-1.5 text-xs text-mute">Перетащи задачу за ⋮⋮ на другой день. Чтобы перейти в другой месяц, подержи её над стрелкой ‹ или ›.</p>
       </section>
     </template>
+
+    <!-- Неделя: полоска дней, задачи выбранного дня и списки, откуда их можно поставить на день -->
+    <WeekPlanner v-else-if="calMode === 'week'" v-model:day="calDay" :week-start="calWeek" calendar :match="filterOn ? match : undefined" data-test="cal-week" />
 
     <template v-else>
     <DayOverload :day="calDay" />
