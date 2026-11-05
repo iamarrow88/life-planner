@@ -15,7 +15,7 @@ export interface Book {
   total_pages: number | null; current_page: number; started_on: string | null; finished_on: string | null
   rating: number | null; notes: BookNote[]; created_at?: string
 }
-export type NewBook = Pick<Book, 'title' | 'status' | 'position'>
+export type NewBook = Pick<Book, 'title' | 'status' | 'position'> & Partial<Pick<Book, 'notes'>>
 export type BookPatch = Partial<Omit<Book, 'id' | 'created_at'>>
 export type MovieStatus = 'queue' | 'watched'
 export interface MovieNote { id: string; at: string; text: string }
@@ -23,14 +23,14 @@ export interface Movie {
   id: string; title: string; director: string | null; year: number | null; status: MovieStatus; position: number
   watched_on: string | null; rating: number | null; notes: MovieNote[]; created_at?: string
 }
-export type NewMovie = Pick<Movie, 'title' | 'status' | 'position'>
+export type NewMovie = Pick<Movie, 'title' | 'status' | 'position'> & Partial<Pick<Movie, 'notes'>>
 export type MoviePatch = Partial<Omit<Movie, 'id' | 'created_at'>>
 /** Желание: просто запись «хочу», без дат и сроков. fulfilled_at — когда исполнилось, task_id — задача, созданная из желания */
 export interface Wish {
   id: string; title: string; note: string | null; url: string | null; price: number | null; category: string | null
   position: number; fulfilled_at: string | null; task_id: string | null; created_at?: string
 }
-export type NewWish = Pick<Wish, 'title' | 'category' | 'position'>
+export type NewWish = Pick<Wish, 'title' | 'category' | 'position'> & Partial<Pick<Wish, 'note' | 'price'>>
 export type WishPatch = Partial<Omit<Wish, 'id' | 'created_at'>>
 /** Перенос задачи: с какой даты (null — была без даты), на какую и когда перенесли */
 export interface Postpone { from: string | null; to: string; at: string }

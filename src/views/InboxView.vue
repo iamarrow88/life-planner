@@ -12,6 +12,7 @@ import TagBar from '../components/TagBar.vue'
 import TaskFilter from '../components/TaskFilter.vue'
 import { useTaskFilter } from '../lib/taskFilter'
 import { vDragSort } from '../lib/dragSort'
+import TaskMoreMenu from '../components/TaskMoreMenu.vue'
 
 const app = useApp()
 const text = ref('')
@@ -48,10 +49,13 @@ const doneUndated = computed(() => app.data.tasks.filter(t => t.status === 'done
 const TIMES = ['09:00', '14:00', '18:00']
 /** Для какой задачи и на какую дату сейчас выбирается время (всплывающее окно) */
 const choosing = ref<{ id: string; date: string } | null>(null)
-const choose = (id: string, date: string) => { menu.value = null; choosing.value = choosing.value?.id === id && choosing.value.date === date ? null : { id, date } }
+const choose = (id: string, date: string) => { menu.value = null; more.value = null; choosing.value = choosing.value?.id === id && choosing.value.date === date ? null : { id, date } }
 /** Окно выбора сферы → проекта этой сферы (шаг 'sphere' или 'project') */
 const menu = ref<{ id: string; step: 'sphere' | 'project'; sphereId?: string } | null>(null)
-const toggleMenu = (id: string) => { choosing.value = null; menu.value = menu.value?.id === id ? null : { id, step: 'sphere' } }
+const toggleMenu = (id: string) => { choosing.value = null; more.value = null; menu.value = menu.value?.id === id ? null : { id, step: 'sphere' } }
+/** Окно «Ещё»: у какой задачи открыто. Задача превращается в желание, книгу или фильм и уходит из «Входящих» */
+const more = ref<string | null>(null)
+const toggleMore = (id: string) => { choosing.value = null; menu.value = null; more.value = more.value === id ? null : id }
 /** Подпись на кнопке: «Сфера» или «Хобби › Вышивка» */
 function sphereLabel(t: { sphere_id: string | null; project_id?: string | null }): string {
   const s = app.sphereById(t.sphere_id)
@@ -91,12 +95,12 @@ async function plan(id: string, date: string, time: string | null) {
     start_time: time ? `${time}:00` : null, remind_before_minutes: time ? 10 : null,
   })
 }
-const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { choosing.value = null; menu.value = null } }
+const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { choosing.value = null; menu.value = null; more.value = null } }
 /** Клик куда угодно, кроме самого окна и кнопок планирования, закрывает окно */
 const onDocClick = (e: MouseEvent) => {
   // composedPath() запоминает цепочку элементов в момент клика: после перерисовки окна (шаг «сфера» → «проект») сама кнопка уже убрана из страницы
   const inside = e.composedPath().some(n => n instanceof HTMLElement && n.matches('[role=dialog], [data-quick]'))
-  if ((choosing.value || menu.value) && !inside) { choosing.value = null; menu.value = null }
+  if ((choosing.value || menu.value || more.value) && !inside) { choosing.value = null; menu.value = null; more.value = null }
 }
 onMounted(() => { window.addEventListener('keydown', onKey); document.addEventListener('click', onDocClick) })
 onBeforeUnmount(() => { window.removeEventListener('keydown', onKey); document.removeEventListener('click', onDocClick) })
@@ -150,6 +154,7 @@ function pickedDate(id: string, e: Event) {
         <button v-if="staleIds.has(t.id)" data-quick type="button" class="chip hover:chip-on" data-test="stale-snooze" :title="'Оставить без даты — снова спрошу через ' + app.staleDays + ' дн.'" @click="app.snoozeTask(t.id)">Ещё отложить</button>
         <button v-else data-quick type="button" class="chip hover:chip-on" data-test="quick-no-date" title="Разобрала, но когда заняться — пока не знаю: в «Отложено без даты»" @click="noDate(t)">Без даты</button>
         <button data-quick type="button" class="chip hover:chip-on" :class="(menu?.id === t.id || t.sphere_id) && 'chip-on'" @click="toggleMenu(t.id)">{{ sphereLabel(t) }} ▾</button>
+        <button data-quick type="button" class="chip hover:chip-on" :class="more === t.id && 'chip-on'" :aria-expanded="more === t.id" data-test="inbox-more" @click="toggleMore(t.id)">Ещё ▾</button>
         <button class="ml-auto text-xs text-mute hover:text-red-600" @click="app.removeTask(t.id)">Удалить</button>
       </div>
       <!-- Всплывающее окно: во сколько? -->
@@ -167,6 +172,8 @@ function pickedDate(id: string, e: Event) {
           </div>
         </div>
       </template>
+      <!-- Всплывающее окно: сделать задачу желанием, книгой или фильмом -->
+      <TaskMoreMenu v-if="more === t.id" :task="t" @close="more = null" />
       <!-- Всплывающее окно: сфера, затем проект -->
       <div v-if="menu?.id === t.id" class="relative">
         <div role="dialog" :aria-label="menu.step === 'sphere' ? 'Выбери сферу' : 'Выбери проект'" class="absolute left-3 top-1 z-20 w-64 rounded-2xl border border-line bg-white p-3 shadow-lg">
@@ -222,7 +229,9 @@ function pickedDate(id: string, e: Event) {
               <button type="button" class="chip hover:chip-on" @click="openPicker">Дата…</button>
               <input type="date" tabindex="-1" aria-hidden="true" class="pointer-events-none absolute inset-0 opacity-0" :min="app.today" @change="e => pickDeferred(t.id, e)" />
             </span>
+            <button data-quick type="button" class="chip hover:chip-on" :class="more === t.id && 'chip-on'" :aria-expanded="more === t.id" data-test="deferred-more" @click="toggleMore(t.id)">Ещё ▾</button>
           </div>
+          <TaskMoreMenu v-if="more === t.id" :task="t" @close="more = null" />
         </li>
       </ul>
     </template>

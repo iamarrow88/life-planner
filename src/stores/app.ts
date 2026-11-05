@@ -483,6 +483,43 @@ export const useApp = defineStore('app', () => {
   async function removeTask(id: string) {
     await guard(() => repo.removeTask(id)); data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
   }
+  // ---- Задача из «Входящих» становится желанием, книгой или фильмом: запись создаётся сразу с описанием, а задача удаляется
+  // только после этого — при ошибке ничего не теряется. Учтённое время остаётся в статистике сфер
+  /** Описание задачи и её подзадачи — одним текстом */
+  const taskText = (t: Task) => [t.note?.trim(), ...(t.subtasks ?? []).map(s => '— ' + s.title)].filter(Boolean).join('\n') || null
+  const recordTitle = (t: Task) => t.title.slice(0, 300) // у задачи название может быть длиннее
+  async function finishConversion(t: Task, where: string) {
+    if (running.value?.task_id === t.id) await stopTimer()
+    const ok = await guard(async () => { await repo.removeTask(t.id); return true })
+    if (!ok) return false
+    data.value.tasks = data.value.tasks.filter(x => x.id !== t.id)
+    syncGoogleSoon()
+    showNotice(`«${t.title.length > 60 ? t.title.slice(0, 60) + '…' : t.title}» теперь ${where}`)
+    return true
+  }
+  async function taskToWish(t: Task) {
+    const position = Math.min(1, ...activeWishes.value.map(w => w.position)) - 1
+    const w = await guard(() => repo.addWish({ title: recordTitle(t), category: null, position, note: taskText(t)?.slice(0, 4000) ?? null, price: Number(t.budget) > 0 ? Number(t.budget) : null }))
+    if (!w) return false
+    ;(data.value.wishes ??= []).push(w)
+    return finishConversion(t, 'в желаниях')
+  }
+  async function taskToBook(t: Task) {
+    const text = taskText(t)
+    const position = Math.max(-1, ...queueBooks.value.map(b => b.position)) + 1
+    const b = await guard(() => repo.addBook({ title: recordTitle(t), status: 'queue', position, notes: text ? [{ id: crypto.randomUUID(), at: new Date().toISOString(), page: null, text }] : [] }))
+    if (!b) return false
+    ;(data.value.books ??= []).push(b)
+    return finishConversion(t, 'в библиотеке')
+  }
+  async function taskToMovie(t: Task) {
+    const text = taskText(t)
+    const position = Math.max(-1, ...queueMovies.value.map(m => m.position)) + 1
+    const m = await guard(() => repo.addMovie({ title: recordTitle(t), status: 'queue', position, notes: text ? [{ id: crypto.randomUUID(), at: new Date().toISOString(), text }] : [] }))
+    if (!m) return false
+    ;(data.value.movies ??= []).push(m)
+    return finishConversion(t, 'в фильмах')
+  }
   // ---- Ежемесячный чек-лист: в общий список задач пункты не попадают. Отметка действует только в своём месяце,
   // поэтому 1-го числа список обнуляется сам
   const monthlyReady = computed(() => data.value.monthlyReady !== false)
@@ -1136,7 +1173,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, moviesReady, movies, queueMovies, watchedMovies, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, taskToWish, taskToBook, taskToMovie, moviesReady, movies, queueMovies, watchedMovies, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
