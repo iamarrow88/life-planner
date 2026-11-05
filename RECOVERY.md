@@ -26,7 +26,7 @@
 | Что | Если потеряно |
 |---|---|
 | `supabase/.env.push` | секреты продолжают работать на сервере. `CRON_SECRET` можно создать новый, `GOOGLE_CLIENT_SECRET` взять в Google Cloud. VAPID-ключи из панели прочитать нельзя: если создать новые, браузеры придётся подписать заново |
-| `supabase/cron.sql` | написать заново по образцу из раздела о [секрете cron](#как-заменить-секрет-cron) |
+| `supabase/cron.sql` | создать заново: `node scripts/make-cron-sql.mjs REF` |
 | `.env` | значения Supabase есть в панели проекта, Google — в Google Cloud |
 | `~/.android/debug.keystore` (подпись APK) | новый APK не встанет поверх старого: удали приложение с телефона и установи заново. Данные на сервере, нужно только снова войти |
 
@@ -83,14 +83,16 @@
    - загрузи функции:
 
      ```bash
-     npx supabase functions deploy send-reminders
-     npx supabase functions deploy google-sync
-     npx supabase functions deploy capture
+     npx supabase functions deploy send-reminders --no-verify-jwt --use-api --project-ref REF
+     npx supabase functions deploy google-sync --no-verify-jwt --use-api --project-ref REF
+     npx supabase functions deploy capture --no-verify-jwt --use-api --project-ref REF
      ```
 
    - в **Edge Functions → Secrets** задай `CRON_SECRET`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`;
-   - настрой расписание по образцу из раздела о [секрете cron](#как-заменить-секрет-cron) с новым адресом проекта;
-   - обнови адрес проекта в настройках Google OAuth и подключи календарь заново.
+   - настрой расписание: `node scripts/make-cron-sql.mjs REF` создаст `supabase/cron.sql`, выполни его в **SQL Editor**. Нужны расширения **pg_cron** и **pg_net**;
+   - подключи Google Календарь заново: новому проекту нужно загрузить его секреты и функцию.
+
+   Подробно: [PUSH.md](PUSH.md) и [GOOGLE.md](GOOGLE.md). `REF` — Reference ID нового проекта.
 
 Потеряется только то, что появилось после последнего экспорта.
 
