@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish, Book, Movie, MonthlyItem } from '../types'
+import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish, Book, Movie, MonthlyItem, ImportReport } from '../types'
 import { entrySeconds, todayStr, weekStart as weekStartOf } from '../lib/time'
 import { fetchAllPages } from '../lib/paging'
 import { DEFAULT_CYCLE_SETTINGS } from '../lib/cycle'
@@ -438,6 +438,7 @@ export const supabaseRepo: Repo = {
   async captureCreate() { return ok(await db().rpc('create_capture_token')) as string },
   async captureRevoke() { ok(await db().rpc('revoke_capture_token')) },
   async exportAll() { return ok(await db().rpc('export_all')) as ExportData },
+  async importAll(data) { return ok(await db().rpc('import_all', { p_data: data })) as ImportReport },
   async bumpHabit(id, delta, day) {
     return ok(await db().rpc('bump_habit', { p_habit: id, p_delta: delta, p_day: day })) as HabitEntry
   },

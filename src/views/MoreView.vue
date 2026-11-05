@@ -13,6 +13,7 @@ import { googleClientId, googleRedirectUri, startGoogleLogin, takeGoogleCallback
 import { getPushState, showTestNotification, subscribePush, unsubscribePush, type PushState } from '../lib/push'
 import { isNative } from '../lib/native'
 import NativeNotifications from '../components/NativeNotifications.vue'
+import RestoreData from '../components/RestoreData.vue'
 import { DEFAULT_SPHERE_COLORS, MAX_SPHERE_COLORS, parseColors } from '../lib/colors'
 
 const app = useApp()
@@ -23,17 +24,15 @@ const withCycle = ref(false)
 
 async function run(kind: 'json' | 'tasks' | 'time' | 'habits') {
   busy.value = true; done.value = ''
-  const d: ExportData | undefined = await app.exportAll()
+  // данные цикла — только по галочке
+  const d: ExportData | undefined = await app.exportAll(withCycle.value)
   if (d) {
-    // данные цикла — только по галочке
-    const c = app.data.cycle
-    if (withCycle.value && c) Object.assign(d, { cycle_days: c.days, pill_courses: c.courses, cycle_settings: c.settings })
     const day = todayStr()
-    if (kind === 'json') download(`planner-${day}.json`, JSON.stringify(d, null, 2), 'application/json')
-    else if (kind === 'tasks') download(`planner-tasks-${day}.csv`, tasksCsv(d), 'text/csv')
-    else if (kind === 'time') download(`planner-time-${day}.csv`, timeCsv(d), 'text/csv')
-    else download(`planner-habits-${day}.csv`, habitsCsv(d), 'text/csv')
-    done.value = 'Файл сохранён в папку загрузок.'
+    const saved = await (kind === 'json' ? download(`planner-${day}.json`, JSON.stringify(d, null, 2), 'application/json')
+      : kind === 'tasks' ? download(`planner-tasks-${day}.csv`, tasksCsv(d), 'text/csv')
+      : kind === 'time' ? download(`planner-time-${day}.csv`, timeCsv(d), 'text/csv')
+      : download(`planner-habits-${day}.csv`, habitsCsv(d), 'text/csv'))
+    done.value = !saved ? 'Файл не сохранён.' : isNative ? 'Файл передан в выбранное приложение.' : 'Файл сохранён в папку загрузок.'
   }
   busy.value = false
 }
@@ -269,8 +268,9 @@ async function logout() { await app.signOut(); router.push('/login') }
     <div class="card space-y-3 p-4">
       <div>
         <button class="btn-primary w-full" :disabled="busy" @click="run('json')">Скачать всё · JSON</button>
-        <p class="mt-1 text-xs text-mute">Полная копия: сферы, задачи, повторы, привычки, время, цели и итоги недель. Подходит для резервной копии.</p>
+        <p class="mt-1 text-xs text-mute">Полная копия для восстановления: сферы, задачи, повторы, привычки, время, цели, итоги недель, часы работы, желания, книги, фильмы и чек-лист.</p>
         <label class="mt-2 flex items-center gap-2 text-sm"><input v-model="withCycle" type="checkbox" data-test="export-cycle" /> Включить календарь цикла</label>
+        <p class="mt-1 text-xs text-mute">Без галочки цикл из этого файла не восстановится. Такой файл с данными цикла храни только в личном месте.</p>
       </div>
       <div>
         <div class="mb-1.5 text-sm font-medium">Таблицы · CSV (открываются в Excel и Google Таблицах)</div>
@@ -281,6 +281,7 @@ async function logout() { await app.signOut(); router.push('/login') }
         </div>
       </div>
       <p v-if="done" class="rounded-lg bg-accent-soft px-3 py-2 text-sm text-accent">{{ done }}</p>
+      <RestoreData class="border-t border-line pt-3" />
     </div>
   </section>
 

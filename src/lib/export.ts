@@ -1,4 +1,5 @@
 import type { ExportData } from '../types'
+import { Capacitor } from '@capacitor/core'
 import { dayOf } from './time'
 
 type Row = Record<string, unknown>
@@ -11,12 +12,22 @@ export function toCsv(header: string[], data: string[][]): string {
   return '﻿' + [header, ...data].map(r => r.map(cell).join(';')).join('\r\n') + '\r\n'
 }
 
-export function download(filename: string, text: string, mime: string) {
+/** Сохранить файл. Сайт скачивает его сразу. В приложении на телефоне скачивание не работает, поэтому файл открывается в меню «Поделиться». false — не сохранён */
+export async function download(filename: string, text: string, mime: string): Promise<boolean> {
+  if (Capacitor.isNativePlatform()) {
+    const [{ Filesystem, Directory, Encoding }, { Share }] = await Promise.all([import('@capacitor/filesystem'), import('@capacitor/share')])
+    try {
+      const { uri } = await Filesystem.writeFile({ path: filename, data: text, directory: Directory.Cache, encoding: Encoding.UTF8 })
+      await Share.share({ title: filename, files: [uri], dialogTitle: 'Куда сохранить файл?' })
+      return true
+    } catch { return false } // в том числе отказались от сохранения
+  }
   const url = URL.createObjectURL(new Blob([text], { type: mime + ';charset=utf-8' }))
   const a = document.createElement('a')
   a.href = url; a.download = filename
   document.body.appendChild(a); a.click(); a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
+  return true
 }
 
 const clock = (iso: unknown) => { if (!iso) return ''; const d = new Date(String(iso)); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }

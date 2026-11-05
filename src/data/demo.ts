@@ -1,5 +1,5 @@
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData, Wish, Book, Movie, MonthlyItem } from '../types'
+import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData, Wish, Book, Movie, MonthlyItem, ImportReport } from '../types'
 import { addDays, dayOf, entrySeconds, todayStr } from '../lib/time'
 import { matches, nextAfter } from '../lib/recurrence'
 import { dueOn, scheduledOn } from '../lib/habitSchedule'
@@ -469,6 +469,29 @@ export const demoRepo: Repo = {
       time_entries: s.timeEntries.map(e => ({ ...e, local_date: dayOf(e.started_at), duration_seconds: e.ended_at ? entrySeconds(e) : null })),
       week_goals: s.weekGoals, weekly_reviews: s.reviews,
     }
+  },
+  async importAll(data): Promise<ImportReport> {
+    if (!data?.exported_at || !Array.isArray(data.tasks)) throw new Error('Это не файл экспорта KolaApp')
+    const s = read() as unknown as Record<string, Record<string, unknown>[] | undefined>
+    const counts: Record<string, number> = {}
+    const merge = (fileKey: string, key: string, same: (a: Record<string, unknown>, b: Record<string, unknown>) => boolean) => {
+      const rows = data[fileKey]; if (!Array.isArray(rows) || !rows.length) return
+      const list = (s[key] ??= [])
+      for (const row of rows as Record<string, unknown>[]) {
+        if (fileKey === 'time_entries' && !row.ended_at) continue
+        const i = list.findIndex(x => same(x, row))
+        if (i >= 0) list[i] = { ...list[i], ...row }; else list.push({ ...row })
+        counts[fileKey] = (counts[fileKey] ?? 0) + 1
+      }
+    }
+    const byId = (a: Record<string, unknown>, b: Record<string, unknown>) => a.id === b.id
+    for (const [f, k] of [['spheres', 'spheres'], ['projects', 'projects'], ['recurrences', 'recurrences'], ['habits', 'habits'], ['tasks', 'tasks'], ['time_entries', 'timeEntries'], ['wishes', 'wishes'], ['books', 'books'], ['movies', 'movies'], ['monthly_items', 'monthlyItems']]) merge(f, k, byId)
+    merge('habit_entries', 'habitEntries', (a, b) => a.habit_id === b.habit_id && a.entry_date === b.entry_date)
+    merge('week_goals', 'weekGoals', (a, b) => a.sphere_id === b.sphere_id && a.week_start === b.week_start)
+    merge('weekly_reviews', 'reviews', (a, b) => a.week_start === b.week_start)
+    merge('week_work', 'weekWork', (a, b) => a.week_start === b.week_start)
+    write(s as unknown as Snapshot)
+    return { counts, skipped_tables: [], dropped_columns: [], merged_spheres: 0, tasks_without_rule: 0 }
   },
   async bumpHabit(id, delta, day): Promise<HabitEntry> {
     const s = read(); const h = s.habits.find(x => x.id === id)

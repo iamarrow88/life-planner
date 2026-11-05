@@ -1024,10 +1024,22 @@ export const useApp = defineStore('app', () => {
   }
   const savePush = (sub: PushSub) => guard(async () => { await repo.savePushSubscription(sub); return true }) as Promise<boolean | undefined>
   const removePush = (endpoint: string) => guard(async () => { await repo.removePushSubscription(endpoint); return true }) as Promise<boolean | undefined>
-  // желания, книги и чек-лист добавляем здесь: серверная export_all про них не знает
-  const exportAll = async () => {
+  // желания, книги, чек-лист и часы работы добавляем здесь: серверная export_all про них не знает.
+  // Данные цикла — только по явной просьбе
+  const exportAll = async (withCycle = false) => {
     const d = await (guard(() => repo.exportAll()) as Promise<ExportData | undefined>)
-    return d ? { ...d, wishes: wishes.value, books: books.value, movies: movies.value, monthly_items: monthlyItems.value } : d
+    if (!d) return d
+    const c = data.value.cycle
+    return {
+      ...d, wishes: wishes.value, books: books.value, movies: movies.value, monthly_items: monthlyItems.value, week_work: data.value.weekWork ?? [],
+      ...(withCycle && c ? { cycle_days: c.days, pill_courses: c.courses, cycle_settings: c.settings } : {}),
+    }
+  }
+  /** Восстановление из файла экспорта. После него всё перечитываем: база могла измениться целиком */
+  async function importAll(file: ExportData) {
+    const report = await guard(() => repo.importAll(file))
+    if (report) await load()
+    return report
   }
 
   /** Отметка привычки; day — другой день (например, вечерняя таблетка, отмеченная после полуночи) */
@@ -1180,7 +1192,7 @@ export const useApp = defineStore('app', () => {
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
     plannedTodayMinutes, init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     timeBudget, timeBudgetReady, workFor, hasOwnWork, saveTimeBudget, setWeekWork,
-    goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, savePush, removePush,
+    goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, importAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,
     startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence, habitToTask, taskToHabit, attachRecurrence, updateRecurrence, detachRecurrence,
     detailId, openTask, closeTask, editor, openEditor, closeEditor, longStop, fixLongStop, dismissLongStop, addEntry, updateEntry, removeEntry, listEntries,

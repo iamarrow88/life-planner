@@ -116,6 +116,8 @@ export interface WeeklyReview {
 }
 export interface ReviewInput { went_well: string; got_in_way: string; to_change: string; focus_sphere_id: string | null }
 export type ExportData = { version: number; exported_at: string } & Record<string, unknown>
+/** Отчёт восстановления: сколько записей по таблицам и что не удалось перенести */
+export interface ImportReport { counts: Record<string, number>; skipped_tables: string[]; dropped_columns: string[]; merged_spheres: number; tasks_without_rule: number }
 /** Что делать с содержимым сферы при её архивации */
 export interface SpherePlan {
   projects: Record<string, string>                                         // id проекта → id сферы или 'archive'
@@ -303,6 +305,7 @@ export interface Repo {
   pillEntries(from: string, to: string, ids: string[], names: string[]): Promise<PillEntry[]>
   saveReview(weekStart: string, input: ReviewInput, snapshot: WeekData | null, complete: boolean): Promise<void>
   exportAll(): Promise<ExportData>
+  importAll(data: ExportData): Promise<ImportReport>
   savePushSubscription(sub: PushSub): Promise<void>
   removePushSubscription(endpoint: string): Promise<void>
   googleStatus(): Promise<GoogleStatus>
