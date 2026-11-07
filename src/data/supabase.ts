@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish, Book, Movie, MonthlyItem, ImportReport } from '../types'
+import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish, Book, Movie, ShoppingItem, MonthlyItem, ImportReport } from '../types'
 import { entrySeconds, todayStr, weekStart as weekStartOf } from '../lib/time'
 import { fetchAllPages } from '../lib/paging'
 import { DEFAULT_CYCLE_SETTINGS } from '../lib/cycle'
@@ -100,6 +100,7 @@ async function dropFuture(recId: string, keep?: string) {
 /** День, когда это устройство последний раз запускало generate_recurring_tasks */
 const GEN_DAY_KEY = 'kola-recurring-generated'
 const MONTHLY_COLS = 'id,title,note,position,done_month,task_id,task_month,created_at'
+const SHOP_COLS = 'id,title,note,position,done_at,created_at'
 const MOVIE_COLS = 'id,title,director,year,status,position,watched_on,rating,notes,created_at'
 const BOOK_COLS = 'id,title,author,status,position,total_pages,current_page,started_on,finished_on,rating,notes,created_at'
 const WISH_COLS = 'id,title,note,url,price,category,position,fulfilled_at,task_id,created_at'
@@ -141,7 +142,7 @@ export const supabaseRepo: Repo = {
     }
     /** Все задачи. Повторы создаются пачкой с одним временем создания, поэтому порядок уточняем по id */
     const allTasks = () => fetchAllPages((from, to) => c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }).order('id').range(from, to))
-    const [taskSecondsBefore, spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, moviesRes, monthlyRes, cDays, cSet, cCourses] = await Promise.all([
+    const [taskSecondsBefore, spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, moviesRes, shopRes, shopTagRes, monthlyRes, cDays, cSet, cCourses] = await Promise.all([
       olderTaskSeconds(),
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
@@ -164,6 +165,9 @@ export const supabaseRepo: Repo = {
       c.from('books').select(BOOK_COLS).order('position').order('created_at'),
       // фильмы — тоже отдельный патч базы (planner_movies.sql)
       c.from('movies').select(MOVIE_COLS).order('position').order('created_at'),
+      // список покупок — тоже отдельный патч базы (planner_shopping.sql)
+      c.from('shopping_items').select(SHOP_COLS).order('position').order('created_at'),
+      c.from('user_settings').select('shopping_tag').maybeSingle(),
       // ежемесячный чек-лист — тоже отдельный патч базы (planner_monthly.sql)
       c.from('monthly_items').select(MONTHLY_COLS).order('position').order('created_at'),
       c.from('cycle_days').select(cycleDayCols).order('day'),
@@ -208,6 +212,9 @@ export const supabaseRepo: Repo = {
       books: booksRes.error ? [] : (booksRes.data as unknown as Book[]),
       moviesReady: !moviesRes.error,
       movies: moviesRes.error ? [] : (moviesRes.data as unknown as Movie[]),
+      shoppingReady: !shopRes.error && !shopTagRes.error,
+      shoppingItems: shopRes.error ? [] : (shopRes.data as unknown as ShoppingItem[]),
+      shoppingTag: shopTagRes.error ? null : ((shopTagRes.data as { shopping_tag: string | null } | null)?.shopping_tag ?? null),
       wishesReady: !wishesRes.error,
       wishes: wishesRes.error ? [] : (wishesRes.data as unknown as Wish[]),
       colorsReady: !colorsRes.error,
@@ -323,6 +330,18 @@ export const supabaseRepo: Repo = {
   async reorderMovies(ids) {
     const rs = await Promise.all(ids.map((id, i) => db().from('movies').update({ position: i }).eq('id', id)))
     for (const r of rs) if (r.error) throw new Error(r.error.message)
+  },
+  async addShoppingItem(i) { return ok(await db().from('shopping_items').insert(i).select(SHOP_COLS).single()) as unknown as ShoppingItem },
+  async updateShoppingItem(id, patch) { return ok(await db().from('shopping_items').update(patch).eq('id', id).select(SHOP_COLS).single()) as unknown as ShoppingItem },
+  async removeShoppingItems(ids) { if (ids.length) ok(await db().from('shopping_items').delete().in('id', ids)) },
+  async reorderShoppingItems(ids) {
+    const rs = await Promise.all(ids.map((id, i) => db().from('shopping_items').update({ position: i }).eq('id', id)))
+    for (const r of rs) if (r.error) throw new Error(r.error.message)
+  },
+  async saveShoppingTag(tag) {
+    const uid = (await db().auth.getSession()).data.session?.user.id
+    if (!uid) throw new Error('Нужно войти')
+    ok(await db().from('user_settings').upsert({ user_id: uid, shopping_tag: tag }))
   },
   async addWish(w) { return ok(await db().from('wishes').insert(w).select(WISH_COLS).single()) as unknown as Wish },
   async updateWish(id, patch) { return ok(await db().from('wishes').update(patch).eq('id', id).select(WISH_COLS).single()) as unknown as Wish },

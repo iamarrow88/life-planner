@@ -9,6 +9,15 @@
         "dev"
       ],
       "port": 5173
+    },
+    {
+      "name": "demo",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set VITE_SUPABASE_URL=demo&& set VITE_BASE=/&& npx vite --port 5191 --strictPort"
+      ],
+      "port": 5191
     }
   ]
 }

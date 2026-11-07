@@ -1,5 +1,5 @@
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData, Wish, Book, Movie, MonthlyItem, ImportReport } from '../types'
+import type { Repo, Snapshot, Task, Sphere, Project, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, EditorTarget, WeekData, ExportData, Wish, Book, Movie, ShoppingItem, MonthlyItem, ImportReport } from '../types'
 import { addDays, dayOf, entrySeconds, todayStr } from '../lib/time'
 import { matches, nextAfter } from '../lib/recurrence'
 import { dueOn, scheduledOn } from '../lib/habitSchedule'
@@ -356,6 +356,20 @@ export const demoRepo: Repo = {
   async reorderMovies(ids) {
     const s = read(); ids.forEach((id, i) => { const m = s.movies?.find(x => x.id === id); if (m) m.position = i }); write(s)
   },
+  async addShoppingItem(i) {
+    const s = read(); const item: ShoppingItem = { id: uid(), note: null, done_at: null, created_at: new Date().toISOString(), ...i }
+    ;(s.shoppingItems ??= []).push(item); write(s); return item
+  },
+  async updateShoppingItem(id, patch) {
+    const s = read(); const item = s.shoppingItems?.find(x => x.id === id)
+    if (!item) throw new Error('Пункт не найден')
+    Object.assign(item, patch); write(s); return item
+  },
+  async removeShoppingItems(ids) { const s = read(); s.shoppingItems = (s.shoppingItems ?? []).filter(x => !ids.includes(x.id)); write(s) },
+  async reorderShoppingItems(ids) {
+    const s = read(); ids.forEach((id, i) => { const x = s.shoppingItems?.find(y => y.id === id); if (x) x.position = i }); write(s)
+  },
+  async saveShoppingTag(tag) { const s = read(); s.shoppingTag = tag; write(s) },
   async addWish(w) {
     const s = read(); const wish: Wish = { id: uid(), note: null, url: null, price: null, fulfilled_at: null, task_id: null, created_at: new Date().toISOString(), ...w }
     ;(s.wishes ??= []).push(wish); write(s); return wish
@@ -485,7 +499,7 @@ export const demoRepo: Repo = {
       }
     }
     const byId = (a: Record<string, unknown>, b: Record<string, unknown>) => a.id === b.id
-    for (const [f, k] of [['spheres', 'spheres'], ['projects', 'projects'], ['recurrences', 'recurrences'], ['habits', 'habits'], ['tasks', 'tasks'], ['time_entries', 'timeEntries'], ['wishes', 'wishes'], ['books', 'books'], ['movies', 'movies'], ['monthly_items', 'monthlyItems']]) merge(f, k, byId)
+    for (const [f, k] of [['spheres', 'spheres'], ['projects', 'projects'], ['recurrences', 'recurrences'], ['habits', 'habits'], ['tasks', 'tasks'], ['time_entries', 'timeEntries'], ['wishes', 'wishes'], ['books', 'books'], ['movies', 'movies'], ['shopping_items', 'shoppingItems'], ['monthly_items', 'monthlyItems']]) merge(f, k, byId)
     merge('habit_entries', 'habitEntries', (a, b) => a.habit_id === b.habit_id && a.entry_date === b.entry_date)
     merge('week_goals', 'weekGoals', (a, b) => a.sphere_id === b.sphere_id && a.week_start === b.week_start)
     merge('weekly_reviews', 'reviews', (a, b) => a.week_start === b.week_start)

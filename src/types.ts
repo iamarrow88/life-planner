@@ -25,6 +25,10 @@ export interface Movie {
 }
 export type NewMovie = Pick<Movie, 'title' | 'status' | 'position'> & Partial<Pick<Movie, 'notes'>>
 export type MoviePatch = Partial<Omit<Movie, 'id' | 'created_at'>>
+/** Пункт списка покупок, добавленный вручную. done_at — когда куплено (null — ещё купить) */
+export interface ShoppingItem { id: string; title: string; note: string | null; position: number; done_at: string | null; created_at?: string }
+export type NewShoppingItem = Pick<ShoppingItem, 'title' | 'position'> & Partial<Pick<ShoppingItem, 'note'>>
+export type ShoppingPatch = Partial<Omit<ShoppingItem, 'id' | 'created_at'>>
 /** Желание: просто запись «хочу», без дат и сроков. fulfilled_at — когда исполнилось, task_id — задача, созданная из желания */
 export interface Wish {
   id: string; title: string; note: string | null; url: string | null; price: number | null; category: string | null
@@ -145,6 +149,9 @@ export interface Snapshot {
   booksReady?: boolean           // false — в базе ещё нет библиотеки (не выполнен planner_books.sql)
   movies?: Movie[]
   moviesReady?: boolean          // false — в базе ещё нет фильмов (не выполнен planner_movies.sql)
+  shoppingItems?: ShoppingItem[]
+  shoppingReady?: boolean        // false — в базе ещё нет списка покупок (не выполнен planner_shopping.sql)
+  shoppingTag?: string | null    // тег задач для списка покупок: null — «покупки», '' — задачи не показывать
   wishes?: Wish[]
   wishesReady?: boolean          // false — в базе ещё нет желаний (не выполнен planner_wishes.sql)
   sphereColors?: string[] | null  // свой набор цветов для сфер (null — набор по умолчанию)
@@ -287,6 +294,13 @@ export interface Repo {
   removeMovie(id: string): Promise<void>
   /** Порядок списка: id в нужном порядке (position = номер в списке) */
   reorderMovies(ids: string[]): Promise<void>
+  addShoppingItem(i: NewShoppingItem): Promise<ShoppingItem>
+  updateShoppingItem(id: string, patch: ShoppingPatch): Promise<ShoppingItem>
+  removeShoppingItems(ids: string[]): Promise<void>
+  /** Порядок списка: id в нужном порядке (position = номер в списке) */
+  reorderShoppingItems(ids: string[]): Promise<void>
+  /** Тег задач для списка покупок: null — по умолчанию («покупки»), '' — задачи не показывать */
+  saveShoppingTag(tag: string | null): Promise<void>
   addWish(w: NewWish): Promise<Wish>
   updateWish(id: string, patch: WishPatch): Promise<Wish>
   removeWish(id: string): Promise<void>

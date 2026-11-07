@@ -28,6 +28,7 @@ export const router = createRouter({
     { path: '/wishes', component: () => import('./views/WishesView.vue') },
     { path: '/library', component: () => import('./views/LibraryView.vue') },
     { path: '/movies', component: () => import('./views/MoviesView.vue') },
+    { path: '/shopping', component: () => import('./views/ShoppingView.vue') },
     { path: '/monthly', component: () => import('./views/MonthlyView.vue') },
     { path: '/more', component: () => import('./views/MoreView.vue') },
   ],

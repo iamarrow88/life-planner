@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import { useApp } from '../stores/app'
 import type { Task } from '../types'
 
-/** Окно «Ещё» во «Входящих»: задача становится желанием, книгой или фильмом и уходит из списка */
+/** Окно «Ещё» во «Входящих»: задача становится желанием, книгой, фильмом или покупкой и уходит из списка */
 const props = defineProps<{ task: Task }>()
 const emit = defineEmits<{ close: [] }>()
 const app = useApp()
@@ -33,6 +33,7 @@ onMounted(async () => {
         <button v-if="app.wishesReady && !fromWish" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-wish" @click="convert(app.taskToWish)">Сделать желанием</button>
         <button v-if="app.booksReady" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-book" @click="convert(app.taskToBook)">Отправить в библиотеку</button>
         <button v-if="app.moviesReady" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-movie" @click="convert(app.taskToMovie)">Отправить в фильмы</button>
+        <button v-if="app.shoppingReady" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-shopping" @click="convert(app.taskToShopping)">Добавить в список покупок</button>
       </div>
     </div>
   </div>

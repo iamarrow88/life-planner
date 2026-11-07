@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch, Book, BookPatch, Movie, MoviePatch, MonthlyItem, MonthlyPatch } from '../types'
+import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch, Book, BookPatch, Movie, MoviePatch, ShoppingItem, ShoppingPatch, MonthlyItem, MonthlyPatch } from '../types'
 import { googleClientId } from '../lib/google'
 import { parseTags, uniqTags } from '../lib/tags'
 import { byPosition } from '../lib/taskOrder'
@@ -576,6 +576,60 @@ export const useApp = defineStore('app', () => {
     ;(data.value.movies ??= []).push(m)
     return finishConversion(t, 'в фильмах')
   }
+  async function taskToShopping(t: Task) {
+    const i = await guard(() => repo.addShoppingItem({ title: recordTitle(t), position: nextShoppingPosition(), note: taskText(t)?.slice(0, 4000) ?? null }))
+    if (!i) return false
+    ;(data.value.shoppingItems ??= []).push(i)
+    return finishConversion(t, 'в списке покупок')
+  }
+  // ---- Список покупок: пункты, добавленные вручную, и невыполненные задачи с выбранным тегом.
+  // Купленное остаётся внизу, пока его не очистят; задачи с тегом видны там только в день выполнения
+  const DEFAULT_SHOPPING_TAG = 'покупки'
+  const shoppingReady = computed(() => data.value.shoppingReady !== false)
+  const shoppingItems = computed(() => data.value.shoppingItems ?? [])
+  /** '' — задачи в список не попадают */
+  const shoppingTag = computed(() => (tagsReady.value ? data.value.shoppingTag ?? DEFAULT_SHOPPING_TAG : ''))
+  const toBuyItems = computed(() => shoppingItems.value.filter(i => !i.done_at).sort((a, b) => a.position - b.position))
+  const boughtItems = computed(() => shoppingItems.value.filter(i => i.done_at).sort((a, b) => (b.done_at ?? '').localeCompare(a.done_at ?? '')))
+  const withShoppingTag = (t: Task) => !!shoppingTag.value && !!t.tags?.includes(shoppingTag.value)
+  /** Задачи с тегом: по дате, без даты — в конце */
+  const shoppingTasks = computed(() => data.value.tasks.filter(t => t.status !== 'done' && withShoppingTag(t))
+    .sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999') || a.title.localeCompare(b.title)))
+  const boughtTasks = computed(() => data.value.tasks.filter(t => t.status === 'done' && withShoppingTag(t) && !!t.done_at && dayOf(t.done_at) === today.value))
+  const nextShoppingPosition = () => Math.max(-1, ...toBuyItems.value.map(i => i.position)) + 1
+  async function addShoppingItem(title: string) {
+    const i = await guard(() => repo.addShoppingItem({ title, position: nextShoppingPosition() }))
+    if (i) (data.value.shoppingItems ??= []).push(i)
+    return !!i
+  }
+  async function updateShoppingItem(id: string, patch: ShoppingPatch) {
+    const i = await guard(() => repo.updateShoppingItem(id, patch))
+    if (i) { const k = shoppingItems.value.findIndex(x => x.id === id); if (k >= 0) data.value.shoppingItems![k] = i }
+    return !!i
+  }
+  /** Купить снова — в конец списка «Купить» */
+  const toggleShoppingItem = (i: ShoppingItem) => updateShoppingItem(i.id, i.done_at ? { done_at: null, position: nextShoppingPosition() } : { done_at: new Date().toISOString() })
+  async function removeShoppingItems(ids: string[]) {
+    const ok = await guard(async () => { await repo.removeShoppingItems(ids); return true })
+    if (ok) data.value.shoppingItems = shoppingItems.value.filter(x => !ids.includes(x.id))
+    return !!ok
+  }
+  async function reorderShoppingItems(ids: string[]) {
+    const before = new Map(shoppingItems.value.map(i => [i.id, i.position]))
+    ids.forEach((id, k) => { const i = shoppingItems.value.find(x => x.id === id); if (i) i.position = k })
+    const ok = await guard(async () => { await repo.reorderShoppingItems(ids); return true })
+    if (!ok) for (const i of shoppingItems.value) i.position = before.get(i.id) ?? 0
+  }
+  /** Сохранить тег; пустая строка — задачи в список не попадают. false — тег не подходит или не сохранился */
+  async function saveShoppingTag(raw: string) {
+    const text = raw.trim().replace(/^#/, '')
+    const tag = text ? uniqTags([text])[0] : ''
+    if (tag === undefined) { error.value = 'Тег — буквы, цифры, «_» или «-», начинается с буквы'; return false }
+    const value = tag === DEFAULT_SHOPPING_TAG ? null : tag
+    const ok = await guard(async () => { await repo.saveShoppingTag(value); return true })
+    if (ok) data.value.shoppingTag = value
+    return !!ok
+  }
   // ---- Ежемесячный чек-лист: в общий список задач пункты не попадают. Отметка действует только в своём месяце,
   // поэтому 1-го числа список обнуляется сам
   const monthlyReady = computed(() => data.value.monthlyReady !== false)
@@ -1089,7 +1143,7 @@ export const useApp = defineStore('app', () => {
     if (!d) return d
     const c = data.value.cycle
     return {
-      ...d, wishes: wishes.value, books: books.value, movies: movies.value, monthly_items: monthlyItems.value, week_work: data.value.weekWork ?? [],
+      ...d, wishes: wishes.value, books: books.value, movies: movies.value, shopping_items: shoppingItems.value, monthly_items: monthlyItems.value, week_work: data.value.weekWork ?? [],
       ...(withCycle && c ? { cycle_days: c.days, pill_courses: c.courses, cycle_settings: c.settings } : {}),
     }
   }
@@ -1243,7 +1297,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, checklistSyncReady, copySubtasksToNext, setChecklistSync, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, moviesReady, movies, queueMovies, watchedMovies, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, checklistSyncReady, copySubtasksToNext, setChecklistSync, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, taskToShopping, shoppingReady, shoppingItems, shoppingTag, toBuyItems, boughtItems, shoppingTasks, boughtTasks, addShoppingItem, updateShoppingItem, toggleShoppingItem, removeShoppingItems, reorderShoppingItems, saveShoppingTag, moviesReady, movies, queueMovies, watchedMovies, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

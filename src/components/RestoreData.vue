@@ -20,7 +20,7 @@ const input = ref<HTMLInputElement | null>(null)
 
 const LABELS: [string, string][] = [
   ['tasks', 'задач'], ['spheres', 'сфер'], ['projects', 'проектов'], ['recurrences', 'повторов'], ['habits', 'привычек'],
-  ['time_entries', 'записей времени'], ['weekly_reviews', 'итогов недель'], ['wishes', 'желаний'], ['books', 'книг'], ['movies', 'фильмов'], ['monthly_items', 'пунктов чек-листа'],
+  ['time_entries', 'записей времени'], ['weekly_reviews', 'итогов недель'], ['wishes', 'желаний'], ['books', 'книг'], ['movies', 'фильмов'], ['shopping_items', 'покупок'], ['monthly_items', 'пунктов чек-листа'],
 ]
 const len = (key: string) => { const v = file.value?.[key]; return Array.isArray(v) ? v.length : 0 }
 const summary = computed(() => LABELS.filter(([k]) => len(k) > 0).map(([k, label]) => `${label}: ${len(k)}`))

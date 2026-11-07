@@ -5,6 +5,7 @@ import NavIcon from '../components/NavIcon.vue'
 
 /** «Разное»: разделы, которым не нужна своя вкладка */
 const app = useApp()
+const shoppingLeft = computed(() => app.toBuyItems.length + app.shoppingTasks.length)
 const monthlyLeft = computed(() => app.monthlyItems.filter(i => !app.monthlyDone(i)).length)
 </script>
 
@@ -24,6 +25,14 @@ const monthlyLeft = computed(() => app.monthlyItems.filter(i => !app.monthlyDone
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">Фильмы</span>
         <span class="block text-xs text-mute">Хочу посмотреть: {{ app.queueMovies.length }} · посмотрено: {{ app.watchedMovies.length }}</span>
+      </span>
+      <span class="text-mute">›</span>
+    </RouterLink>
+    <RouterLink to="/shopping" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-shopping">
+      <NavIcon name="shopping" class="shrink-0 text-accent" />
+      <span class="min-w-0 flex-1">
+        <span class="block font-semibold">Список покупок</span>
+        <span class="block text-xs text-mute">{{ shoppingLeft ? 'Купить: ' + shoppingLeft : 'Всё куплено' }}</span>
       </span>
       <span class="text-mute">›</span>
     </RouterLink>

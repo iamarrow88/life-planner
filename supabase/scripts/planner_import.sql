@@ -39,6 +39,7 @@ declare
     ['wishes',         'wishes',            'id',                ''],
     ['books',          'books',             'id',                ''],
     ['movies',         'movies',            'id',                ''],
+    ['shopping_items', 'shopping_items',    'id',                ''],
     ['monthly_items',  'monthly_items',     'id',                ''],
     ['pill_courses',   'pill_courses',      'id',                ''],
     ['cycle_days',     'cycle_days',        'user_id,day',       ''],
