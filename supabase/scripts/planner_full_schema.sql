@@ -106,7 +106,7 @@ create table public.google_ignored (
 );
 
 create table public.google_tombstones (
-  id bigint not null,
+  id bigint generated always as identity not null,
   user_id uuid not null,
   event_id text not null,
   created_at timestamp with time zone default now() not null,
@@ -1655,6 +1655,7 @@ end $function$
 CREATE OR REPLACE FUNCTION public.tasks_google_tombstone()
  RETURNS trigger
  LANGUAGE plpgsql
+ SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 begin

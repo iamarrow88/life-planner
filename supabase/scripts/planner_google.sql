@@ -77,8 +77,9 @@ drop trigger if exists tasks_google_dirty on public.tasks;
 create trigger tasks_google_dirty before insert or update on public.tasks
   for each row execute function public.tasks_google_dirty();
 
+-- security definer: у пользователей нет доступа к google_tombstones, без него удаление такой задачи падает
 create or replace function public.tasks_google_tombstone() returns trigger
-language plpgsql set search_path = public as $$
+language plpgsql security definer set search_path = public as $$
 begin
   if old.google_event_id is not null and not public.is_service_role() then
     insert into public.google_tombstones (user_id, event_id) values (old.user_id, old.google_event_id);
