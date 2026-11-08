@@ -365,7 +365,7 @@ export const demoRepo: Repo = {
     const s = read(); ids.forEach((id, i) => { const b = s.books?.find(x => x.id === id); if (b) b.position = i }); write(s)
   },
   async addMovie(m) {
-    const s = read(); const movie: Movie = { id: uid(), director: null, year: null, watched_on: null, rating: null, notes: [], created_at: new Date().toISOString(), ...m }
+    const s = read(); const movie: Movie = { id: uid(), director: null, year: null, watched_on: null, rating: null, notes: [], created_at: new Date().toISOString(), added_on: todayStr(), genre: null, country: null, favorite: false, ...m }
     ;(s.movies ??= []).push(movie); write(s); return movie
   },
   async updateMovie(id, patch) {

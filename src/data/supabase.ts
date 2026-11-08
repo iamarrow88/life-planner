@@ -114,7 +114,9 @@ async function tasksByIds(ids: string[]): Promise<Task[]> {
 let taskSecondsRpc = true
 const MONTHLY_COLS = 'id,title,note,position,done_month,task_id,task_month,created_at'
 const SHOP_COLS = 'id,title,note,position,done_at,created_at'
-const MOVIE_COLS = 'id,title,director,year,status,position,watched_on,rating,notes,created_at'
+const MOVIE_BASE_COLS = 'id,title,director,year,status,position,watched_on,rating,notes,created_at'
+/** Подробности фильма — отдельный патч базы (planner_movies_details.sql): пока его нет, читаем без них */
+let MOVIE_COLS = MOVIE_BASE_COLS + ',added_on,genre,country,favorite'
 const BOOK_BASE_COLS = 'id,title,author,status,position,total_pages,current_page,started_on,finished_on,rating,notes,created_at'
 /** Подробности книги — отдельный патч базы (planner_books_details.sql): пока его нет, читаем без них */
 let BOOK_COLS = BOOK_BASE_COLS + ',added_on,published_year,genre'
@@ -217,6 +219,11 @@ export const supabaseRepo: Repo = {
       HABIT_COLS = HABIT_BASE_COLS
       habits = await c.from('habits').select(HABIT_COLS).is('archived_at', null).order('position').order('created_at')
     }
+    let movies = moviesRes
+    if (movies.error && MOVIE_COLS !== MOVIE_BASE_COLS) {
+      MOVIE_COLS = MOVIE_BASE_COLS
+      movies = await c.from('movies').select(MOVIE_COLS).order('position').order('created_at')
+    }
     let books = booksRes
     if (books.error && BOOK_COLS !== BOOK_BASE_COLS) {
       BOOK_COLS = BOOK_BASE_COLS
@@ -255,8 +262,9 @@ export const supabaseRepo: Repo = {
       booksReady: !books.error,
       bookDetailsReady: !books.error && BOOK_COLS !== BOOK_BASE_COLS,
       books: books.error ? [] : (books.data as unknown as Book[]),
-      moviesReady: !moviesRes.error,
-      movies: moviesRes.error ? [] : (moviesRes.data as unknown as Movie[]),
+      moviesReady: !movies.error,
+      movieDetailsReady: !movies.error && MOVIE_COLS !== MOVIE_BASE_COLS,
+      movies: movies.error ? [] : (movies.data as unknown as Movie[]),
       shoppingReady: !shopRes.error && !shopTagRes.error,
       shoppingItems: shopRes.error ? [] : (shopRes.data as unknown as ShoppingItem[]),
       shoppingTag: shopTagRes.error ? null : ((shopTagRes.data as { shopping_tag: string | null } | null)?.shopping_tag ?? null),

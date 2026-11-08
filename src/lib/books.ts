@@ -1,6 +1,7 @@
 // Справочник для книг: состояния и жанры (жанр хранится текстом, список вариантов — здесь)
 import { ref } from 'vue'
 import type { BookStatus } from '../types'
+import { ratingFits, within, type MinRating } from './rangeFilter'
 
 /** Открытая карточка книги. Общая для всех списков: сменили состояние — книга переехала в другой раздел, карточка там же открыта */
 export const openBookId = ref<string | null>(null)
@@ -36,7 +37,7 @@ export const BOOK_GENRES = [
 export interface BookFilter {
   statuses: BookStatus[]
   genre: string
-  minRating: '' | '5' | '4' | '3' | 'none'
+  minRating: MinRating
   yearFrom: string; yearTo: string
   addedFrom: string; addedTo: string
   startedFrom: string; startedTo: string
@@ -51,17 +52,10 @@ export function bookFilterCount(f: BookFilter): number {
   return (f.statuses.length ? 1 : 0) + (f.genre ? 1 : 0) + (f.minRating ? 1 : 0)
     + [[f.yearFrom, f.yearTo], [f.addedFrom, f.addedTo], [f.startedFrom, f.startedTo], [f.finishedFrom, f.finishedTo]].filter(([a, b]) => a || b).length
 }
-/** Значение в промежутке [from, to]; пустой край — без ограничения. Если промежуток задан, а значения нет — не подходит */
-const within = (v: string | number | null | undefined, from: string, to: string, num = false) => {
-  if (!from && !to) return true
-  if (v == null || v === '') return false
-  const x = num ? Number(v) : String(v)
-  return (!from || x >= (num ? Number(from) : from)) && (!to || x <= (num ? Number(to) : to))
-}
 export function matchesBookFilter(f: BookFilter, b: { status: BookStatus; genre?: string | null; rating: number | null; published_year?: number | null; added_on?: string; started_on: string | null; finished_on: string | null }): boolean {
   if (f.statuses.length && !f.statuses.includes(b.status)) return false
   if (f.genre === NO_GENRE ? !!b.genre : f.genre && b.genre !== f.genre) return false
-  if (f.minRating === 'none' ? b.rating != null : f.minRating && (b.rating ?? 0) < Number(f.minRating)) return false
+  if (!ratingFits(f.minRating, b.rating)) return false
   return within(b.published_year, f.yearFrom, f.yearTo, true) && within(b.added_on, f.addedFrom, f.addedTo)
     && within(b.started_on, f.startedFrom, f.startedTo) && within(b.finished_on, f.finishedFrom, f.finishedTo)
 }

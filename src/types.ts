@@ -24,6 +24,8 @@ export interface MovieNote { id: string; at: string; text: string }
 export interface Movie {
   id: string; title: string; director: string | null; year: number | null; status: MovieStatus; position: number
   watched_on: string | null; rating: number | null; notes: MovieNote[]; created_at?: string
+  /** Дата добавления в список, жанр, страна, избранное — есть, если выполнен planner_movies_details.sql */
+  added_on?: string; genre?: string | null; country?: string | null; favorite?: boolean
 }
 export type NewMovie = Pick<Movie, 'title' | 'status' | 'position'> & Partial<Pick<Movie, 'notes'>>
 export type MoviePatch = Partial<Omit<Movie, 'id' | 'created_at'>>
@@ -153,6 +155,7 @@ export interface Snapshot {
   bookDetailsReady?: boolean     // false — нет состояния «бросила», жанра, года и даты добавления (не выполнен planner_books_details.sql)
   movies?: Movie[]
   moviesReady?: boolean          // false — в базе ещё нет фильмов (не выполнен planner_movies.sql)
+  movieDetailsReady?: boolean    // false — нет даты добавления, жанра, страны и избранного (не выполнен planner_movies_details.sql)
   shoppingItems?: ShoppingItem[]
   shoppingReady?: boolean        // false — в базе ещё нет списка покупок (не выполнен planner_shopping.sql)
   shoppingTag?: string | null    // тег задач для списка покупок: null — «покупки», '' — задачи не показывать

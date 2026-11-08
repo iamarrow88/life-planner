@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useApp } from '../stores/app'
 import type { BookStatus } from '../types'
 import { BOOK_GENRES, BOOK_STATUSES, EMPTY_BOOK_FILTER, NO_GENRE, bookFilterCount, type BookFilter } from '../lib/books'
+import { RATING_CHOICES as ratings } from '../lib/rangeFilter'
 
 /** Панель отбора книг: состояние, жанр, оценка, год издания и даты. Свёрнута, на кнопке — сколько условий задано */
 const model = defineModel<BookFilter>({ required: true })
@@ -14,7 +15,6 @@ const toggleStatus = (s: BookStatus) => set('statuses', model.value.statuses.inc
 const statuses = computed(() => BOOK_STATUSES.filter(s => s.v !== 'dropped' || app.bookDetailsReady))
 /** Жанры: список вариантов и те, что уже встречаются у книг */
 const genres = computed(() => [...new Set([...BOOK_GENRES, ...app.books.map(b => b.genre).filter((g): g is string => !!g)])])
-const ratings: { v: BookFilter['minRating']; label: string }[] = [{ v: '', label: 'Любая' }, { v: '5', label: '★5' }, { v: '4', label: '★4+' }, { v: '3', label: '★3+' }, { v: 'none', label: 'Без оценки' }]
 const ranges = computed(() => [
   { label: 'Добавлена в список', from: 'addedFrom', to: 'addedTo', show: app.bookDetailsReady },
   { label: 'Начала читать', from: 'startedFrom', to: 'startedTo', show: true },
