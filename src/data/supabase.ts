@@ -99,6 +99,8 @@ async function dropFuture(recId: string, keep?: string) {
 
 /** День, когда это устройство последний раз запускало generate_recurring_tasks */
 const GEN_DAY_KEY = 'kola-recurring-generated'
+/** false — в базе нет task_seconds_before (не выполнен planner_task_seconds.sql) */
+let taskSecondsRpc = true
 const MONTHLY_COLS = 'id,title,note,position,done_month,task_id,task_month,created_at'
 const SHOP_COLS = 'id,title,note,position,done_at,created_at'
 const MOVIE_COLS = 'id,title,director,year,status,position,watched_on,rating,notes,created_at'
@@ -124,15 +126,22 @@ export const supabaseRepo: Repo = {
     const c = db()
     // Задачи по повторам создаются на 30 дней вперёд, поэтому достаточно раз в день на устройстве (правка повтора и
     // «после выполнения» создают их сами). Первый запуск дня ждёт генерацию, остальные загрузки — нет
+    // Остальные запросы генерацию не ждут: от неё зависят только задачи
     let genDay: string | null = null
     try { genDay = localStorage.getItem(GEN_DAY_KEY) } catch { /* без хранилища — генерируем каждый раз */ }
-    if (genDay !== today) {
-      const g = await c.rpc('generate_recurring_tasks')
+    const generated = genDay === today ? Promise.resolve() : Promise.resolve(c.rpc('generate_recurring_tasks')).then(g => {
       if (!g.error) try { localStorage.setItem(GEN_DAY_KEY, today) } catch { /* см. выше */ }
-    }
+    })
     const ws = weekStartOf(today)
     /** Время по задачам за всё, что старше since. Без него приложение работает: факт будет только за загруженный период */
     const olderTaskSeconds = async () => {
+      // суммы считает база (planner_task_seconds.sql): один ответ вместо всех старых записей времени
+      if (taskSecondsRpc) {
+        const r = await c.rpc('task_seconds_before', { p_since: since })
+        if (!r.error) return Object.fromEntries(Object.entries((r.data ?? {}) as Record<string, number>).map(([k, v]) => [k, Number(v)]))
+        // функции нет — больше не спрашиваем; при другой ошибке (сеть) — по-старому только в этот раз
+        if (r.error.code === 'PGRST202' || r.error.code === '42883') taskSecondsRpc = false
+      }
       const { data } = await fetchAllPages((from, to) => c.from('time_entries').select('task_id,started_at,ended_at')
         .not('task_id', 'is', null).not('ended_at', 'is', null).lt('local_date', since)
         .order('started_at').order('id').range(from, to))
@@ -141,7 +150,7 @@ export const supabaseRepo: Repo = {
       return res
     }
     /** Все задачи. Повторы создаются пачкой с одним временем создания, поэтому порядок уточняем по id */
-    const allTasks = () => fetchAllPages((from, to) => c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }).order('id').range(from, to))
+    const allTasks = () => generated.then(() => fetchAllPages((from, to) => c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }).order('id').range(from, to)))
     const [taskSecondsBefore, spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, moviesRes, shopRes, shopTagRes, monthlyRes, cDays, cSet, cCourses] = await Promise.all([
       olderTaskSeconds(),
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),

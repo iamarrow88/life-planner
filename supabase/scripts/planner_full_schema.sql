@@ -2638,4 +2638,19 @@ alter table public.user_settings add column if not exists shopping_tag text;
 alter table public.user_settings drop constraint if exists user_settings_shopping_tag_check;
 alter table public.user_settings add constraint user_settings_shopping_tag_check check (shopping_tag is null or length(shopping_tag) <= 50);
 
+-- суммы старого времени по задачам (planner_task_seconds.sql)
+create or replace function public.task_seconds_before(p_since date) returns jsonb
+language sql stable set search_path = public as $$
+  select coalesce(jsonb_object_agg(task_id, seconds), '{}'::jsonb)
+  from (
+    select task_id, sum(greatest(0, floor(extract(epoch from (ended_at - started_at)))))::bigint as seconds
+    from public.time_entries
+    where user_id = (select auth.uid()) and task_id is not null and ended_at is not null and local_date < p_since
+    group by task_id
+  ) s
+$$;
+
+revoke all on function public.task_seconds_before(date) from public, anon;
+grant execute on function public.task_seconds_before(date) to authenticated;
+
 commit;
