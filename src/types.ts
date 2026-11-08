@@ -8,12 +8,14 @@ export interface MonthlyItem {
 export type NewMonthlyItem = Pick<MonthlyItem, 'title' | 'position'>
 export type MonthlyPatch = Partial<Omit<MonthlyItem, 'id' | 'created_at'>>
 /** Книга: queue — в очереди, reading — читаю, done — прочитано */
-export type BookStatus = 'queue' | 'reading' | 'done'
+export type BookStatus = 'queue' | 'reading' | 'done' | 'dropped'
 export interface BookNote { id: string; at: string; page: number | null; text: string }
 export interface Book {
   id: string; title: string; author: string | null; status: BookStatus; position: number
   total_pages: number | null; current_page: number; started_on: string | null; finished_on: string | null
   rating: number | null; notes: BookNote[]; created_at?: string
+  /** Дата добавления в список, год издания, жанр — есть, если выполнен planner_books_details.sql */
+  added_on?: string; published_year?: number | null; genre?: string | null
 }
 export type NewBook = Pick<Book, 'title' | 'status' | 'position'> & Partial<Pick<Book, 'notes'>>
 export type BookPatch = Partial<Omit<Book, 'id' | 'created_at'>>
@@ -148,6 +150,7 @@ export interface Snapshot {
   monthlyReady?: boolean         // false — в базе ещё нет чек-листа (не выполнен planner_monthly.sql)
   books?: Book[]
   booksReady?: boolean           // false — в базе ещё нет библиотеки (не выполнен planner_books.sql)
+  bookDetailsReady?: boolean     // false — нет состояния «бросила», жанра, года и даты добавления (не выполнен planner_books_details.sql)
   movies?: Movie[]
   moviesReady?: boolean          // false — в базе ещё нет фильмов (не выполнен planner_movies.sql)
   shoppingItems?: ShoppingItem[]

@@ -115,7 +115,9 @@ let taskSecondsRpc = true
 const MONTHLY_COLS = 'id,title,note,position,done_month,task_id,task_month,created_at'
 const SHOP_COLS = 'id,title,note,position,done_at,created_at'
 const MOVIE_COLS = 'id,title,director,year,status,position,watched_on,rating,notes,created_at'
-const BOOK_COLS = 'id,title,author,status,position,total_pages,current_page,started_on,finished_on,rating,notes,created_at'
+const BOOK_BASE_COLS = 'id,title,author,status,position,total_pages,current_page,started_on,finished_on,rating,notes,created_at'
+/** Подробности книги — отдельный патч базы (planner_books_details.sql): пока его нет, читаем без них */
+let BOOK_COLS = BOOK_BASE_COLS + ',added_on,published_year,genre'
 const WISH_COLS = 'id,title,note,url,price,category,position,fulfilled_at,task_id,created_at'
 
 export const supabaseRepo: Repo = {
@@ -215,6 +217,11 @@ export const supabaseRepo: Repo = {
       HABIT_COLS = HABIT_BASE_COLS
       habits = await c.from('habits').select(HABIT_COLS).is('archived_at', null).order('position').order('created_at')
     }
+    let books = booksRes
+    if (books.error && BOOK_COLS !== BOOK_BASE_COLS) {
+      BOOK_COLS = BOOK_BASE_COLS
+      books = await c.from('books').select(BOOK_COLS).order('position').order('created_at')
+    }
     let cycleDays = cDays
     if (cDays.error && cycleDayCols !== CYCLE_DAY_BASE) {
       // примечание к циклу добавлено в planner_cycle.sql позже: пока его не перевыполнили, читаем без него
@@ -245,8 +252,9 @@ export const supabaseRepo: Repo = {
       weekWork: work.error ? [] : (work.data as WeekWork[]),
       monthlyReady: !monthlyRes.error,
       monthlyItems: monthlyRes.error ? [] : (monthlyRes.data as unknown as MonthlyItem[]),
-      booksReady: !booksRes.error,
-      books: booksRes.error ? [] : (booksRes.data as unknown as Book[]),
+      booksReady: !books.error,
+      bookDetailsReady: !books.error && BOOK_COLS !== BOOK_BASE_COLS,
+      books: books.error ? [] : (books.data as unknown as Book[]),
       moviesReady: !moviesRes.error,
       movies: moviesRes.error ? [] : (moviesRes.data as unknown as Movie[]),
       shoppingReady: !shopRes.error && !shopTagRes.error,

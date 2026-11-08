@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useApp } from '../stores/app'
-import type { Book, BookPatch } from '../types'
+import type { Book, BookPatch, BookStatus } from '../types'
 import { shortDate, ymd } from '../lib/time'
+import { BOOK_GENRES, BOOK_STATUSES, openBookId } from '../lib/books'
 import AutoTextarea from './AutoTextarea.vue'
 
 /** Книга: в строке — главное, по нажатию строка сменяется полями. Правки сохраняются сами, когда уходишь из поля */
 const props = defineProps<{ book: Book; sortable?: boolean }>()
 const app = useApp()
-const open = ref(false)
+const open = computed({ get: () => openBookId.value === props.book.id, set: v => { openBookId.value = v ? props.book.id : null } })
 const title = ref('')
 const author = ref('')
 const totalPages = ref<number | string | null>(null)
 const startedOn = ref('')
 const finishedOn = ref('')
+const addedOn = ref('')
+const year = ref<number | string | null>(null)
+const genre = ref('')
 const noteText = ref('')
 const notePage = ref<number | string | null>(null)
 
@@ -21,6 +25,7 @@ function show() {
   const b = props.book
   title.value = b.title; author.value = b.author ?? ''; totalPages.value = b.total_pages
   startedOn.value = b.started_on ?? ''; finishedOn.value = b.finished_on ?? ''
+  addedOn.value = b.added_on ?? ''; year.value = b.published_year ?? null; genre.value = b.genre ?? ''
   noteText.value = ''; notePage.value = b.status === 'reading' && b.current_page ? b.current_page : null
   open.value = true
 }
@@ -35,10 +40,29 @@ async function save() {
   const pages = intOrNull(totalPages.value)
   if (pages !== (b.total_pages ?? null)) patch.total_pages = pages
   if (b.status !== 'queue' && startedOn.value && startedOn.value !== b.started_on) patch.started_on = startedOn.value
-  if (b.status === 'done' && finishedOn.value && finishedOn.value !== b.finished_on) patch.finished_on = finishedOn.value
+  if (finished.value && finishedOn.value && finishedOn.value !== b.finished_on) patch.finished_on = finishedOn.value
+  if (app.bookDetailsReady) {
+    if (addedOn.value && addedOn.value !== b.added_on) patch.added_on = addedOn.value
+    const y = intOrNull(year.value)
+    if (y !== null && y > 2100) year.value = b.published_year ?? null
+    else if (y !== (b.published_year ?? null)) patch.published_year = y
+    const g = genre.value || null
+    if (g !== (b.genre ?? null)) patch.genre = g
+  }
   if (Object.keys(patch).length) await app.updateBook(b.id, patch)
 }
 async function hide() { open.value = false; await save() }
+// книга переехала в другой раздел с открытой карточкой — заполняем поля заново
+onMounted(() => { if (open.value) show() })
+/** Прочитано или брошено: есть дата конца и оценка */
+const finished = computed(() => props.book.status === 'done' || props.book.status === 'dropped')
+const statuses = computed(() => BOOK_STATUSES.filter(s => s.v !== 'dropped' || app.bookDetailsReady || props.book.status === 'dropped'))
+/** Состояние меняет и даты (как кнопки «Начать», «Дочитала»): после смены показываем новые */
+async function changeStatus(e: Event) {
+  await save()
+  await app.setBookStatus(props.book, (e.target as HTMLSelectElement).value as BookStatus)
+}
+watch(() => [props.book.started_on, props.book.finished_on], () => { startedOn.value = props.book.started_on ?? ''; finishedOn.value = props.book.finished_on ?? '' })
 
 // ---- Прогресс
 const percent = computed(() => {
@@ -79,12 +103,15 @@ function remove() { if (window.confirm(`Удалить книгу «${props.book
         <span class="block break-words text-[15px] font-medium">{{ book.title }}</span>
         <span class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-mute">
           <span v-if="book.author">{{ book.author }}</span>
+          <span v-if="book.genre">{{ book.genre }}</span>
+          <span v-if="book.published_year">{{ book.published_year }} г.</span>
           <span v-if="book.total_pages && book.status !== 'reading'">{{ book.total_pages }} стр.</span>
           <template v-if="book.status === 'reading' && book.started_on"><span>с {{ dayLabel(book.started_on) }} · {{ readingFor }}-й день</span></template>
           <template v-if="book.status === 'done'">
             <span v-if="book.started_on && book.finished_on">{{ dayLabel(book.started_on) }} – {{ dayLabel(book.finished_on) }} · {{ readFor }} дн.</span>
-            <span v-if="book.rating" class="text-amber-600" :aria-label="'Оценка ' + book.rating + ' из 5'">{{ '★'.repeat(book.rating) }}</span>
           </template>
+          <span v-if="book.status === 'dropped' && book.finished_on">бросила {{ dayLabel(book.finished_on) }}</span>
+          <span v-if="book.rating" class="text-amber-600" :aria-label="'Оценка ' + book.rating + ' из 5'">{{ '★'.repeat(book.rating) }}</span>
           <span v-if="book.notes?.length" title="Заметки">📝 {{ book.notes.length }}</span>
         </span>
       </button>
@@ -116,15 +143,38 @@ function remove() { if (window.confirm(`Удалить книгу «${props.book
           <input v-model="totalPages" type="number" min="1" inputmode="numeric" class="input mt-1 !px-2 !py-2 !text-sm" data-test="book-pages" />
         </label>
       </div>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="min-w-0 text-xs text-mute">Состояние
+          <select :value="book.status" class="input mt-1 !px-2 !py-2 !text-sm" data-test="book-status" @change="changeStatus">
+            <option v-for="s in statuses" :key="s.v" :value="s.v">{{ s.label }}</option>
+          </select>
+        </label>
+        <label v-if="app.bookDetailsReady" class="min-w-0 text-xs text-mute">Добавлена в список
+          <input v-model="addedOn" type="date" class="input mt-1 !px-2 !py-2 !text-sm" data-test="book-added" />
+        </label>
+      </div>
       <div v-if="book.status !== 'queue'" class="grid grid-cols-2 gap-2">
         <label class="min-w-0 text-xs text-mute">Начала читать
           <input v-model="startedOn" type="date" class="input mt-1 !px-2 !py-2 !text-sm" data-test="book-started" />
         </label>
-        <label v-if="book.status === 'done'" class="min-w-0 text-xs text-mute">Дочитала
+        <label v-if="finished" class="min-w-0 text-xs text-mute">Закончила читать
           <input v-model="finishedOn" type="date" class="input mt-1 !px-2 !py-2 !text-sm" data-test="book-finished" />
         </label>
       </div>
-      <div v-if="book.status === 'done'" class="flex items-center gap-1 text-xs text-mute" data-test="book-rating">
+      <div v-if="app.bookDetailsReady" class="grid grid-cols-[6rem_1fr] gap-2">
+        <label class="min-w-0 text-xs text-mute">Год издания
+          <input v-model="year" type="number" min="1" max="2100" inputmode="numeric" class="input mt-1 !px-2 !py-2 !text-sm" data-test="book-year" />
+        </label>
+        <label class="min-w-0 text-xs text-mute">Жанр
+          <select v-model="genre" class="input mt-1 !px-2 !py-2 !text-sm" data-test="book-genre" @change="save">
+            <option value="">Не выбран</option>
+            <option v-for="g in BOOK_GENRES" :key="g" :value="g">{{ g }}</option>
+            <option v-if="genre && !(BOOK_GENRES as readonly string[]).includes(genre)" :value="genre">{{ genre }}</option>
+          </select>
+        </label>
+      </div>
+      <p v-else class="text-xs text-mute">Чтобы появились жанр, год издания, дата добавления и состояние «Бросила», выполни <code>planner_books_details.sql</code> в Supabase.</p>
+      <div class="flex items-center gap-1 text-xs text-mute" data-test="book-rating">
         <span class="mr-1">Оценка</span>
         <button v-for="n in 5" :key="n" type="button" class="text-xl leading-none" :class="(book.rating ?? 0) >= n ? 'text-amber-500' : 'text-line'" :aria-label="'Оценка ' + n" @click="rate(n)">★</button>
       </div>

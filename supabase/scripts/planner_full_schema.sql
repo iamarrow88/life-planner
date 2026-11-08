@@ -2670,4 +2670,21 @@ grant execute on function public.tag_counts() to authenticated;
 
 create index if not exists tasks_user_done_due_idx on public.tasks (user_id, due_date) where status = 'done';
 
+-- подробности книги (planner_books_details.sql)
+alter table public.books drop constraint if exists books_status_check;
+alter table public.books add constraint books_status_check check (status in ('queue', 'reading', 'done', 'dropped'));
+
+alter table public.books add column if not exists added_on date;
+update public.books set added_on = (created_at at time zone public.user_tz(user_id))::date where added_on is null;
+alter table public.books alter column added_on set default current_date;
+alter table public.books alter column added_on set not null;
+
+alter table public.books add column if not exists published_year smallint;
+alter table public.books drop constraint if exists books_published_year_check;
+alter table public.books add constraint books_published_year_check check (published_year is null or published_year between 1 and 2100);
+
+alter table public.books add column if not exists genre text;
+alter table public.books drop constraint if exists books_genre_check;
+alter table public.books add constraint books_genre_check check (genre is null or length(genre) <= 60);
+
 commit;

@@ -4,14 +4,25 @@ import { useApp } from '../stores/app'
 import type { Book } from '../types'
 import { vDragSort } from '../lib/dragSort'
 import BookCard from '../components/BookCard.vue'
+import BookFilters from '../components/BookFilters.vue'
+import { EMPTY_BOOK_FILTER, bookFilterCount, matchesBookFilter, openBookId, type BookFilter } from '../lib/books'
 
 /** Библиотека: что читаю сейчас, очередь и прочитанное со сводкой за период */
 const app = useApp()
 const text = ref('')
 const search = ref('')
 const q = computed(() => search.value.trim().toLowerCase())
-const fits = (b: Book) => !q.value || b.title.toLowerCase().includes(q.value) || (b.author ?? '').toLowerCase().includes(q.value)
-  || (b.notes ?? []).some(n => n.text.toLowerCase().includes(q.value))
+// ---- Фильтры: запоминаются на этом устройстве
+const FILTER_KEY = 'kola-library-filter'
+const filter = ref<BookFilter>((() => {
+  try { return { ...EMPTY_BOOK_FILTER, ...(JSON.parse(localStorage.getItem(FILTER_KEY) ?? 'null') ?? {}) } } catch { return { ...EMPTY_BOOK_FILTER } }
+})())
+watch(filter, v => { try { localStorage.setItem(FILTER_KEY, JSON.stringify(v)) } catch { /* не запомним — не страшно */ } }, { deep: true })
+const filtered = computed(() => bookFilterCount(filter.value) > 0)
+/** Поиск или фильтры: видна только часть книг */
+const narrowed = computed(() => !!q.value || filtered.value)
+const fits = (b: Book) => matchesBookFilter(filter.value, b) && (!q.value || b.title.toLowerCase().includes(q.value) || (b.author ?? '').toLowerCase().includes(q.value)
+  || (b.notes ?? []).some(n => n.text.toLowerCase().includes(q.value)))
 const reading = computed(() => app.readingBooks.filter(fits))
 const queue = computed(() => app.queueBooks.filter(fits))
 
@@ -36,6 +47,10 @@ const inPeriod = (b: Book) => {
   return (!customFrom.value || d >= customFrom.value) && (!customTo.value || d <= customTo.value)
 }
 const done = computed(() => app.doneBooks.filter(inPeriod).filter(fits))
+const dropped = computed(() => app.droppedBooks.filter(fits))
+const showDropped = ref(false)
+// открытую карточку перевели в «Бросила» — раздел раскрываем, иначе она пропала бы из виду
+watch(() => app.droppedBooks.some(b => b.id === openBookId.value), v => { if (v) showDropped.value = true })
 const donePages = computed(() => done.value.reduce((sum, b) => sum + (b.total_pages ?? 0), 0))
 const booksWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'книга' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'книги' : 'книг')
 </script>
@@ -56,7 +71,8 @@ const booksWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'книга' 
       <input v-model="text" class="input min-w-0 flex-1" maxlength="300" placeholder="Какую книгу хочется прочитать?" aria-label="Новая книга" data-test="book-input" />
       <button class="btn-primary shrink-0" :disabled="!text.trim()">В очередь</button>
     </form>
-    <input v-if="app.books.length" v-model="search" type="search" class="input mb-4 !py-2 !text-sm" placeholder="Поиск по названию, автору и заметкам" aria-label="Поиск по книгам" data-test="book-search" />
+    <input v-if="app.books.length" v-model="search" type="search" class="input mb-2 !py-2 !text-sm" placeholder="Поиск по названию, автору и заметкам" aria-label="Поиск по книгам" data-test="book-search" />
+    <BookFilters v-if="app.books.length" v-model="filter" />
 
     <div v-if="!app.books.length" class="card p-8 text-center text-mute" data-test="books-empty">Добавь первую книгу — она встанет в очередь 📚</div>
 
@@ -67,13 +83,13 @@ const booksWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'книга' 
 
     <section v-if="queue.length" class="mb-5" data-test="books-queue">
       <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Очередь · {{ queue.length }}</h2>
-      <!-- при поиске порядок не меняем: видна только часть очереди -->
+      <!-- при поиске и фильтрах порядок не меняем: видна только часть очереди -->
       <div v-drag-sort="(ids: string[]) => app.reorderBooks(ids)" class="card divide-y divide-line" data-test="book-queue-list">
-        <BookCard v-for="b in queue" :key="b.id" :data-id="b.id" :book="b" :sortable="!q" />
+        <BookCard v-for="b in queue" :key="b.id" :data-id="b.id" :book="b" :sortable="!narrowed" />
       </div>
     </section>
 
-    <section v-if="app.doneBooks.length" class="mb-5" data-test="books-done">
+    <section v-if="app.doneBooks.length && (!filtered || app.doneBooks.some(b => matchesBookFilter(filter, b)))" class="mb-5" data-test="books-done">
       <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Прочитано</h2>
       <div class="mb-2 flex flex-wrap gap-1.5">
         <button v-for="p in periods" :key="p.v" type="button" class="chip py-1 text-sm" :class="period === p.v && 'chip-on'" :data-test="'period-' + p.v" @click="period = p.v">{{ p.label }}</button>
@@ -91,6 +107,14 @@ const booksWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'книга' 
       <p v-else class="card p-4 text-center text-sm text-mute">За этот период прочитанных книг нет</p>
     </section>
 
-    <p v-if="q && !reading.length && !queue.length && !done.length" class="card p-6 text-center text-mute">Ничего не нашлось</p>
+    <section v-if="dropped.length" class="mb-5" data-test="books-dropped">
+      <button type="button" class="mb-2 flex w-full items-center justify-between text-left" :aria-expanded="showDropped || narrowed" data-test="books-dropped-toggle" @click="showDropped = !showDropped">
+        <span class="text-sm font-semibold uppercase tracking-wide text-mute">Бросила · {{ dropped.length }}</span>
+        <span class="text-lg text-mute">{{ showDropped || narrowed ? '▴' : '▾' }}</span>
+      </button>
+      <div v-if="showDropped || narrowed" class="card divide-y divide-line"><BookCard v-for="b in dropped" :key="b.id" :book="b" /></div>
+    </section>
+
+    <p v-if="narrowed && !reading.length && !queue.length && !done.length && !dropped.length" class="card p-6 text-center text-mute" data-test="books-nothing">Ничего не нашлось<template v-if="filtered"> — попробуй ослабить фильтры</template></p>
   </template>
 </template>

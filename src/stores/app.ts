@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch, Book, BookPatch, Movie, MoviePatch, ShoppingItem, ShoppingPatch, MonthlyItem, MonthlyPatch } from '../types'
+import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch, Book, BookPatch, BookStatus, Movie, MoviePatch, ShoppingItem, ShoppingPatch, MonthlyItem, MonthlyPatch } from '../types'
 import { googleClientId } from '../lib/google'
 import { parseTags, uniqTags } from '../lib/tags'
 import { byPosition } from '../lib/taskOrder'
@@ -784,6 +784,9 @@ export const useApp = defineStore('app', () => {
   const readingBooks = computed(() => books.value.filter(b => b.status === 'reading').sort((a, b) => (a.started_on ?? '').localeCompare(b.started_on ?? '')))
   const queueBooks = computed(() => books.value.filter(b => b.status === 'queue').sort((a, b) => a.position - b.position))
   const doneBooks = computed(() => books.value.filter(b => b.status === 'done').sort((a, b) => (b.finished_on ?? '').localeCompare(a.finished_on ?? '')))
+  const droppedBooks = computed(() => books.value.filter(b => b.status === 'dropped').sort((a, b) => (b.finished_on ?? '').localeCompare(a.finished_on ?? '')))
+  /** false — в базе нет «бросила», жанра, года и даты добавления (planner_books_details.sql) */
+  const bookDetailsReady = computed(() => data.value.bookDetailsReady !== false)
   /** Новая книга — в конец очереди */
   async function addBook(title: string) {
     const position = Math.max(-1, ...queueBooks.value.map(b => b.position)) + 1
@@ -812,6 +815,13 @@ export const useApp = defineStore('app', () => {
   /** Дочитала: страница — последняя, дата конца — сегодня (её можно поправить в карточке) */
   const finishBook = (b: Book) => updateBook(b.id, { status: 'done', finished_on: today.value, started_on: b.started_on ?? today.value, current_page: b.total_pages ?? b.current_page })
   /** Обратно в очередь: чтение не считается начатым, встаёт в конец */
+  /** Бросила: дата конца — сегодня (её можно поправить в карточке), страница остаётся, на которой остановилась */
+  const dropBook = (b: Book) => updateBook(b.id, { status: 'dropped', finished_on: today.value, started_on: b.started_on ?? today.value })
+  /** Состояние из карточки: каждое — со своими датами, как кнопки «Начать», «Дочитала», «Вернуть в очередь» */
+  function setBookStatus(b: Book, s: BookStatus) {
+    if (s === b.status) return Promise.resolve()
+    return s === 'reading' ? startBook(b) : s === 'done' ? finishBook(b) : s === 'dropped' ? dropBook(b) : requeueBook(b)
+  }
   const requeueBook = (b: Book) => updateBook(b.id, { status: 'queue', started_on: null, finished_on: null, current_page: 0, position: Math.max(-1, ...queueBooks.value.map(x => x.position)) + 1 })
   function addBookNote(b: Book, text: string, page: number | null) {
     return updateBook(b.id, { notes: [...(b.notes ?? []), { id: crypto.randomUUID(), at: new Date().toISOString(), page, text }] })
@@ -1375,7 +1385,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, addBook, updateBook, removeBook, reorderBooks, checklistSyncReady, copySubtasksToNext, setChecklistSync, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, taskToShopping, shoppingReady, shoppingItems, shoppingTag, toBuyItems, boughtItems, shoppingTasks, boughtTasks, addShoppingItem, updateShoppingItem, toggleShoppingItem, removeShoppingItems, reorderShoppingItems, saveShoppingTag, moviesReady, movies, queueMovies, watchedMovies, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, droppedBooks, bookDetailsReady, dropBook, setBookStatus, addBook, updateBook, removeBook, reorderBooks, checklistSyncReady, copySubtasksToNext, setChecklistSync, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, taskToShopping, shoppingReady, shoppingItems, shoppingTag, toBuyItems, boughtItems, shoppingTasks, boughtTasks, addShoppingItem, updateShoppingItem, toggleShoppingItem, removeShoppingItems, reorderShoppingItems, saveShoppingTag, moviesReady, movies, queueMovies, watchedMovies, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

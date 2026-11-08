@@ -352,7 +352,7 @@ export const demoRepo: Repo = {
     const s = read(); ids.forEach((id, i) => { const x = s.monthlyItems?.find(y => y.id === id); if (x) x.position = i }); write(s)
   },
   async addBook(b) {
-    const s = read(); const book: Book = { id: uid(), author: null, total_pages: null, current_page: 0, started_on: null, finished_on: null, rating: null, notes: [], created_at: new Date().toISOString(), ...b }
+    const s = read(); const book: Book = { id: uid(), author: null, total_pages: null, current_page: 0, started_on: null, finished_on: null, rating: null, notes: [], created_at: new Date().toISOString(), added_on: todayStr(), published_year: null, genre: null, ...b }
     ;(s.books ??= []).push(book); write(s); return book
   },
   async updateBook(id, patch) {
