@@ -15,6 +15,8 @@ const bd = useBackdrop(() => app.closeSearch())
 watch(() => app.searchQuery !== null, open => { if (open) { showDone.value = false; void nextTick(() => input.value?.focus()) } })
 
 const query = computed(() => parseQuery(q.value))
+/** Теги под полем: число — сколько невыполненных задач с тегом */
+const searchTags = computed(() => app.openTagCounts().slice(0, 20))
 // старые выполненные задачи ищем и на сервере (с паузой, чтобы не спрашивать на каждую букву)
 const searchingOld = ref(false)
 let oldTimer: number | undefined
@@ -54,7 +56,7 @@ const where = (t: { status: string; due_date: string | null }) => t.status === '
         <button type="button" class="text-2xl leading-none text-mute" aria-label="Закрыть поиск" @click="app.closeSearch()">×</button>
       </div>
       <div v-if="app.allTags.length" class="flex flex-wrap gap-1.5 text-xs">
-        <button v-for="x in app.allTags.slice(0, 20)" :key="x.tag" type="button" class="chip py-0.5" :class="query.tags.includes(x.tag) && 'chip-on'" @click="toggleTag(x.tag)">#{{ x.tag }} <span class="ml-1 text-mute">{{ x.count }}</span></button>
+        <button v-for="x in searchTags" :key="x.tag" type="button" class="chip py-0.5" :class="query.tags.includes(x.tag) && 'chip-on'" @click="toggleTag(x.tag)">#{{ x.tag }} <span v-if="x.count" class="ml-1 text-mute">{{ x.count }}</span></button>
       </div>
 
       <p v-if="!query.tags.length && !query.words.length" class="text-sm text-mute">Набери слово из названия или описания, или выбери тег.</p>

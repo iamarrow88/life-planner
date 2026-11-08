@@ -134,7 +134,7 @@ function pickedDate(id: string, e: Event) {
       <QuickTags v-model="text" large class="!w-auto min-w-0 max-w-full" />
     </div>
   </form>
-  <TagBar v-model="filter.tags" />
+  <TagBar v-model="filter.tags" :scope="filter" />
 
   <div v-if="!rows.length && !app.loading" class="card p-8 text-center text-mute">
     {{ filterOn ? 'С таким отбором во «Входящих» пусто' : 'Пусто — отличное состояние ✨' }}

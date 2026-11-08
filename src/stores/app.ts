@@ -1074,6 +1074,19 @@ export const useApp = defineStore('app', () => {
     if (server) for (const [g, c] of Object.entries(server)) n.set(g, Math.max(n.get(g) ?? 0, Number(c)))
     return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([tag, count]) => ({ tag, count }))
   })
+  /**
+   * Теги со счётом невыполненных задач (для отбора и поиска): сначала те, где есть невыполненные, потом остальные.
+   * scope — какие задачи считать (например, выбранная сфера и проект). Невыполненные загружены все, поэтому счёт точный
+   */
+  function openTagCounts(scope?: (t: Task) => boolean) {
+    const n = new Map(allTags.value.map(x => [x.tag, 0]))
+    for (const t of data.value.tasks) {
+      if (t.status === 'done' || (scope && !scope(t))) continue
+      for (const g of t.tags ?? []) n.set(g, (n.get(g) ?? 0) + 1)
+    }
+    const order = new Map(allTags.value.map((x, i) => [x.tag, i]))
+    return [...n.entries()].sort((a, b) => b[1] - a[1] || (order.get(a[0]) ?? 0) - (order.get(b[0]) ?? 0)).map(([tag, count]) => ({ tag, count }))
+  }
   /** Переименовать / слить с существующим / удалить (to = null) */
   async function renameTag(from: string, to: string | null) {
     const target = to === null ? null : (uniqTags([to])[0] ?? null)
@@ -1372,7 +1385,7 @@ export const useApp = defineStore('app', () => {
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, importAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,
     startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence, habitToTask, taskToHabit, attachRecurrence, updateRecurrence, detachRecurrence,
-    tasksFrom, allTasksLoaded, loadingOld, ensureTasksFrom, loadAllTasks, fetchTask, searchOldTasks,
+    openTagCounts, tasksFrom, allTasksLoaded, loadingOld, ensureTasksFrom, loadAllTasks, fetchTask, searchOldTasks,
     detailId, openTask, closeTask, editor, openEditor, closeEditor, longStop, fixLongStop, dismissLongStop, addEntry, updateEntry, removeEntry, listEntries,
   }
 })
