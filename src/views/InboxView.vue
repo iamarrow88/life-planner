@@ -92,7 +92,7 @@ async function plan(id: string, date: string, time: string | null) {
   choosing.value = null
   await app.updateTask(id, {
     status: 'planned', due_date: date,
-    start_time: time ? `${time}:00` : null, remind_before_minutes: time ? 10 : null,
+    start_time: time ? `${time}:00` : null, remind_before_minutes: time ? 0 : null,
   })
 }
 const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { choosing.value = null; menu.value = null; more.value = null } }

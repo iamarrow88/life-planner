@@ -389,6 +389,9 @@ export const useApp = defineStore('app', () => {
     try { error.value = ''; return await fn() } catch (e) { error.value = (e as Error).message; return undefined }
   }
 
+  /** Напоминание по умолчанию: за сколько минут до начала (0 — в момент начала) */
+  const DEFAULT_REMIND = 0
+
   // ---- Быстрый запуск: последний снимок данных хранится на устройстве. Приложение сразу показывает его,
   // а свежие данные с сервера подтягивает в фоне (обычно это меньше секунды). В демо-режиме данные и так локальные
   const CACHE_KEY = 'kola-snapshot-v1'
@@ -463,11 +466,16 @@ export const useApp = defineStore('app', () => {
   async function addTask(t: NewTask) {
     // теги из отбора и «#теги», написанные в названии, объединяются
     if (tagsReady.value) { const p = parseTags(t.title); t = { ...t, title: p.title, tags: uniqTags([...(t.tags ?? []), ...p.tags]) } }
+    // есть время начала, а про напоминание ничего не сказано — напоминаем в момент начала
+    if (t.start_time && t.remind_before_minutes === undefined) t = { ...t, remind_before_minutes: DEFAULT_REMIND }
     const task = await guard(() => repo.addTask(t)); if (task) { data.value.tasks.unshift(task); syncGoogleSoon() }
     return task
   }
   async function updateTask(id: string, patch: Partial<NewTask>) {
-    const wasDone = data.value.tasks.find(t => t.id === id)?.status === 'done'
+    const cur = data.value.tasks.find(t => t.id === id)
+    const wasDone = cur?.status === 'done'
+    // у задачи впервые появилось время (например, перенесли на конкретное время) — напоминание как у новой
+    if (patch.start_time && !('remind_before_minutes' in patch) && cur && !cur.start_time && cur.remind_before_minutes == null) patch = { ...patch, remind_before_minutes: DEFAULT_REMIND }
     const task = await guard(() => repo.updateTask(id, patch))
     if (task) {
       const i = data.value.tasks.findIndex(t => t.id === id)

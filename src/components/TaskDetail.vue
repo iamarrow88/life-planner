@@ -156,9 +156,9 @@ const freshSubtasks = () => (task.value?.subtasks ?? []).map(s => ({ ...s, done:
 function changedFields(t: Task, tpl: ReturnType<typeof templateFrom>): RecurrencePatch {
   return Object.fromEntries(TEMPLATE_KEYS.filter(k => k !== 'subtasks' && !same(tpl[k], t[k])).map(k => [k, tpl[k] ?? null]))
 }
-// Пользователь впервые поставил время начала задаче без времени — предлагаем напомнить за 10 минут
+// Пользователь впервые поставил время начала задаче без времени — предлагаем напомнить в момент начала
 function onTimeInput() {
-  if (time.value && !remind.value && !remindTouched.value && !task.value?.start_time) remind.value = '10'
+  if (time.value && !remind.value && !remindTouched.value && !task.value?.start_time) remind.value = '0'
 }
 
 /** Убрать дату целиком (вместе со временем и напоминанием): после сохранения задача вернётся во «Входящие» */
