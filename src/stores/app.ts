@@ -527,6 +527,8 @@ export const useApp = defineStore('app', () => {
     const wasDone = cur?.status === 'done'
     // у задачи впервые появилось время (например, перенесли на конкретное время) — напоминание как у новой
     if (patch.start_time && !('remind_before_minutes' in patch) && cur && !cur.start_time && cur.remind_before_minutes == null) patch = { ...patch, remind_before_minutes: DEFAULT_REMIND }
+    // выполнили задачу, по которой идёт таймер, — останавливаем его: время записывается до этого момента
+    if (patch.status === 'done' && !wasDone && running.value?.task_id === id) await stopTimer()
     const task = await guard(() => repo.updateTask(id, patch))
     if (task) {
       const i = data.value.tasks.findIndex(t => t.id === id)
