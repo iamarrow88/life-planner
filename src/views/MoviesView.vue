@@ -40,7 +40,7 @@ const moviesWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'фильм'
 
 <template>
   <RouterLink to="/misc" class="mb-3 inline-block text-sm font-semibold text-accent">‹ Разное</RouterLink>
-  <h1 class="mb-3 text-2xl font-bold">Фильмы для просмотра с семьей</h1>
+  <h1 class="mb-3 text-2xl font-bold">Фильмы  для семейного просмотра</h1>
 
   <p v-if="!app.moviesReady" class="card mb-4 bg-amber-50 p-4 text-sm text-amber-900" data-test="movies-not-ready">Чтобы сохранять фильмы, выполни <code>planner_movies.sql</code> в Supabase (SQL Editor) и обнови страницу.</p>
   <template v-else>
