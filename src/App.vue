@@ -12,7 +12,9 @@ import TaskSearch from './components/TaskSearch.vue'
 import PullToRefresh from './components/PullToRefresh.vue'
 import PostponeSheet from './components/PostponeSheet.vue'
 import { repo, supabaseProblems } from './data'
-import { initNative } from './lib/native'
+import { initNative, isNative } from './lib/native'
+import { initWebNotificationCleanup } from './lib/webNotifications'
+import { weekStart } from './lib/time'
 
 /** Логотип из public/ (учитывает папку сайта, например /life-planner/) */
 const logo = import.meta.env.BASE_URL + 'icon.svg'
@@ -22,6 +24,8 @@ const route = useRoute()
 const router = useRouter()
 // приложение для телефона: системные напоминания, кнопка «Назад», статус-бар
 void initNative(app, router)
+// сайт: убирать из шторки push-уведомления о том, что уже сделано
+if (!isNative) initWebNotificationCleanup(app, () => !!app.reviewFor(weekStart(app.today))?.completed_at)
 const tabs = [
   { to: '/inbox', label: 'Входящие', icon: 'inbox' },
   { to: '/today', label: 'Сегодня', icon: 'today' },

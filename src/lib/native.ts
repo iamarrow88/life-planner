@@ -47,7 +47,7 @@ export async function initNative(app: ReturnType<typeof useApp>, router: Router)
     }, { immediate: true })
   })
   /** Кнопка в напоминании о задаче: выполнить, на завтра или открыть окно переноса */
-  async function onTaskAction(actionId: string, taskId: string) {
+  async function onTaskAction(actionId: string, taskId: string, notificationId: number) {
     const fromBackground = inBackground || Date.now() - lastActive < 2500
     app.holdReloads = true
     try {
@@ -65,6 +65,10 @@ export async function initNative(app: ReturnType<typeof useApp>, router: Router)
         if (!(await app.postponeTask(taskId, reminders.ACTION_TOMORROW))) return
         app.showNotice(`«${task.title}» перенесена на завтра`)
       }
+      // уведомление уже не нужно. Убираем сразу и пересобираем расписание до того, как свернёмся:
+      // в свёрнутом приложении отложенная пересборка может не успеть
+      await LocalNotifications.removeDeliveredNotificationsById({ ids: [notificationId] }).catch(() => {})
+      await resyncNow()
       // открылись только ради этого действия — возвращаем телефон туда, где он был
       if (fromBackground) void App.minimizeApp()
     } finally { app.holdReloads = false }
@@ -72,22 +76,19 @@ export async function initNative(app: ReturnType<typeof useApp>, router: Router)
   // нажали на уведомление: на кнопку — выполнить действие, на само уведомление — открыть нужный экран
   LocalNotifications.addListener('localNotificationActionPerformed', a => {
     const extra = a.notification.extra as { url?: string; taskId?: string } | undefined
-    if (a.actionId !== 'tap' && extra?.taskId) { void onTaskAction(a.actionId, extra.taskId); return }
+    if (a.actionId !== 'tap' && extra?.taskId) { void onTaskAction(a.actionId, extra.taskId, a.notification.id); return }
     if (extra?.url) void router.push(extra.url)
   })
 
   // напоминания пересобираются при любом изменении данных (с небольшой паузой, чтобы не дёргать систему на каждую букву)
   let timer: ReturnType<typeof setTimeout> | undefined
-  const resync = () => {
-    clearTimeout(timer)
-    timer = setTimeout(() => {
-      void reminders.syncReminders({
-        today: app.today, tasks: app.data.tasks, habits: app.data.habits, running: app.running, runningTitle: app.runningTitle,
-        habitActiveOn: app.habitActiveOn, habitIsDone: app.habitIsDone, reviewDone: !!app.reviewFor(weekStart(app.today))?.completed_at,
-        // при запуске данные могут быть ещё пустыми или из кэша: по ним уведомления из шторки не убираем, дождёмся загрузки
-      }, !!app.user && app.ready && !app.loading && !app.syncing && !app.error).catch(e => console.warn('reminders', e))
-    }, 800)
-  }
+  const sync = () => reminders.syncReminders({
+    today: app.today, tasks: app.data.tasks, habits: app.data.habits, running: app.running, runningTitle: app.runningTitle,
+    habitActiveOn: app.habitActiveOn, habitIsDone: app.habitIsDone, reviewDone: !!app.reviewFor(weekStart(app.today))?.completed_at,
+    // при запуске данные могут быть ещё пустыми или из кэша: по ним уведомления из шторки не убираем, дождёмся загрузки
+  }, !!app.user && app.ready && !app.loading && !app.syncing && !app.error).catch(e => { console.warn('reminders', e); return 0 })
+  const resync = () => { clearTimeout(timer); timer = setTimeout(() => void sync(), 800) }
+  const resyncNow = async () => { clearTimeout(timer); await sync() }
   resyncFn = resync
   watch(() => [app.data, app.today], resync, { deep: true, immediate: true })
   // вернулись в приложение: данные могли измениться на другом устройстве
