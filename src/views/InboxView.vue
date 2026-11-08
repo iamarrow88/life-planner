@@ -237,5 +237,5 @@ function pickedDate(id: string, e: Event) {
     </template>
   </section>
 
-  <DoneBlock :tasks="doneUndated" :since="weekStart(app.today)" />
+  <DoneBlock :tasks="doneUndated" :since="weekStart(app.today)" history />
 </template>

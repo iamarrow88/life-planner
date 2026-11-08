@@ -15,6 +15,14 @@ const bd = useBackdrop(() => app.closeSearch())
 watch(() => app.searchQuery !== null, open => { if (open) { showDone.value = false; void nextTick(() => input.value?.focus()) } })
 
 const query = computed(() => parseQuery(q.value))
+// старые выполненные задачи ищем и на сервере (с паузой, чтобы не спрашивать на каждую букву)
+const searchingOld = ref(false)
+let oldTimer: number | undefined
+watch(query, v => {
+  window.clearTimeout(oldTimer)
+  if (app.allTasksLoaded || (!v.tags.length && !v.words.length)) return
+  oldTimer = window.setTimeout(async () => { searchingOld.value = true; await app.searchOldTasks(v.words, v.tags); searchingOld.value = false }, 400)
+})
 const results = computed(() => {
   const { tags, words } = query.value
   if (!tags.length && !words.length) return []
@@ -50,7 +58,7 @@ const where = (t: { status: string; due_date: string | null }) => t.status === '
       </div>
 
       <p v-if="!query.tags.length && !query.words.length" class="text-sm text-mute">Набери слово из названия или описания, или выбери тег.</p>
-      <p v-else-if="!results.length" class="text-sm text-mute" data-test="search-empty">Ничего не нашлось.</p>
+      <p v-else-if="!results.length" class="text-sm text-mute" data-test="search-empty">{{ searchingOld ? 'Ищу…' : 'Ничего не нашлось.' }}</p>
       <template v-else>
         <div v-if="open.length" class="card divide-y divide-line" data-test="search-open">
           <TaskRow v-for="t in open" :key="t.id" :task="t"><span class="shrink-0 text-xs text-mute">{{ where(t) }}</span></TaskRow>

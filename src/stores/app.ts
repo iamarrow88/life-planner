@@ -9,7 +9,7 @@ import { DEFAULT_CYCLE_SETTINGS, PILL_NAMES, courseFrom, courseOn, cycleDayNo, c
 import { DEFAULT_SPHERE_COLORS } from '../lib/colors'
 import { dayOverloads } from '../lib/dayLoad'
 import { nextAfter } from '../lib/recurrence'
-import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart } from '../lib/time'
+import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart, ymd } from '../lib/time'
 
 const WISH_CATEGORIES = ['Купить', 'Поехать', 'Попробовать', 'Научиться']
 export const NUDGE_MINUTES = 40
@@ -36,7 +36,8 @@ export const useApp = defineStore('app', () => {
   const requestCloseTask = () => (cardClosers.task ? cardClosers.task() : closeTask())
   const requestCloseHabit = () => (cardClosers.habit ? cardClosers.habit() : closeHabit())
   const detailId = ref<string | null>(null)
-  const openTask = (id: string) => { detailId.value = id }
+  /** Старую выполненную задачу (из поиска, желания, уведомления) могли ещё не загрузить — подтягиваем её */
+  const openTask = (id: string) => { detailId.value = id; void fetchTask(id) }
   const closeTask = () => { detailId.value = null }
   const editor = ref<{ target: EditorTarget; title: string; day?: string } | null>(null)
   /** Только что остановленный очень долгий таймер (забытый на ночь): предлагаем сразу исправить время */
@@ -352,7 +353,7 @@ export const useApp = defineStore('app', () => {
   async function reloadQuietly() {
     if (!user.value || loading.value || holdReloads.value) return
     syncing.value = true
-    try { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0]); lastLoad = Date.now(); saveCache() } catch { /* оставляем то, что есть */ }
+    try { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0], tasksFrom.value); lastLoad = Date.now(); saveCache() } catch { /* оставляем то, что есть */ }
     syncing.value = false
   }
   function onShow() {
@@ -391,6 +392,56 @@ export const useApp = defineStore('app', () => {
 
   /** Напоминание по умолчанию: за сколько минут до начала (0 — в момент начала) */
   const DEFAULT_REMIND = 0
+  // ---- Старые выполненные задачи: при запуске приходят невыполненные и выполненные с tasksFrom (начало месяца
+  // три месяца назад). Более ранние подгружаются, когда их просят: календарь за прошлый период, «Загрузить более ранние»,
+  // поиск, открытие задачи по ссылке. Граница действует до закрытия приложения, поэтому обновление данных её не сдвигает
+  const TASK_MONTHS = 3
+  const firstTasksDay = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - TASK_MONTHS); return ymd(d) }
+  /** '' — загружены все задачи */
+  const tasksFrom = ref(firstTasksDay())
+  const allTasksLoaded = computed(() => tasksFrom.value === '')
+  const loadingOld = ref(false)
+  /** Добавить задачи, которых ещё нет (уже загруженные не трогаем: в них могут быть свежие правки) */
+  function mergeTasks(list: Task[]) {
+    const have = new Set(data.value.tasks.map(t => t.id))
+    const add = list.filter(t => !have.has(t.id))
+    if (add.length) data.value.tasks.push(...add)
+  }
+  /** Подгрузки идут по очереди: вторая не должна получить устаревшую границу */
+  let oldQueue: Promise<unknown> = Promise.resolve()
+  function queueOld<T>(fn: () => Promise<T>) {
+    const run = oldQueue.then(async () => { loadingOld.value = true; try { return await fn() } finally { loadingOld.value = false } })
+    oldQueue = run.catch(() => undefined)
+    return run
+  }
+  /** Чтобы были все выполненные задачи начиная с дня d (календарь листают назад) */
+  function ensureTasksFrom(d: string) {
+    if (!tasksFrom.value || d >= tasksFrom.value) return Promise.resolve(true)
+    return queueOld(async () => {
+      const to = tasksFrom.value
+      if (!to || d >= to) return true
+      const list = await guard(() => repo.loadDoneTasks(d, to)); if (!list) return false
+      mergeTasks(list); tasksFrom.value = d; return true
+    })
+  }
+  /** Все старые выполненные задачи (история сферы, «Выполнено» во «Входящих») */
+  function loadAllTasks() {
+    return queueOld(async () => {
+      const to = tasksFrom.value; if (!to) return true
+      const list = await guard(() => repo.loadDoneTasks(null, to)); if (!list) return false
+      mergeTasks(list); tasksFrom.value = ''; return true
+    })
+  }
+  /** Задача по id, если её ещё нет на устройстве */
+  async function fetchTask(id: string) {
+    if (data.value.tasks.some(t => t.id === id)) return true
+    try { const list = await repo.getTasks([id]); mergeTasks(list); return list.length > 0 } catch { return false }
+  }
+  /** Поиск по старым выполненным: найденное добавляется к задачам, и поиск показывает его как обычно */
+  async function searchOldTasks(words: string[], tags: string[]) {
+    if (allTasksLoaded.value || (!words.length && !tags.length)) return
+    try { mergeTasks(await repo.searchDoneTasks(words, tags, 100)) } catch { /* поиск по загруженному всё равно работает */ }
+  }
 
   // ---- Быстрый запуск: последний снимок данных хранится на устройстве. Приложение сразу показывает его,
   // а свежие данные с сервера подтягивает в фоне (обычно это меньше секунды). В демо-режиме данные и так локальные
@@ -432,7 +483,7 @@ export const useApp = defineStore('app', () => {
   }
   async function load() {
     loading.value = true
-    await guard(async () => { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0]); lastLoad = Date.now() })
+    await guard(async () => { data.value = await repo.load(today.value, [weekStart(today.value), monthStart(today.value)].sort()[0], tasksFrom.value); lastLoad = Date.now() })
     loading.value = false
     saveCache()
   }
@@ -1015,6 +1066,10 @@ export const useApp = defineStore('app', () => {
     const n = new Map<string, number>()
     for (const t of data.value.tasks) for (const g of t.tags ?? []) n.set(g, (n.get(g) ?? 0) + 1)
     for (const r of data.value.recurrences) for (const g of r.tags ?? []) if (!n.has(g)) n.set(g, 0)
+    // теги старых задач, которых нет на устройстве, считает база (planner_lazy_tasks.sql). Её число могло устареть после
+    // правок с момента загрузки, поэтому берём большее из двух
+    const server = allTasksLoaded.value ? null : data.value.tagCounts
+    if (server) for (const [g, c] of Object.entries(server)) n.set(g, Math.max(n.get(g) ?? 0, Number(c)))
     return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([tag, count]) => ({ tag, count }))
   })
   /** Переименовать / слить с существующим / удалить (to = null) */
@@ -1315,6 +1370,7 @@ export const useApp = defineStore('app', () => {
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, importAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,
     startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence, habitToTask, taskToHabit, attachRecurrence, updateRecurrence, detachRecurrence,
+    tasksFrom, allTasksLoaded, loadingOld, ensureTasksFrom, loadAllTasks, fetchTask, searchOldTasks,
     detailId, openTask, closeTask, editor, openEditor, closeEditor, longStop, fixLongStop, dismissLongStop, addEntry, updateEntry, removeEntry, listEntries,
   }
 })

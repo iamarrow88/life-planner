@@ -135,6 +135,7 @@ export interface Snapshot {
   weekGoals: WeekGoal[]; reviews: WeeklyReview[]
   habitEntries: HabitEntry[]   // за сегодня
   timeEntries: TimeEntry[]     // с начала недели + запущенный
+  tagCounts?: Record<string, number> | null // число задач с каждым тегом по всей базе (null — нет tag_counts, planner_lazy_tasks.sql)
   taskSecondsBefore?: Record<string, number> // секунды по задачам за всё, что старше загруженных timeEntries
   habitStatus?: HabitStatus[]  // состояние привычек на сегодня (считает база)
   timeBudget?: TimeBudget | null // null — в базе ещё нет этих полей (не выполнен planner_time_budget.sql)
@@ -229,7 +230,17 @@ export interface Repo {
   signIn(email: string, password: string): Promise<User>
   signUp(email: string, password: string): Promise<User | null>
   signOut(): Promise<void>
-  load(today: string, since: string): Promise<Snapshot>
+  /**
+   * Данные для приложения. tasksFrom — с какого дня грузить выполненные задачи (по дате задачи, у задач без даты — по дню
+   * выполнения); невыполненные приходят все. Пустая строка — все выполненные
+   */
+  load(today: string, since: string, tasksFrom: string): Promise<Snapshot>
+  /** Выполненные задачи с from (null — с самого начала) до to, не включая to */
+  loadDoneTasks(from: string | null, to: string): Promise<Task[]>
+  /** Задачи по id (те, что есть) */
+  getTasks(ids: string[]): Promise<Task[]>
+  /** Выполненные задачи, где есть все слова (в названии или описании) и все теги; не больше limit */
+  searchDoneTasks(words: string[], tags: string[], limit: number): Promise<Task[]>
   addTask(t: NewTask): Promise<Task>
   updateTask(id: string, patch: Partial<NewTask>): Promise<Task>
   removeTask(id: string): Promise<void>

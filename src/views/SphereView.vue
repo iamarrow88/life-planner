@@ -85,9 +85,11 @@ async function saveRename(pid: string) {
 }
 const moving = ref<string | null>(null)
 async function moveProject(pid: string, name: string, toSphere: string) {
+  // старые выполненные задачи могут быть не загружены — тогда число не показываем, чтобы не занизить
   const n = app.data.tasks.filter(t => t.project_id === pid).length
   const to = app.sphereById(toSphere)?.name ?? ''
-  if (!window.confirm(`Перенести проект «${name}» в сферу «${to}»?${n ? ` Его задачи (${n}) и учтённое время тоже перейдут в эту сферу.` : ''}`)) return
+  const what = app.allTasksLoaded ? (n ? ` Его задачи (${n}) и учтённое время тоже перейдут в эту сферу.` : '') : ' Его задачи и учтённое время тоже перейдут в эту сферу.'
+  if (!window.confirm(`Перенести проект «${name}» в сферу «${to}»?${what}`)) return
   moving.value = null
   await app.moveProject(pid, toSphere)
 }
@@ -302,7 +304,7 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
         </ul>
       </div>
 
-      <DoneBlock :tasks="doneTasks" :since="weekStart(app.today)" />
+      <DoneBlock :tasks="doneTasks" :since="weekStart(app.today)" history />
     </section>
 
     <!-- Привычки -->

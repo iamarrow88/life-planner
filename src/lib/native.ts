@@ -54,6 +54,7 @@ export async function initNative(app: ReturnType<typeof useApp>, router: Router)
       await whenIdle()
       if (!app.user) return
       if (!app.data.tasks.some(t => t.id === taskId)) await app.load()
+      if (!app.data.tasks.some(t => t.id === taskId)) await app.fetchTask(taskId)
       const task = app.data.tasks.find(t => t.id === taskId)
       if (!task) { app.showNotice('Задача не найдена: возможно, её уже удалили'); return }
       if (actionId === reminders.ACTION_POSTPONE) { void router.push('/today'); app.openPostponeSheet(taskId); return }

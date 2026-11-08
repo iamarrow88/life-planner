@@ -99,6 +99,17 @@ async function dropFuture(recId: string, keep?: string) {
 
 /** День, когда это устройство последний раз запускало generate_recurring_tasks */
 const GEN_DAY_KEY = 'kola-recurring-generated'
+/** День до from: у задачи без даты день выполнения считается по местному времени, а в базе — время UTC; лишние строки не страшны */
+const dayBefore = (d: string) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() - 1); return x.toISOString().slice(0, 10) }
+const dayAfter = (d: string) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10) }
+/** Слово для фильтра or(): без символов, которые ломают его разбор или работают как шаблон */
+const likeWord = (w: string) => w.replace(/[,()"\\%_*.:]/g, ' ').trim()
+/** Задачи по id порциями: длинный список не влезет в адрес запроса */
+async function tasksByIds(ids: string[]): Promise<Task[]> {
+  const out: Task[] = []
+  for (let i = 0; i < ids.length; i += 150) out.push(...(ok(await db().from('tasks').select(TASK_COLS).in('id', ids.slice(i, i + 150))) as unknown as Task[]))
+  return out
+}
 /** false — в базе нет task_seconds_before (не выполнен planner_task_seconds.sql) */
 let taskSecondsRpc = true
 const MONTHLY_COLS = 'id,title,note,position,done_month,task_id,task_month,created_at'
@@ -122,7 +133,7 @@ export const supabaseRepo: Repo = {
   },
   async signOut() { await db().auth.signOut() },
 
-  async load(today, since) {
+  async load(today, since, tasksFrom) {
     const c = db()
     // Задачи по повторам создаются на 30 дней вперёд, поэтому достаточно раз в день на устройстве (правка повтора и
     // «после выполнения» создают их сами). Первый запуск дня ждёт генерацию, остальные загрузки — нет
@@ -150,8 +161,13 @@ export const supabaseRepo: Repo = {
       return res
     }
     /** Все задачи. Повторы создаются пачкой с одним временем создания, поэтому порядок уточняем по id */
-    const allTasks = () => generated.then(() => fetchAllPages((from, to) => c.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }).order('id').range(from, to)))
-    const [taskSecondsBefore, spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, moviesRes, shopRes, shopTagRes, monthlyRes, cDays, cSet, cCourses] = await Promise.all([
+    // старые выполненные не грузим: их подгружают экраны, которым они нужны
+    const recent = tasksFrom ? `status.neq.done,due_date.gte.${tasksFrom},done_at.gte.${dayBefore(tasksFrom)}` : null
+    const allTasks = () => generated.then(() => fetchAllPages((from, to) => {
+      const q = c.from('tasks').select(TASK_COLS)
+      return (recent ? q.or(recent) : q).order('created_at', { ascending: false }).order('id').range(from, to)
+    }))
+    const [taskSecondsBefore, spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, moviesRes, shopRes, shopTagRes, tagCountsRes, monthlyRes, cDays, cSet, cCourses] = await Promise.all([
       olderTaskSeconds(),
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
@@ -177,6 +193,7 @@ export const supabaseRepo: Repo = {
       // список покупок — тоже отдельный патч базы (planner_shopping.sql)
       c.from('shopping_items').select(SHOP_COLS).order('position').order('created_at'),
       c.from('user_settings').select('shopping_tag').maybeSingle(),
+      c.rpc('tag_counts'),
       // ежемесячный чек-лист — тоже отдельный патч базы (planner_monthly.sql)
       c.from('monthly_items').select(MONTHLY_COLS).order('position').order('created_at'),
       c.from('cycle_days').select(cycleDayCols).order('day'),
@@ -205,8 +222,19 @@ export const supabaseRepo: Repo = {
       cycleDays = await c.from('cycle_days').select(cycleDayCols).order('day')
     }
     const cycleReady = !cycleDays.error && !cSet.error && !cCourses.error
+    // задачи, на которые ссылаются желания, чек-лист и записи времени, нужны, даже если они старые
+    const loaded = ok(tasks) as unknown as Task[]
+    const have = new Set(loaded.map(t => t.id))
+    const refs = [
+      ...((wishesRes.data ?? []) as { task_id: string | null }[]).map(w => w.task_id),
+      ...((monthlyRes.data ?? []) as { task_id: string | null }[]).map(i => i.task_id),
+      ...((te.data ?? []) as { task_id: string | null }[]).map(e => e.task_id),
+    ]
+    const missing = [...new Set(refs.filter((id): id is string => !!id && !have.has(id)))]
+    if (missing.length) loaded.push(...await tasksByIds(missing))
     return {
-      spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: ok(tasks) as unknown as Task[], habits: ok(habits) as unknown as Habit[],
+      tagCounts: tagCountsRes.error ? null : (tagCountsRes.data as Record<string, number> | null) ?? {},
+      spheres: ok(spheres) as Sphere[], archivedSpheres: ok(archivedSpheres) as Sphere[], projects: ok(projects) as Project[], tasks: loaded, habits: ok(habits) as unknown as Habit[],
       habitEntries: ok(he) as HabitEntry[], timeEntries: ok(te) as TimeEntry[], taskSecondsBefore, recurrences: ok(recs) as unknown as Recurrence[],
       tagsReady: optional.tags, budgetReady: optional.budget, orderReady: optional.position, subtasksReady: optional.subtasks, postponesReady: optional.postpones, priorityReady: optional.priority, complexityReady: optional.complexity, checklistSyncReady: optional.checklist_sync,
       weekGoals: ok(goals) as WeekGoal[], reviews: ok(reviews) as WeeklyReview[],
@@ -339,6 +367,20 @@ export const supabaseRepo: Repo = {
   async reorderMovies(ids) {
     const rs = await Promise.all(ids.map((id, i) => db().from('movies').update({ position: i }).eq('id', id)))
     for (const r of rs) if (r.error) throw new Error(r.error.message)
+  },
+  async loadDoneTasks(from, to) {
+    const range = from
+      ? `and(due_date.gte.${from},due_date.lt.${to}),and(due_date.is.null,done_at.gte.${dayBefore(from)},done_at.lt.${dayAfter(to)})`
+      : `due_date.lt.${to},and(due_date.is.null,done_at.lt.${dayAfter(to)})`
+    const r = await fetchAllPages((a, b) => db().from('tasks').select(TASK_COLS).eq('status', 'done').or(range).order('id').range(a, b))
+    return ok(r) as unknown as Task[]
+  },
+  getTasks: ids => tasksByIds(ids),
+  async searchDoneTasks(words, tags, limit) {
+    let q = db().from('tasks').select(TASK_COLS).eq('status', 'done')
+    if (tags.length) q = q.contains('tags', tags)
+    for (const w of words.map(likeWord).filter(Boolean)) q = q.or(`title.ilike.*${w}*,note.ilike.*${w}*`)
+    return ok(await q.order('done_at', { ascending: false, nullsFirst: false }).limit(limit)) as unknown as Task[]
   },
   async addShoppingItem(i) { return ok(await db().from('shopping_items').insert(i).select(SHOP_COLS).single()) as unknown as ShoppingItem },
   async updateShoppingItem(id, patch) { return ok(await db().from('shopping_items').update(patch).eq('id', id).select(SHOP_COLS).single()) as unknown as ShoppingItem },

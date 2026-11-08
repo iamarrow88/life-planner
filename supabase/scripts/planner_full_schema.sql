@@ -2653,4 +2653,21 @@ $$;
 revoke all on function public.task_seconds_before(date) from public, anon;
 grant execute on function public.task_seconds_before(date) to authenticated;
 
+-- счётчики тегов и индекс выполненных задач (planner_lazy_tasks.sql)
+create or replace function public.tag_counts() returns jsonb
+language sql stable set search_path = public as $$
+  select coalesce(jsonb_object_agg(tag, n), '{}'::jsonb)
+  from (
+    select tag, count(*)::int as n
+    from public.tasks t, unnest(t.tags) as tag
+    where t.user_id = (select auth.uid())
+    group by tag
+  ) s
+$$;
+
+revoke all on function public.tag_counts() from public, anon;
+grant execute on function public.tag_counts() to authenticated;
+
+create index if not exists tasks_user_done_due_idx on public.tasks (user_id, due_date) where status = 'done';
+
 commit;

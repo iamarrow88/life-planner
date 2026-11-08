@@ -83,6 +83,9 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
 }
 /** Дни вокруг месяца с запасом: сетка начинается не раньше чем за 6 дней до 1-го и занимает не больше 6 недель */
 const monthDays = computed(() => Array.from({ length: 49 }, (_, i) => addDays(calMonth.value + '-01', i - 7)))
+/** Первый день, который видно в календаре: старые выполненные задачи до него подгружаются */
+const shownFrom = computed(() => (view.value !== 'cal' ? app.today : calMode.value === 'month' ? monthDays.value[0] : calMode.value === 'week' ? calWeek.value : calDay.value))
+watch([shownFrom, () => app.tasksFrom], ([d]) => { void app.ensureTasksFrom(d) }, { immediate: true })
 const summary = computed(() => monthSummary(monthDays.value, app.today, fTasks.value, fRecurrences.value, app.spheres))
 const MAX_MARKS = 3
 

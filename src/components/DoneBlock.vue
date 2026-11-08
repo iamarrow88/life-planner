@@ -1,13 +1,19 @@
 <script setup lang="ts">
 // Блок «Выполнено»: переданные выполненные задачи (экран сам решает, какие), зачёркнутые; сверху — выполненные недавно.
 import { computed, ref } from 'vue'
+import { useApp } from '../stores/app'
 import { dayOf, shortDate } from '../lib/time'
 import type { Task } from '../types'
 import TaskRow from './TaskRow.vue'
 
 const PAGE = 20
 /** since — первый день периода (например, начало недели): более ранние выполненные скрыты, их можно показать кнопкой */
-const props = defineProps<{ tasks: Task[]; since?: string }>()
+/** history — список за всё время (сфера, «Входящие»): если старые выполненные ещё не загружены, внизу есть кнопка */
+const props = defineProps<{ tasks: Task[]; since?: string; history?: boolean }>()
+const app = useApp()
+const canLoadOlder = computed(() => props.history && !app.allTasksLoaded)
+const fromLabel = computed(() => (app.tasksFrom ? shortDate(app.tasksFrom) : ''))
+async function loadOlder() { if (await app.loadAllTasks()) { showOlder.value = true; open.value = true } }
 const open = ref(false) // по умолчанию свёрнуто: раскрывается по заголовку
 const shown = ref(PAGE)
 
@@ -25,7 +31,7 @@ const doneDay = (t: { done_at: string | null }) => (t.done_at ? shortDate(dayOf(
 </script>
 
 <template>
-  <section v-if="all.length" class="mt-6" data-testid="done-block">
+  <section v-if="all.length || canLoadOlder" class="mt-6" data-testid="done-block">
     <button class="mb-2 flex w-full items-center justify-between text-left" data-testid="done-toggle" :aria-expanded="open" @click="open = !open">
       <span class="text-sm font-semibold uppercase tracking-wide text-mute">Выполнено · {{ recent.length }}</span>
       <span class="text-lg text-mute">{{ open ? '▴' : '▾' }}</span>
@@ -58,6 +64,9 @@ const doneDay = (t: { done_at: string | null }) => (t.done_at ? shortDate(dayOf(
           <button v-if="older.length > shownOlder" class="mt-2 block text-sm font-semibold text-accent" @click="shownOlder += PAGE">Показать ещё</button>
         </template>
       </template>
+      <button v-if="canLoadOlder" type="button" class="mt-3 block text-sm font-semibold text-accent disabled:opacity-60" :disabled="app.loadingOld" data-testid="done-load-older" @click="loadOlder">
+        {{ app.loadingOld ? 'Загружаю…' : 'Загрузить выполненные до ' + fromLabel }}
+      </button>
     </template>
   </section>
 </template>

@@ -115,6 +115,10 @@ function read(): Snapshot {
   const s = seed(); write(s); return s
 }
 const emptyCycle = () => ({ days: [], settings: { ...DEFAULT_CYCLE_SETTINGS }, courses: [] })
+/** Невыполненная или выполненная не раньше from (по дате задачи, у задач без даты — по дню выполнения) */
+function isRecent(t: Task, from: string) {
+  return t.status !== 'done' || (t.due_date ?? (t.done_at ? dayOf(t.done_at) : '')) >= from
+}
 function write(s: Snapshot) { try { localStorage.setItem(KEY, JSON.stringify(s)) } catch { /* ignore */ } }
 
 function newFromRule(r: Recurrence, due: string): Task {
@@ -148,7 +152,24 @@ export const demoRepo: Repo = {
   async signIn() { return USER },
   async signUp() { return USER },
   async signOut() { /* в демо выходить некуда */ },
-  async load() { const s = read(); generate(s); write(s); return { ...s, habitStatus: habitStatusFor(s, todayStr()) } },
+  async load(_today, _since, tasksFrom) {
+    const s = read(); generate(s); write(s)
+    // как в Supabase: старые выполненные задачи не отдаём, кроме тех, на которые есть ссылки
+    const refs = new Set([...(s.wishes ?? []).map(w => w.task_id), ...(s.monthlyItems ?? []).map(i => i.task_id), ...s.timeEntries.map(e => e.task_id)])
+    const tasks = tasksFrom ? s.tasks.filter(t => isRecent(t, tasksFrom) || refs.has(t.id)) : s.tasks
+    const tagCounts: Record<string, number> = {}
+    for (const t of s.tasks) for (const g of t.tags ?? []) tagCounts[g] = (tagCounts[g] ?? 0) + 1
+    return { ...s, tasks, tagCounts, habitStatus: habitStatusFor(s, todayStr()) }
+  },
+  async loadDoneTasks(from, to) {
+    const day = (t: Task) => t.due_date ?? (t.done_at ? dayOf(t.done_at) : '')
+    return read().tasks.filter(t => t.status === 'done' && day(t) < to && (!from || day(t) >= from))
+  },
+  async getTasks(ids) { const s = read(); return s.tasks.filter(t => ids.includes(t.id)) },
+  async searchDoneTasks(words, tags, limit) {
+    return read().tasks.filter(t => t.status === 'done' && tags.every(g => t.tags?.includes(g))
+      && words.every(w => (t.title + ' ' + (t.note ?? '')).toLowerCase().includes(w.toLowerCase()))).slice(0, limit)
+  },
   async addTask(t) {
     const s = read()
     const task: Task = { id: uid(), title: t.title, note: t.note ?? null, tags: t.tags ?? [], budget: t.budget ?? null, complexity: t.complexity ?? null, subtasks: t.subtasks ?? [], status: t.status, sphere_id: t.sphere_id ?? null, project_id: t.project_id ?? null,
