@@ -137,7 +137,7 @@ async function save() {
     <AutoTextarea v-model="description" :min-rows="2" :maxlength="2000" placeholder="Описание сферы (необязательно)" />
     <div class="flex flex-wrap items-center gap-2">
       <button v-for="c in COLORS" :key="c" type="button" class="h-8 w-8 rounded-full ring-offset-2" :class="color === c && 'ring-2 ring-ink'" :style="{ background: c }" :aria-label="'Цвет ' + c" @click="color = c"></button>
-      <input v-model="color" type="color" class="h-8 w-8 cursor-pointer rounded-full border border-line bg-white p-0.5" aria-label="Свой цвет" title="Свой цвет" />
+      <input v-model="color" type="color" class="h-8 w-8 cursor-pointer rounded-full border border-line bg-white/70 p-0.5" aria-label="Свой цвет" title="Свой цвет" />
     </div>
     <label class="flex items-center gap-3 text-sm text-mute">Цель на неделю, часов
       <input v-model.number="goalHours" type="number" min="0" step="0.5" class="input !w-24" />
@@ -148,11 +148,11 @@ async function save() {
   <!-- Учёт времени: кольцо плана или факта, под ним плитки бюджета и список сфер -->
   <div class="card mb-4 p-5" data-test="time-budget">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs font-medium">
-      <div class="inline-flex rounded-xl border border-line bg-white p-0.5" data-test="ring-view">
+      <div class="inline-flex rounded-xl border border-line bg-white/70 p-0.5" data-test="ring-view">
         <button class="rounded-lg px-3 py-1" :class="ringView === 'plan' ? 'bg-accent text-white' : 'text-mute'" data-test="ring-plan" @click="setRingView('plan')">План</button>
         <button class="rounded-lg px-3 py-1" :class="ringView === 'fact' ? 'bg-accent text-white' : 'text-mute'" data-test="ring-fact" @click="setRingView('fact')">Факт</button>
       </div>
-      <div class="inline-flex rounded-xl border border-line bg-white p-0.5">
+      <div class="inline-flex rounded-xl border border-line bg-white/70 p-0.5">
         <button class="rounded-lg px-3 py-1" :class="period === 'week' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'week'">Неделя</button>
         <button class="rounded-lg px-3 py-1" :class="period === 'month' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'month'">Месяц</button>
       </div>

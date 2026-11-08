@@ -20,7 +20,7 @@ async function fix() {
 </script>
 
 <template>
-  <div v-if="app.longStop" class="fixed inset-0 z-40 flex items-end justify-center bg-black/40 md:items-center" @pointerdown="bd.down" @click="bd.click">
+  <div v-if="app.longStop" class="fixed inset-0 z-40 flex items-end justify-center backdrop md:items-center" @pointerdown="bd.down" @click="bd.click">
     <form role="dialog" aria-label="Исправить время таймера" class="flex w-full max-w-md flex-col gap-3 rounded-t-3xl bg-bg p-5 md:rounded-3xl" @submit.prevent="fix">
       <h2 class="text-lg font-bold">Таймер шёл очень долго</h2>
       <p class="text-sm text-mute">

@@ -4,29 +4,53 @@
 
 :root { color-scheme: light; }
 html, body, #app { height: 100%; }
-body { @apply text-ink font-sans antialiased; background: linear-gradient(160deg, #E6E0FB 0%, #F1E8FB 50%, #FBE8F1 100%); -webkit-tap-highlight-color: transparent; }
+/* «Стекло»: под полупрозрачными панелями — размытые цветные пятна. Прокручивается main, поэтому фон стоит на месте */
+body {
+  @apply text-ink font-sans antialiased; -webkit-tap-highlight-color: transparent;
+  background-color: #ECE8FA;
+  background-image:
+    radial-gradient(38rem 30rem at 8% -4%, rgb(167 139 250 / 0.55), transparent 62%),
+    radial-gradient(34rem 28rem at 100% 12%, rgb(125 211 252 / 0.45), transparent 62%),
+    radial-gradient(40rem 32rem at 78% 104%, rgb(244 182 215 / 0.55), transparent 62%),
+    radial-gradient(30rem 26rem at -6% 82%, rgb(165 180 252 / 0.5), transparent 62%);
+}
 button { @apply cursor-pointer; }
 
 @layer components {
-  .card { @apply bg-card rounded-[1.25rem] border border-white/70 shadow-[0_2px_14px_rgba(76,58,160,0.08)]; }
+  /* Карточка — матовое стекло: полупрозрачная, со светлой рамкой и бликом по верхнему краю.
+     Без backdrop-filter: под ней плавный фон, размытие было бы незаметно, а прокрутку на телефоне замедлило бы */
+  .card { @apply rounded-[1.25rem] border border-white/70 bg-white/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_30px_rgba(76,58,160,0.10)]; }
+  /* Стекло с размытием — для того, под чем движется содержимое: панели, всплывающие меню, липкие шапки */
+  .glass { @apply border border-white/70 bg-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_8px_30px_rgba(76,58,160,0.14)] backdrop-blur-xl backdrop-saturate-150; }
+  .glass-pop { @apply rounded-2xl border border-white/80 bg-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,1),0_12px_36px_rgba(49,36,120,0.22)] backdrop-blur-xl backdrop-saturate-150; }
+  /* Затемнение под окном: сиреневая дымка с размытием вместо чёрного */
+  .backdrop { background-color: rgb(42 33 92 / 0.28); @apply backdrop-blur-[6px]; }
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:opacity-50; }
-  .btn-primary { @apply btn bg-accent text-white hover:brightness-110; }
-  .btn-ghost { @apply btn border border-accent/15 bg-accent-soft text-accent hover:brightness-95; }
-  .input { @apply w-full rounded-2xl border border-line bg-white px-3.5 py-2.5 text-[15px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/20; }
-  .chip { @apply inline-flex items-center rounded-full border border-line bg-white px-3 py-1 text-xs font-medium text-mute transition; }
-  .chip-on { @apply border-accent bg-accent text-white; }
+  .btn-primary { @apply btn bg-gradient-to-b from-[#7466C6] to-accent text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_4px_14px_rgba(100,86,182,0.35)] hover:brightness-110; }
+  .btn-ghost { @apply btn border border-white/80 bg-white/60 text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] hover:bg-white/80; }
+  .input { @apply w-full rounded-2xl border border-white/80 bg-white/75 px-3.5 py-2.5 text-[15px] outline-none focus:border-accent focus:bg-white focus:ring-2 focus:ring-accent/20; }
+  .chip { @apply inline-flex items-center rounded-full border border-white/80 bg-white/65 px-3 py-1 text-xs font-medium text-mute transition; }
+  .chip-on { @apply border-accent bg-accent text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]; }
   /* Пастельные плитки с показателями */
-  .tile { @apply rounded-2xl p-2; }
-  .tile-violet { background-color: #EDE9FE; }
-  .tile-pink { background-color: #FCE7F3; }
-  .tile-mint { background-color: #E1F3EB; }
-  .tile-amber { background-color: #FEF3DC; }
+  .tile { @apply rounded-2xl border border-white/70 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]; }
+  .tile-violet { background-color: rgb(237 233 254 / 0.75); }
+  .tile-pink { background-color: rgb(252 231 243 / 0.75); }
+  .tile-mint { background-color: rgb(225 243 235 / 0.75); }
+  .tile-amber { background-color: rgb(254 243 220 / 0.75); }
 }
 /* Подпись внутри активной кнопки: на заливке серый не читается */
 .chip-on .text-mute { color: rgb(255 255 255 / 0.85); }
 /* День календаря, над которым держат перетаскиваемую задачу */
 [data-drop-target] { @apply ring-2 ring-accent bg-accent-soft; }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Кто просит меньше прозрачности (настройка системы) или браузер не умеет размывать — стекло почти непрозрачное */
+@media (prefers-reduced-transparency: reduce) {
+  .card, .glass, .glass-pop { background-color: rgb(255 255 255 / 0.94); }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass, .glass-pop { background-color: rgb(255 255 255 / 0.94); }
+}
 
 /* Печать истории циклов: на бумагу попадает только блок .print-area, остальное приложение (меню, плашки, календарь) скрыто */
 @media print {

@@ -263,7 +263,7 @@ async function add() {
       </h1>
       <p class="text-sm text-mute first-letter:uppercase">{{ longDate(app.today) }}</p>
     </div>
-    <div class="flex rounded-xl border border-line bg-white p-0.5 text-sm font-medium">
+    <div class="flex rounded-xl border border-line bg-white/70 p-0.5 text-sm font-medium">
       <button class="rounded-lg px-3 py-1.5" :class="view === 'list' ? 'bg-accent text-white' : 'text-mute'" @click="view = 'list'">Список</button>
       <button class="rounded-lg px-3 py-1.5" :class="view === 'cal' ? 'bg-accent text-white' : 'text-mute'" @click="view = 'cal'">Календарь</button>
     </div>
@@ -409,7 +409,7 @@ async function add() {
         <template #day="{ d, inMonth }">
           <button type="button" :data-day="d"
             class="flex min-h-[4rem] flex-col items-center gap-0.5 rounded-xl px-0.5 pb-1 pt-1 text-sm transition hover:ring-2 hover:ring-accent/40"
-            :class="[!inMonth && d !== monthSel && 'opacity-35', d === app.today ? 'bg-accent-soft font-bold text-accent' : 'bg-white', d === monthSel && 'ring-2 ring-accent']"
+            :class="[!inMonth && d !== monthSel && 'opacity-35', d === app.today ? 'bg-accent-soft font-bold text-accent' : 'bg-white/70', d === monthSel && 'ring-2 ring-accent']"
             :aria-pressed="d === monthSel" :aria-label="longDate(d) + (summary.get(d)?.label ? ': ' + summary.get(d)!.label : '') + (app.overloadOn(d).length ? ', день перегружен' : '')" @click="pickDay(d)">
             <span class="leading-none">{{ Number(d.slice(8)) }}</span>
             <span class="flex flex-wrap justify-center gap-0.5">

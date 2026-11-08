@@ -51,7 +51,7 @@ defineExpose({ flush: () => { if (input.value.trim()) add() } })
         @keydown="onKey" @focus="focused = true" @blur="onBlur" />
     </div>
     <!-- Подсказки поверх карточки: появляются и исчезают, не сдвигая кнопки под курсором -->
-    <div v-if="(focused || input.trim()) && options.length" class="absolute inset-x-0 top-full z-20 mt-1 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-line bg-white p-2 shadow-lg" data-test="tag-options">
+    <div v-if="(focused || input.trim()) && options.length" class="absolute inset-x-0 top-full z-20 mt-1 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto glass-pop p-2" data-test="tag-options">
       <!-- mousedown: выбрать до того, как поле потеряет фокус -->
       <button v-for="t in options" :key="t" type="button" class="chip py-0.5 hover:chip-on" data-test="tag-option" @mousedown.prevent="add(t)">#{{ t }}</button>
     </div>

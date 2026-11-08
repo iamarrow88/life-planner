@@ -227,7 +227,7 @@ async function removeRepeating(all: boolean) {
 </script>
 
 <template>
-  <div v-if="task" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @pointerdown="bd.down" @click="bd.click">
+  <div v-if="task" class="fixed inset-0 z-30 flex items-end justify-center backdrop md:items-center" @pointerdown="bd.down" @click="bd.click">
     <form class="flex max-h-[92vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-3xl bg-bg p-5 md:rounded-3xl" @submit.prevent="save()">
       <div class="flex items-start justify-between gap-3">
         <h2 class="text-lg font-bold">Задача</h2>
@@ -345,7 +345,7 @@ async function removeRepeating(all: boolean) {
       <!-- Кнопки всегда на виду, даже если карточка выше экрана (много подзадач, раскрытый повтор) -->
       <div class="sticky -bottom-5 z-10 -mx-5 -mb-5 bg-bg px-5 pb-5 pt-2" data-test="task-actions">
         <!-- Задача по повтору: удалить только её или вместе с будущими -->
-        <div v-if="askDelete" class="mb-2 space-y-2 rounded-xl border border-line bg-white p-3" role="group" aria-label="Что удалить" data-test="delete-choice">
+        <div v-if="askDelete" class="mb-2 space-y-2 rounded-xl border border-line bg-white/70 p-3" role="group" aria-label="Что удалить" data-test="delete-choice">
           <p class="text-sm font-semibold">Это повторяющаяся задача. Что удалить?</p>
           <button type="button" class="btn-ghost w-full" :disabled="busy" data-test="delete-one" @click="removeRepeating(false)">Только эту</button>
           <p v-if="nextDate" class="text-xs text-mute" data-test="delete-next">Следующая появится {{ shortDate(nextDate) }}.</p>

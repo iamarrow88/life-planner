@@ -88,7 +88,7 @@ async function remove() {
 </script>
 
 <template>
-  <div v-if="habit" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @pointerdown="bd.down" @click="bd.click">
+  <div v-if="habit" class="fixed inset-0 z-30 flex items-end justify-center backdrop md:items-center" @pointerdown="bd.down" @click="bd.click">
     <form class="flex max-h-[92vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-3xl bg-bg p-5 md:rounded-3xl" @submit.prevent="save">
       <div class="flex items-start justify-between gap-3">
         <h2 class="text-lg font-bold">Привычка</h2>

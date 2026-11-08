@@ -32,7 +32,7 @@ const needDays = computed(() => v.value.freq === 'week' && v.value.mode === 'sch
 </script>
 
 <template>
-  <div class="rounded-2xl border border-line bg-white p-3" data-test="habit-schedule">
+  <div class="rounded-2xl border border-line bg-white/70 p-3" data-test="habit-schedule">
     <button type="button" class="flex w-full items-center justify-between gap-2 text-left text-sm" :aria-expanded="open" @click="open = !open">
       <span><span class="text-mute">Повтор: </span><span class="font-medium" data-test="schedule-summary">{{ summary }}</span></span>
       <span class="text-mute">{{ open ? '▴' : '▾' }}</span>

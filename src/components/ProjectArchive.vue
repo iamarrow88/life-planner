@@ -41,7 +41,7 @@ async function archive() {
 </script>
 
 <template>
-  <div v-if="project" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @pointerdown="bd.down" @click="bd.click">
+  <div v-if="project" class="fixed inset-0 z-30 flex items-end justify-center backdrop md:items-center" @pointerdown="bd.down" @click="bd.click">
     <div role="dialog" aria-label="Архивация проекта" class="flex max-h-[92vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-3xl bg-bg p-5 md:rounded-3xl">
       <div class="flex items-start justify-between gap-3">
         <h2 class="min-w-0 break-words text-lg font-bold">В архив: «{{ project.name }}»</h2>
@@ -55,7 +55,7 @@ async function archive() {
           <button type="button" class="chip w-full justify-center py-2 text-sm" :class="open === 'all' && 'chip-on'" @click="toggle('all')">Перенести все…</button>
           <DestPicker v-if="open === 'all'" class="mt-2" :exclude="projectId" @pick="d => place('all', d)" />
         </div>
-        <ul class="divide-y divide-line rounded-2xl border border-line bg-white">
+        <ul class="divide-y divide-line rounded-2xl border border-line bg-white/70">
           <li v-for="t in tasks" :key="t.id" class="px-3 py-2.5" data-test="arch-task">
             <div class="break-words text-sm">{{ t.title }}</div>
             <button type="button" class="chip mt-1.5 max-w-full py-1 text-xs hover:chip-on" :class="open === t.id && 'chip-on'" :aria-label="'Куда перенести: ' + t.title" @click="toggle(t.id)">

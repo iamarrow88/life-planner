@@ -113,7 +113,7 @@ const linkPreview = computed(() => `${form.value.link_label.trim() || 'День 
           class="relative flex h-11 flex-col items-center justify-center rounded-xl text-sm transition hover:ring-2 hover:ring-accent/40"
           :class="[
             !inMonth && 'opacity-35',
-            app.cycleDayOf(d).period ? 'bg-rose-400 text-white' : 'bg-white',
+            app.cycleDayOf(d).period ? 'bg-rose-400 text-white' : 'bg-white/70',
             app.cycleDayOf(d).cycle_start && 'ring-2 ring-rose-700',
             d === app.today && 'font-bold underline underline-offset-2',
           ]"
@@ -165,7 +165,7 @@ const linkPreview = computed(() => `${form.value.link_label.trim() || 'День 
   </template>
 
   <!-- Окно дня -->
-  <div v-if="sel && selDay" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" data-test="cycle-day" @pointerdown="bd.down" @click="bd.click">
+  <div v-if="sel && selDay" class="fixed inset-0 z-30 flex items-end justify-center backdrop md:items-center" data-test="cycle-day" @pointerdown="bd.down" @click="bd.click">
     <div class="flex max-h-[92vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-3xl bg-bg p-5 md:rounded-3xl">
       <div class="flex items-start justify-between gap-3">
         <div>

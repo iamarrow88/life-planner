@@ -65,10 +65,10 @@ const onSort = (ids: string[]) => change(ids.map(id => list.value.find(x => x.id
   <div v-else class="text-xs text-mute" data-test="subtasks">
     <div class="mb-1 flex items-center justify-between">
       <span>Подзадачи<template v-if="list.length"> · {{ list.filter(x => x.done).length }}/{{ list.length }}</template></span>
-      <button v-if="rule" type="button" class="rounded-full border px-2 py-0.5 text-xs font-medium transition" :class="syncOn ? 'border-accent bg-accent-soft text-accent' : 'border-line bg-white text-mute'"
+      <button v-if="rule" type="button" class="rounded-full border px-2 py-0.5 text-xs font-medium transition" :class="syncOn ? 'border-accent bg-accent-soft text-accent' : 'border-line bg-white/70 text-mute'"
         :aria-pressed="syncOn" :title="syncOn ? 'Изменения подзадач идут и в следующие задачи. Нажми, чтобы менять только эту' : 'Подзадачи меняются только в этой задаче. Нажми, чтобы менять и в следующих'" data-test="subtasks-sync" @click="choose(!syncOn)">⧉ и в следующих</button>
     </div>
-    <ul v-if="list.length" v-drag-sort="onSort" class="mb-1.5 divide-y divide-line rounded-xl border border-line bg-white">
+    <ul v-if="list.length" v-drag-sort="onSort" class="mb-1.5 divide-y divide-line rounded-xl border border-line bg-white/70">
       <li v-for="s in list" :key="s.id" :data-id="s.id" class="flex items-center gap-2 px-2 py-1.5">
         <span data-drag-handle class="shrink-0 cursor-grab touch-none select-none px-0.5 text-sm leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить подзадачу">⋮⋮</span>
         <input type="checkbox" class="h-4 w-4 shrink-0 accent-[#1D7052]" :checked="s.done" :aria-label="'Выполнено: ' + s.title" data-test="subtask-check" @change="toggle(s)" />
@@ -80,7 +80,7 @@ const onSort = (ids: string[]) => change(ids.map(id => list.value.find(x => x.id
     <input v-model="draft" class="input !py-1.5 text-sm" maxlength="2000" placeholder="+ подзадача (Enter — добавить)" aria-label="Новая подзадача" data-test="subtask-add"
       @keydown.enter.prevent="add" @paste="onPaste" />
     <!-- Первое изменение подзадач в этом повторе: спрашиваем один раз -->
-    <div v-if="asking && rule" class="mt-1.5 rounded-xl border border-line bg-white p-2.5" role="group" aria-label="Куда применить изменения подзадач" data-test="subtasks-ask">
+    <div v-if="asking && rule" class="mt-1.5 rounded-xl border border-line bg-white/70 p-2.5" role="group" aria-label="Куда применить изменения подзадач" data-test="subtasks-ask">
       <p class="mb-1.5 text-sm text-ink">Подзадачи менять только в этой задаче или ещё в следующих?</p>
       <div class="flex gap-1.5">
         <button type="button" class="chip flex-1 justify-center py-1.5" data-test="subtasks-only" @click="choose(false)">Только в этой</button>

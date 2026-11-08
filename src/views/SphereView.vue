@@ -177,7 +177,7 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
         <AutoTextarea v-model="eDesc" :min-rows="3" :maxlength="2000" aria-label="Описание сферы" placeholder="Описание сферы" />
         <div class="flex flex-wrap items-center gap-2">
           <button v-for="c in COLORS" :key="c" type="button" class="h-8 w-8 rounded-full ring-offset-2" :class="eColor.toLowerCase() === c.toLowerCase() && 'ring-2 ring-ink'" :style="{ background: c }" :aria-label="'Цвет ' + c" @click="eColor = c"></button>
-          <input v-model="eColor" type="color" class="h-8 w-8 cursor-pointer rounded-full border border-line bg-white p-0.5" aria-label="Свой цвет" title="Свой цвет" />
+          <input v-model="eColor" type="color" class="h-8 w-8 cursor-pointer rounded-full border border-line bg-white/70 p-0.5" aria-label="Свой цвет" title="Свой цвет" />
         </div>
         <label class="flex items-center gap-3 text-sm text-mute">Цель на неделю по умолчанию, часов
           <input v-model.number="eGoal" type="number" min="0" step="0.5" class="input !w-24" aria-label="Цель по умолчанию, часов" />
@@ -293,7 +293,7 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
       <!-- Архив проектов -->
       <div v-if="app.archivedProjectsOf(id).length" class="mt-3">
         <button type="button" class="text-xs font-semibold text-mute" @click="showArchive = !showArchive">Архив проектов ({{ app.archivedProjectsOf(id).length }}) {{ showArchive ? '▴' : '▾' }}</button>
-        <ul v-if="showArchive" class="mt-1.5 divide-y divide-line rounded-xl border border-line bg-white">
+        <ul v-if="showArchive" class="mt-1.5 divide-y divide-line rounded-xl border border-line bg-white/70">
           <li v-for="p in app.archivedProjectsOf(id)" :key="p.id" class="flex items-center gap-2 px-3 py-2 text-sm text-mute" data-test="archived-project">
             <span class="min-w-0 flex-1 truncate">{{ p.name }}</span>
             <button type="button" class="shrink-0 text-xs font-semibold text-accent" :aria-label="'Вернуть проект ' + p.name" @click="app.restoreProject(p.id)">Вернуть</button>

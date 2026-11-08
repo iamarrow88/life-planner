@@ -160,7 +160,7 @@ function pickedDate(id: string, e: Event) {
       <!-- Всплывающее окно: во сколько? -->
       <template v-if="choosing?.id === t.id">
         <div class="relative">
-          <div role="dialog" aria-label="Выбери время" class="absolute left-3 top-1 z-20 w-64 rounded-2xl border border-line bg-white p-3 shadow-lg">
+          <div role="dialog" aria-label="Выбери время" class="absolute left-3 top-1 z-20 w-64 glass-pop p-3">
             <div class="mb-2 flex items-center justify-between text-sm">
               <span class="font-semibold">{{ dateLabel(choosing.date) }} — во сколько?</span>
               <button type="button" class="text-lg leading-none text-mute" aria-label="Закрыть" @click="choosing = null">×</button>
@@ -176,7 +176,7 @@ function pickedDate(id: string, e: Event) {
       <TaskMoreMenu v-if="more === t.id" :task="t" @close="more = null" />
       <!-- Всплывающее окно: сфера, затем проект -->
       <div v-if="menu?.id === t.id" class="relative">
-        <div role="dialog" :aria-label="menu.step === 'sphere' ? 'Выбери сферу' : 'Выбери проект'" class="absolute left-3 top-1 z-20 w-64 rounded-2xl border border-line bg-white p-3 shadow-lg">
+        <div role="dialog" :aria-label="menu.step === 'sphere' ? 'Выбери сферу' : 'Выбери проект'" class="absolute left-3 top-1 z-20 w-64 glass-pop p-3">
           <template v-if="menu.step === 'sphere'">
             <div class="mb-2 flex items-center justify-between text-sm">
               <span class="font-semibold">Сфера</span>

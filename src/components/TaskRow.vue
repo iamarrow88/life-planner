@@ -95,7 +95,7 @@ function closePostpone() { postponeMenu.value = null }
   <Teleport to="body">
     <template v-if="postponeMenu">
       <div class="fixed inset-0 z-40" @click="postponeMenu = null"></div>
-      <div role="menu" :aria-label="'Перенести «' + task.title + '»'" class="fixed z-50 rounded-2xl border border-line bg-white p-1.5 shadow-lg" :style="{ top: postponeMenu.top + 'px', left: postponeMenu.left + 'px', width: '16.5rem' }" data-test="postpone-menu">
+      <div role="menu" :aria-label="'Перенести «' + task.title + '»'" class="fixed z-50 glass-pop p-1.5" :style="{ top: postponeMenu.top + 'px', left: postponeMenu.left + 'px', width: '16.5rem' }" data-test="postpone-menu">
         <PostponeOptions :task="task" @close="postponeMenu = null" />
       </div>
     </template>

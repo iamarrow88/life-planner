@@ -55,7 +55,7 @@ async function add() {
 </script>
 
 <template>
-  <div class="mb-2 ml-5 overflow-hidden rounded-xl border border-line bg-white" data-test="sphere-plan">
+  <div class="mb-2 ml-5 overflow-hidden rounded-xl border border-line bg-white/70" data-test="sphere-plan">
     <ul v-if="tasks.length" class="divide-y divide-line">
       <li v-for="t in tasks" :key="t.id">
         <TaskRow :task="t" no-timer>

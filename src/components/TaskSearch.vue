@@ -38,7 +38,7 @@ const where = (t: { status: string; due_date: string | null }) => t.status === '
 </script>
 
 <template>
-  <div v-if="app.searchQuery !== null" class="fixed inset-0 z-[25] flex items-start justify-center bg-black/40 p-0 md:p-6" data-test="task-search"
+  <div v-if="app.searchQuery !== null" class="fixed inset-0 z-[25] flex items-start justify-center backdrop p-0 md:p-6" data-test="task-search"
     @pointerdown="bd.down" @click="bd.click" @keydown.esc="app.closeSearch()">
     <div class="flex max-h-full w-full max-w-xl flex-col gap-3 overflow-y-auto bg-bg p-4 md:max-h-[90vh] md:rounded-3xl md:p-5">
       <div class="flex items-center gap-2">

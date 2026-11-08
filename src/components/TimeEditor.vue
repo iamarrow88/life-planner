@@ -109,7 +109,7 @@ async function remove(id: string) {
 </script>
 
 <template>
-  <div v-if="app.editor" class="fixed inset-0 z-30 flex items-end justify-center bg-black/40 md:items-center" @pointerdown="bd.down" @click="bd.click">
+  <div v-if="app.editor" class="fixed inset-0 z-30 flex items-end justify-center backdrop md:items-center" @pointerdown="bd.down" @click="bd.click">
     <div class="flex max-h-[88vh] w-full max-w-md flex-col rounded-t-3xl bg-bg p-5 md:rounded-3xl">
       <div class="mb-3 flex items-start justify-between gap-3">
         <div class="min-w-0">

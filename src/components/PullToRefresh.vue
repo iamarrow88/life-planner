@@ -69,7 +69,7 @@ onBeforeUnmount(() => bind(null, props.target))
 
 <template>
   <div v-if="enabled" class="pointer-events-none sticky top-0 z-30 h-0" aria-hidden="true">
-    <div class="absolute left-1/2 top-0 grid h-10 w-10 -translate-x-1/2 place-items-center rounded-full bg-white shadow-md"
+    <div class="absolute left-1/2 top-0 grid h-10 w-10 -translate-x-1/2 place-items-center rounded-full bg-white/70 shadow-md"
       :class="!pull && !busy ? 'opacity-0' : 'opacity-100'"
       :style="{ transform: `translate(-50%, ${pull - 44}px)`, transition: dragging ? 'none' : 'transform .2s, opacity .2s' }" data-test="pull-refresh">
       <img :src="logo" alt="" class="h-7 w-7" :class="busy && 'animate-spin'"

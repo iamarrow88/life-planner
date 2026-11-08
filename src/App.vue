@@ -43,7 +43,7 @@ async function logout() { await app.signOut(); router.push('/login') }
   <RouterView v-else-if="!showShell" />
   <div v-else class="flex h-full flex-col md:flex-row">
     <!-- Боковое меню на ПК -->
-    <aside class="hidden w-60 shrink-0 flex-col border-r border-line bg-white/60 p-4 md:flex">
+    <aside class="glass m-3 mr-0 hidden w-60 shrink-0 flex-col rounded-[1.75rem] p-4 md:flex">
       <div class="mb-6 flex items-center gap-2 px-2 text-lg font-bold text-accent-deep">
         <img :src="logo" alt="" class="h-8 w-8" /> KolaApp
       </div>
@@ -86,7 +86,7 @@ async function logout() { await app.signOut(); router.push('/login') }
     <LongTimerFix />
 
     <!-- Нижняя панель на телефоне -->
-    <nav class="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] z-20 flex gap-0.5 rounded-[1.75rem] border border-white/70 bg-white/80 p-1 shadow-[0_6px_24px_rgba(76,58,160,0.18)] backdrop-blur-md md:hidden">
+    <nav class="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] z-20 flex gap-0.5 rounded-[1.75rem] glass p-1 md:hidden">
       <RouterLink v-for="t in tabs" :key="t.to" :to="t.to"
         class="relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-3xl py-1.5 text-[11px] font-medium text-mute transition"
         :class="t.to === parentTab && '!bg-accent-soft !text-accent'" active-class="!bg-accent-soft !text-accent">

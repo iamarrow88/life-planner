@@ -24,7 +24,7 @@ onMounted(async () => {
 
 <template>
   <div class="relative">
-    <div ref="box" role="dialog" aria-label="Ещё действия с задачей" class="absolute left-3 z-20 w-64 rounded-2xl border border-line bg-white p-3 shadow-lg" :class="up ? 'bottom-full mb-1' : 'top-1'" data-test="inbox-more-menu">
+    <div ref="box" role="dialog" aria-label="Ещё действия с задачей" class="absolute left-3 z-20 w-64 glass-pop p-3" :class="up ? 'bottom-full mb-1' : 'top-1'" data-test="inbox-more-menu">
       <div class="mb-2 flex items-center justify-between text-sm">
         <span class="font-semibold">Ещё</span>
         <button type="button" class="text-lg leading-none text-mute" aria-label="Закрыть" @click="emit('close')">×</button>
