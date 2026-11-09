@@ -1,5 +1,5 @@
 // Приложение для телефона (Capacitor): то, что отличает его от сайта/PWA.
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { watch } from 'vue'
 import type { Router } from 'vue-router'
 import type { useApp } from '../stores/app'
@@ -7,6 +7,14 @@ import { weekStart } from './time'
 
 /** true — запущено как приложение для телефона (Android), а не в браузере */
 export const isNative = Capacitor.isNativePlatform()
+
+/** Свой плагин (android/…/TimerNotificationPlugin.java): идущий таймер в шторке с секундомером и кнопкой «Стоп» */
+interface TimerNotificationPlugin {
+  show(o: { title: string; text: string; startedAt: number }): Promise<void>
+  hide(): Promise<void>
+  addListener(event: 'action', cb: (d: { action: string }) => void): Promise<PluginListenerHandle>
+}
+const TimerNotification = registerPlugin<TimerNotificationPlugin>('TimerNotification')
 
 let resyncFn: (() => void) | null = null
 /** Пересобрать расписание напоминаний сейчас (например, сразу после выдачи разрешения) */
@@ -79,6 +87,39 @@ export async function initNative(app: ReturnType<typeof useApp>, router: Router)
     const extra = a.notification.extra as { url?: string; taskId?: string } | undefined
     if (a.actionId !== 'tap' && extra?.taskId) { void onTaskAction(a.actionId, extra.taskId, a.notification.id); return }
     if (extra?.url) void router.push(extra.url)
+  })
+
+  // ---- Идущий таймер в шторке: показываем, пока он идёт; «Стоп» там останавливает его
+  let shownTimer = ''
+  const syncTimerNotification = () => {
+    const r = app.running
+    const key = r ? [r.id, r.started_at, app.runningTitle].join('|') : ''
+    if (key === shownTimer) return
+    shownTimer = key
+    if (!r) { TimerNotification.hide().catch(() => {}); return }
+    const since = new Date(r.started_at)
+    const hm = String(since.getHours()).padStart(2, '0') + ':' + String(since.getMinutes()).padStart(2, '0')
+    TimerNotification.show({ title: app.runningTitle || 'Таймер', text: 'Таймер идёт с ' + hm, startedAt: since.getTime() }).catch(() => {})
+  }
+  watch(() => [app.running?.id, app.running?.started_at, app.runningTitle], syncTimerNotification, { immediate: true })
+  void TimerNotification.addListener('action', async d => {
+    if (d.action !== 'stop') return
+    const fromBackground = inBackground || Date.now() - lastActive < 2500
+    app.holdReloads = true
+    try {
+      await whenIdle()
+      if (!app.user) return
+      if (app.running) {
+        await app.stopTimer()
+        if (app.error) return
+        app.showNotice('Таймер остановлен')
+      } else {
+        // таймер уже остановили (например, на другом устройстве) — просто убираем уведомление
+        shownTimer = ''; syncTimerNotification()
+      }
+      await resyncNow()
+      if (fromBackground) void App.minimizeApp()
+    } finally { app.holdReloads = false }
   })
 
   // напоминания пересобираются при любом изменении данных (с небольшой паузой, чтобы не дёргать систему на каждую букву)
