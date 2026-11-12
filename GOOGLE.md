@@ -72,7 +72,7 @@ npx supabase functions deploy google-sync --no-verify-jwt --use-api --project-re
 
 ## Шаг 5. База и расписание
 
-**База.** Если она создана из `planner_full_schema.sql`, ничего делать не нужно. Для старой базы одного файла `supabase/scripts/planner_google.sql` мало: более поздние изменения для Google есть только в `planner_full_schema.sql`. Проверь, что в таблице `tasks` есть колонка `google_calendar_id` и существует таблица `google_ignored`.
+**База.** Если она создана из `planner_full_schema.sql`, ничего делать не нужно. Для старой базы одного файла `supabase/scripts/planner_google.sql` мало: более поздние изменения для Google есть только в `planner_full_schema.sql`. Проверь, что в таблице `tasks` есть колонка `google_calendar_id` и существует таблица `google_ignored`. Выполни `supabase/scripts/planner_google_imported.sql`, чтобы задачи из удалённых событий удалялись сами.
 
 **Расписание:**
 
@@ -91,7 +91,7 @@ npx supabase functions deploy google-sync --no-verify-jwt --use-api --project-re
 
 Что можно настроить после подключения:
 
-- **Создавать задачи из событий Google.** Если удалить такую задачу, событие в Google останется.
+- **Создавать задачи из событий Google.** Если удалить такую задачу, событие в Google останется. Если удалить событие в Google или поменять повторение серии, задачи из него тоже исчезнут. Останутся только выполненные и те, по которым записано время.
 - **Какие календари читать и куда отправлять задачи.** Без доступа к списку календарей синхронизируется только основной.
 
 ## Если что-то не работает

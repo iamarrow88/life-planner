@@ -4,7 +4,12 @@ import type { Store, TaskRow } from './sync.ts'
 // deno-lint-ignore no-explicit-any
 type Client = any
 
-const COLS = 'id,user_id,title,status,due_date,start_time,estimate_minutes,google_event_id,google_etag,google_all_day,google_dirty,google_calendar_id,updated_at'
+const BASE_COLS = 'id,user_id,title,status,due_date,start_time,estimate_minutes,google_event_id,google_etag,google_all_day,google_dirty,google_calendar_id,updated_at'
+/** google_imported — из planner_google_imported.sql. Пока его не выполнили, работаем без отметки (как раньше) */
+let COLS = BASE_COLS + ',google_imported'
+let hasImported = true
+const noImported = (r: { error: { message: string } | null }) => !!r.error && hasImported && r.error.message.includes('google_imported')
+function dropImported() { hasImported = false; COLS = BASE_COLS }
 const BATCH = 200
 
 function check<T>(r: { data: T | null; error: { message: string } | null }): T {
@@ -15,7 +20,9 @@ function check<T>(r: { data: T | null; error: { message: string } | null }): T {
 export function supabaseStore(sb: Client): Store {
   return {
     async taskById(id) {
-      return (check(await sb.from('tasks').select(COLS).eq('id', id).maybeSingle()) as TaskRow | null)
+      let r = await sb.from('tasks').select(COLS).eq('id', id).maybeSingle()
+      if (noImported(r)) { dropImported(); r = await sb.from('tasks').select(COLS).eq('id', id).maybeSingle() }
+      return check(r) as TaskRow | null
     },
     async tasksByEventIds(userId, ids) {
       const out: TaskRow[] = []
@@ -25,14 +32,30 @@ export function supabaseStore(sb: Client): Store {
       return out
     },
     async linkedTasksInWindow(userId, from, to) {
-      return check(await sb.from('tasks').select(COLS).eq('user_id', userId).not('google_event_id', 'is', null)
-        .gte('due_date', from).lt('due_date', to).neq('status', 'done')) as TaskRow[]
+      const q = () => sb.from('tasks').select(COLS).eq('user_id', userId).not('google_event_id', 'is', null).gte('due_date', from).lt('due_date', to).neq('status', 'done')
+      let r = await q()
+      if (noImported(r)) { dropImported(); r = await q() }
+      return check(r) as TaskRow[]
     },
     async dirtyTasks(userId) {
       return check(await sb.from('tasks').select(COLS).eq('user_id', userId).eq('google_dirty', true).order('updated_at').limit(BATCH)) as TaskRow[]
     },
-    async updateTask(id, patch) { check(await sb.from('tasks').update(patch).eq('id', id)) },
-    async insertTask(row) { check(await sb.from('tasks').insert({ ...row, google_dirty: false })) },
+    async updateTask(id, patch) {
+      const { google_imported, ...rest } = patch
+      const p = hasImported || google_imported === undefined ? patch : rest
+      if (Object.keys(p).length) check(await sb.from('tasks').update(p).eq('id', id))
+    },
+    async insertTask(row) {
+      const { google_imported, ...rest } = row
+      check(await sb.from('tasks').insert({ ...(hasImported ? { ...rest, google_imported } : rest), google_dirty: false }))
+    },
+    async deleteTaskWithoutTime(id) {
+      const r = await sb.from('time_entries').select('id', { count: 'exact', head: true }).eq('task_id', id)
+      check(r)
+      if (r.count) return false
+      check(await sb.from('tasks').delete().eq('id', id))
+      return true
+    },
     async markSynced(id, eventId, etag, allDay, seen, calendarId) {
       check(await sb.rpc('google_mark_synced', { p_id: id, p_event_id: eventId, p_etag: etag, p_all_day: allDay, p_seen: seen, p_calendar_id: calendarId ?? null }))
     },

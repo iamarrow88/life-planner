@@ -100,7 +100,7 @@ const bd = useBackdrop(closeCard)
 watch(() => task.value?.id, () => {
   const t = task.value
   if (!t) return
-  askDelete.value = false
+  askDelete.value = false; askDeleteSame.value = false
   priority.value = t.priority ?? null
   complexity.value = t.complexity ?? null
   title.value = t.title; note.value = t.note ?? ''; tags.value = [...(t.tags ?? [])]; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
@@ -211,10 +211,21 @@ async function toHabit() {
 }
 /** Удаление задачи по повтору: только эту или вместе с будущими */
 const askDelete = ref(false)
+/** Такие же задачи (то же название, не выполнены): можно удалить разом — например, остатки серии событий из Google */
+const askDeleteSame = ref(false)
+const sameTitle = computed(() => (task.value && !rule.value ? app.sameTitleTasks(task.value) : []))
+async function removeWithSame(all: boolean) {
+  const t = task.value; if (!t) return
+  busy.value = true
+  const ok = await app.removeTasks(all ? [t.id, ...sameTitle.value.map(x => x.id)] : [t.id])
+  busy.value = false
+  if (ok) app.closeTask()
+}
 const nextDate = computed(() => (task.value ? app.nextAfterRemoving(task.value) : null))
 async function remove() {
   const t = task.value; if (!t) return
   if (rule.value) { askDelete.value = true; return }
+  if (sameTitle.value.length) { askDeleteSame.value = true; return }
   if (confirm('Удалить задачу?') && await app.removeTask(t.id)) app.closeTask()
 }
 async function removeRepeating(all: boolean) {
@@ -352,6 +363,13 @@ async function removeRepeating(all: boolean) {
           <button type="button" class="btn-ghost w-full !text-red-700" :disabled="busy" data-test="delete-all" @click="removeRepeating(true)">Эту и все будущие</button>
           <p class="text-xs text-mute">Выполненные задачи и задачи с записанным временем останутся.</p>
           <button type="button" class="w-full text-sm font-semibold text-mute" :disabled="busy" data-test="delete-cancel" @click="askDelete = false">Отмена</button>
+        </div>
+        <div v-if="askDeleteSame" class="mb-2 space-y-2 rounded-xl border border-line bg-white/70 p-3" role="group" aria-label="Что удалить" data-test="delete-same-choice">
+          <p class="text-sm font-semibold">Есть ещё {{ sameTitle.length }} невыполненных задач «{{ task.title }}». Удалить и их?</p>
+          <button type="button" class="btn-ghost w-full" :disabled="busy" data-test="delete-only-this" @click="removeWithSame(false)">Только эту</button>
+          <button type="button" class="btn-ghost w-full !text-red-700" :disabled="busy" data-test="delete-same-all" @click="removeWithSame(true)">Эту и ещё {{ sameTitle.length }}</button>
+          <p class="text-xs text-mute">Выполненные, повторяющиеся и связанные с Google Календарём задачи останутся.</p>
+          <button type="button" class="w-full text-sm font-semibold text-mute" :disabled="busy" @click="askDeleteSame = false">Отмена</button>
         </div>
         <div class="flex gap-2">
         <button class="btn-primary flex-1" :disabled="busy || needDays">Сохранить</button>

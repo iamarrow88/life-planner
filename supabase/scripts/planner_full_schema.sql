@@ -2703,4 +2703,7 @@ alter table public.movies add constraint movies_country_check check (country is 
 
 alter table public.movies add column if not exists favorite boolean not null default false;
 
+-- задача создана из события Google (planner_google_imported.sql)
+alter table public.tasks add column if not exists google_imported boolean not null default false;
+
 commit;

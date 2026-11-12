@@ -4,7 +4,9 @@
 // Правила:
 //  * задача со ДАТОЙ и ВРЕМЕНЕМ ↔ событие календаря (длительность = «примерное время», иначе 30 минут);
 //  * в приложении изменили (google_dirty) → побеждает приложение; иначе → побеждает Google;
-//  * событие удалили в Google → задача остаётся, но теряет время (из календаря Google она пропадает);
+//  * событие удалили в Google (или поменяли повторение серии):
+//      задача из Google удаляется, кроме выполненных и задач с записанным временем — они остаются без связи;
+//      задача, отправленная из приложения, остаётся, но теряет время (из календаря Google она пропадает);
 //  * задачу удалили в приложении → событие удаляется в Google;
 //  * событие, созданное в Google, становится задачей (если включён импорт);
 //  * календарей может быть несколько: задачи создаются из выбранных, а задачи из приложения уходят в один выбранный.
@@ -24,6 +26,8 @@ export interface TaskRow {
   google_dirty: boolean
   /** календарь, в котором лежит событие; пусто — основной (так было до v0.9.1) */
   google_calendar_id?: string | null
+  /** задача создана из события Google (planner_google_imported.sql): удалили событие — удаляем и задачу */
+  google_imported?: boolean
   updated_at: string
 }
 
@@ -61,8 +65,10 @@ export interface Store {
   linkedTasksInWindow(userId: string, fromDate: string, toDate: string): Promise<TaskRow[]>
   dirtyTasks(userId: string): Promise<TaskRow[]>
   /** Правка со стороны синхронизации: google_dirty не взводится */
-  updateTask(id: string, patch: Partial<Pick<TaskRow, 'title' | 'due_date' | 'start_time' | 'estimate_minutes' | 'google_event_id' | 'google_etag' | 'google_all_day' | 'google_dirty' | 'google_calendar_id'>>): Promise<void>
-  insertTask(row: { user_id: string; title: string; status: 'planned'; due_date: string | null; start_time: string | null; estimate_minutes: number | null; google_event_id: string; google_etag: string | null; google_all_day: boolean; google_calendar_id: string }): Promise<void>
+  updateTask(id: string, patch: Partial<Pick<TaskRow, 'title' | 'due_date' | 'start_time' | 'estimate_minutes' | 'google_event_id' | 'google_etag' | 'google_all_day' | 'google_dirty' | 'google_calendar_id' | 'google_imported'>>): Promise<void>
+  insertTask(row: { user_id: string; title: string; status: 'planned'; due_date: string | null; start_time: string | null; estimate_minutes: number | null; google_event_id: string; google_etag: string | null; google_all_day: boolean; google_calendar_id: string; google_imported: true }): Promise<void>
+  /** Удалить задачу, если по ней не записано время. true — удалена */
+  deleteTaskWithoutTime(id: string): Promise<boolean>
   markSynced(id: string, eventId: string | null, etag: string | null, allDay: boolean, seenUpdatedAt: string, calendarId?: string | null): Promise<void>
   tombstones(userId: string): Promise<{ id: number; event_id: string; calendar_id?: string | null }[]>
   deleteTombstones(ids: number[]): Promise<void>
@@ -81,10 +87,12 @@ export interface GoogleApi {
   deleteEvent(calendarId: string, eventId: string): Promise<void>        // отсутствие события — не ошибка
 }
 
-export interface SyncReport { pulled: number; imported: number; unlinked: number; pushed: number; deleted: number; changed: boolean; errors: string[]; calendars?: CalendarInfo[]; needsReconnect?: boolean }
+export interface SyncReport { pulled: number; imported: number; unlinked: number; removed: number; pushed: number; deleted: number; changed: boolean; errors: string[]; calendars?: CalendarInfo[]; needsReconnect?: boolean }
 
 export const DEFAULT_MINUTES = 30
 export const WINDOW_DAYS = 90
+/** Насколько назад смотреть невыполненные задачи из событий: серию могли удалить целиком, вместе с прошедшими днями */
+export const PAST_DAYS = 60
 
 // ---------- Время и часовые пояса ----------
 
@@ -185,7 +193,7 @@ const key = (cal: string, id: string) => cal + '\u0000' + id
 export async function syncUser(o: SyncOpts): Promise<SyncReport> {
   const { store, google, conn, tz } = o
   const now = o.now ?? Date.now()
-  const rep: SyncReport = { pulled: 0, imported: 0, unlinked: 0, pushed: 0, deleted: 0, changed: false, errors: [] }
+  const rep: SyncReport = { pulled: 0, imported: 0, unlinked: 0, removed: 0, pushed: 0, deleted: 0, changed: false, errors: [] }
   const userId = conn.user_id
   const today = localParts(now, tz).date
   const winEnd = addDaysStr(today, WINDOW_DAYS)
@@ -225,8 +233,10 @@ export async function syncUser(o: SyncOpts): Promise<SyncReport> {
   if (stones.length) await store.deleteTombstones(stones.map(s => s.id))
   const ignored = new Set((await store.ignoredEvents(userId)).map(x => key(x.calendar_id, x.event_id)))
 
-  // Связанные с событиями невыполненные задачи в окне дат
-  const linked = await store.linkedTasksInWindow(userId, today, winEnd)
+  // Связанные с событиями невыполненные задачи в окне дат, включая просроченные за PAST_DAYS
+  const linked = await store.linkedTasksInWindow(userId, addDaysStr(today, -PAST_DAYS), winEnd)
+  // события читаем с самой ранней такой задачи: иначе каждая просроченная выглядела бы пропавшей и проверялась отдельно
+  const listFrom = linked.reduce((m, t) => (t.due_date && t.due_date < m ? t.due_date : m), today)
 
   // Какие календари читаем: выбранные для импорта, календарь отправки и те, где уже лежат связанные задачи
   const readSet = new Set<string>([...importSet, exportCal, ...linked.map(calOf)])
@@ -241,7 +251,7 @@ export async function syncUser(o: SyncOpts): Promise<SyncReport> {
     try {
       events = await google.listEvents({
         calendarId: cal,
-        timeMin: new Date(zonedToMs(today, '00:00:00', tz)).toISOString(),
+        timeMin: new Date(zonedToMs(listFrom, '00:00:00', tz)).toISOString(),
         timeMax: new Date(zonedToMs(winEnd, '00:00:00', tz)).toISOString(),
       })
     } catch (e) {
@@ -270,6 +280,14 @@ export async function syncUser(o: SyncOpts): Promise<SyncReport> {
       const cancelled = e.status === 'cancelled'
 
       if (cancelled) {
+        if (task?.google_imported) {
+          // задача пришла из Google, событие там удалили (или поменяли повторение серии): убираем и задачу.
+          // Выполненные и задачи с записанным временем — история, их оставляем без связи
+          if (task.status !== 'done' && await store.deleteTaskWithoutTime(task.id)) { rep.removed++; rep.changed = true; return }
+          await store.updateTask(task.id, { google_event_id: null, google_etag: null, google_dirty: false, google_calendar_id: null })
+          rep.unlinked++; rep.changed = true
+          return
+        }
         if (task) {
           if (task.google_dirty) {
             // в приложении есть неотправленная правка — она новее: снимаем только связь, ниже создадим событие заново
@@ -287,11 +305,17 @@ export async function syncUser(o: SyncOpts): Promise<SyncReport> {
       if (task) {
         if (uid) uidSeen.add(uid)
         if (task.google_dirty) return                       // правка в приложении новее — отправим её ниже
-        if (e.etag && e.etag === task.google_etag) return   // это наше же событие, ничего не менялось
+        // это наше же событие, ничего не менялось (но непомеченную задачу из Google отмечаем)
+        if (e.etag && e.etag === task.google_etag) {
+          if (task.google_imported === false && !e.extendedProperties?.private?.plannerTaskId) await store.updateTask(task.id, { google_imported: true })
+          return
+        }
         const f = eventToFields(e, tz)
         if (!f) return
         const patch: Parameters<Store['updateTask']>[1] = { google_etag: e.etag ?? null, google_all_day: f.all_day, google_dirty: false }
         if (!task.google_calendar_id) patch.google_calendar_id = cal
+        // задачи, импортированные до появления отметки: событие не наше — значит, задача из Google
+        if (task.google_imported === false && !e.extendedProperties?.private?.plannerTaskId) patch.google_imported = true
         let diff = false
         if (f.title !== task.title) { patch.title = f.title; diff = true }
         if (f.due_date !== task.due_date) { patch.due_date = f.due_date; diff = true }
@@ -321,7 +345,7 @@ export async function syncUser(o: SyncOpts): Promise<SyncReport> {
       if (!f || f.due_date < today || f.due_date >= winEnd) return
       await store.insertTask({
         user_id: userId, title: f.title, status: 'planned', due_date: f.due_date, start_time: f.start_time,
-        estimate_minutes: f.estimate_minutes, google_event_id: e.id, google_etag: e.etag ?? null, google_all_day: f.all_day, google_calendar_id: cal,
+        estimate_minutes: f.estimate_minutes, google_event_id: e.id, google_etag: e.etag ?? null, google_all_day: f.all_day, google_calendar_id: cal, google_imported: true,
       })
       if (uid) uidSeen.add(uid)
       rep.imported++; rep.changed = true

@@ -549,6 +549,21 @@ export const useApp = defineStore('app', () => {
     data.value.tasks = data.value.tasks.filter(t => t.id !== id); syncGoogleSoon()
     return true
   }
+  // ---- Такие же задачи: одинаковое название, не выполнены, не по повтору и не связаны с Google Календарём.
+  // Например, остатки серии событий, удалённой в Google до того, как синхронизация научилась убирать их сама
+  const sameName = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+  function sameTitleTasks(t: Task) {
+    const name = sameName(t.title)
+    return data.value.tasks.filter(x => x.id !== t.id && x.status !== 'done' && !x.recurrence_id && !x.google_event_id && sameName(x.title) === name)
+  }
+  async function removeTasks(ids: string[]) {
+    if (running.value?.task_id && ids.includes(running.value.task_id)) await stopTimer()
+    const ok = await guard(async () => { await repo.removeTasks(ids); return true })
+    if (!ok) return false
+    const drop = new Set(ids)
+    data.value.tasks = data.value.tasks.filter(t => !drop.has(t.id)); syncGoogleSoon()
+    return true
+  }
   // ---- Подзадачи повтора: копируются в следующие невыполненные задачи, отметки «сделано» не копируются
   const freshList = (list: Subtask[]) => list.map(s => ({ ...s, done: false }))
   function applyListLocally(ruleId: string, keepId: string, fresh: Subtask[]) {
@@ -1398,7 +1413,7 @@ export const useApp = defineStore('app', () => {
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, importAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,
     startTimer, stopTimer, bumpHabit, addRecurrence, removeRecurrence, habitToTask, taskToHabit, attachRecurrence, updateRecurrence, detachRecurrence,
-    openTagCounts, tasksFrom, allTasksLoaded, loadingOld, ensureTasksFrom, loadAllTasks, fetchTask, searchOldTasks,
+    sameTitleTasks, removeTasks, openTagCounts, tasksFrom, allTasksLoaded, loadingOld, ensureTasksFrom, loadAllTasks, fetchTask, searchOldTasks,
     detailId, openTask, closeTask, editor, openEditor, closeEditor, longStop, fixLongStop, dismissLongStop, addEntry, updateEntry, removeEntry, listEntries,
   }
 })

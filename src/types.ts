@@ -63,6 +63,8 @@ export interface Task {
   complexity?: number | null              // 1 мелочь, 2 средняя, 3 большая; null — не выбрана
   postpones?: Postpone[]                  // переносы кнопкой «↷ Перенести»: откуда, куда, когда
   updated_at?: string                     // когда задачу последний раз меняли (для «залежавшихся» отложенных)
+  /** Связь с событием Google Календаря (только для чтения) */
+  google_event_id?: string | null
 }
 export type RecurrenceFreq = 'day' | 'week' | 'month' | 'year'
 export type RecurrenceMode = 'schedule' | 'after_completion'
@@ -227,7 +229,7 @@ export interface GoogleStatus {
   can_list_calendars?: boolean   // выдан ли доступ к списку календарей (иначе работает только основной)
   last_sync_at: string | null
   last_error: string | null
-  report?: { pulled: number; imported: number; unlinked: number; pushed: number; deleted: number; changed: boolean; errors: string[] } | { busy: true }
+  report?: { pulled: number; imported: number; unlinked: number; removed?: number; pushed: number; deleted: number; changed: boolean; errors: string[] } | { busy: true }
 }
 
 export interface Repo {
@@ -250,6 +252,8 @@ export interface Repo {
   addTask(t: NewTask): Promise<Task>
   updateTask(id: string, patch: Partial<NewTask>): Promise<Task>
   removeTask(id: string): Promise<void>
+  /** Удалить несколько задач разом */
+  removeTasks(ids: string[]): Promise<void>
   addSphere(name: string, color: string, goalMinutes: number, description?: string): Promise<Sphere>
   updateSphere(id: string, patch: SpherePatch): Promise<Sphere>
   addProject(sphereId: string, name: string): Promise<Project>

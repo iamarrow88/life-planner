@@ -201,6 +201,7 @@ export const demoRepo: Repo = {
     write(s); return t
   },
   async removeTask(id) { const s = read(); s.tasks = s.tasks.filter(t => t.id !== id); write(s) },
+  async removeTasks(ids) { const s = read(); s.tasks = s.tasks.filter(t => !ids.includes(t.id)); write(s) },
   async updateSphere(id, patch) {
     const s = read(); const sp = s.spheres.find(x => x.id === id)
     if (!sp) throw new Error('Сфера не найдена')

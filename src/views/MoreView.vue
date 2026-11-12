@@ -116,7 +116,7 @@ async function syncNow() {
   gMsg.value = ''; gWorking.value = true
   await app.syncGoogle(true)
   const r = app.google?.report
-  if (!app.googleError && r && 'changed' in r) gMsg.value = r.pushed + r.pulled + r.imported + r.deleted + r.unlinked === 0 ? 'Всё уже синхронизировано.' : `Готово: отправлено ${r.pushed}, получено изменений ${r.pulled}, новых задач ${r.imported}.`
+  if (!app.googleError && r && 'changed' in r) gMsg.value = r.pushed + r.pulled + r.imported + r.deleted + r.unlinked + (r.removed ?? 0) === 0 ? 'Всё уже синхронизировано.' : `Готово: отправлено ${r.pushed}, получено изменений ${r.pulled}, новых задач ${r.imported}${r.removed ? `, удалено задач из удалённых событий ${r.removed}` : ''}.`
   gWorking.value = false
 }
 async function disconnectNow() {
