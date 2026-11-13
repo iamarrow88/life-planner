@@ -6,13 +6,14 @@ import NavIcon from '../components/NavIcon.vue'
 /** «Разное»: разделы, которым не нужна своя вкладка */
 const app = useApp()
 const shoppingLeft = computed(() => app.toBuyItems.length + app.shoppingTasks.length)
+const anyOn = computed(() => (['books', 'movies', 'shopping', 'monthly', 'wishes'] as const).some(k => app.modOn(k)))
 const monthlyLeft = computed(() => app.monthlyItems.filter(i => !app.monthlyDone(i)).length)
 </script>
 
 <template>
   <h1 class="mb-4 text-2xl font-bold">Разное</h1>
   <div class="space-y-3">
-    <RouterLink to="/library" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-library">
+    <RouterLink v-if="app.modOn('books')" to="/library" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-library">
       <NavIcon name="library" class="shrink-0 text-accent" />
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">Библиотека</span>
@@ -20,7 +21,7 @@ const monthlyLeft = computed(() => app.monthlyItems.filter(i => !app.monthlyDone
       </span>
       <span class="text-mute">›</span>
     </RouterLink>
-    <RouterLink to="/movies" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-movies">
+    <RouterLink v-if="app.modOn('movies')" to="/movies" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-movies">
       <NavIcon name="movies" class="shrink-0 text-accent" />
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">Фильмы</span>
@@ -28,7 +29,7 @@ const monthlyLeft = computed(() => app.monthlyItems.filter(i => !app.monthlyDone
       </span>
       <span class="text-mute">›</span>
     </RouterLink>
-    <RouterLink to="/shopping" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-shopping">
+    <RouterLink v-if="app.modOn('shopping')" to="/shopping" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-shopping">
       <NavIcon name="shopping" class="shrink-0 text-accent" />
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">Список покупок</span>
@@ -36,7 +37,7 @@ const monthlyLeft = computed(() => app.monthlyItems.filter(i => !app.monthlyDone
       </span>
       <span class="text-mute">›</span>
     </RouterLink>
-    <RouterLink to="/monthly" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-monthly">
+    <RouterLink v-if="app.modOn('monthly')" to="/monthly" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-monthly">
       <NavIcon name="monthly" class="shrink-0 text-accent" />
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">Ежемесячный чек-лист</span>
@@ -44,7 +45,7 @@ const monthlyLeft = computed(() => app.monthlyItems.filter(i => !app.monthlyDone
       </span>
       <span class="text-mute">›</span>
     </RouterLink>
-    <RouterLink to="/wishes" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-wishes">
+    <RouterLink v-if="app.modOn('wishes')" to="/wishes" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-wishes">
       <NavIcon name="wishes" class="shrink-0 text-accent" />
       <span class="min-w-0 flex-1">
         <span class="block font-semibold">Мои желания</span>
@@ -52,5 +53,6 @@ const monthlyLeft = computed(() => app.monthlyItems.filter(i => !app.monthlyDone
       </span>
       <span class="text-mute">›</span>
     </RouterLink>
+    <p v-if="!anyOn" class="card p-4 text-sm text-mute">Все разделы выключены. Включить их можно во «Ещё» → «Модули».</p>
   </div>
 </template>

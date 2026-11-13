@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useApp } from './stores/app'
+import { MODULE_ROUTES } from './lib/modules'
 
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -39,4 +40,7 @@ router.beforeEach(async to => {
   if (!app.ready) await app.init()
   if (!to.meta.public && !app.user) return '/login'
   if (to.path === '/login' && app.user) return '/inbox'
+  // раздел выключенного модуля: возвращаем туда, откуда в него приходят
+  const mod = MODULE_ROUTES[to.path.replace(/\/$/, '')]
+  if (mod && !app.modOn(mod)) return mod === 'cycle' ? '/today' : '/misc'
 })

@@ -174,7 +174,7 @@ export const supabaseRepo: Repo = {
       const q = c.from('tasks').select(TASK_COLS)
       return (recent ? q.or(recent) : q).order('created_at', { ascending: false }).order('id').range(from, to)
     }))
-    const [taskSecondsBefore, spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, moviesRes, shopRes, shopTagRes, tagCountsRes, monthlyRes, cDays, cSet, cCourses] = await Promise.all([
+    const [taskSecondsBefore, spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, moviesRes, shopRes, shopTagRes, tagCountsRes, monthlyRes, cDays, cSet, cCourses, modulesRes] = await Promise.all([
       olderTaskSeconds(),
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
@@ -206,6 +206,8 @@ export const supabaseRepo: Repo = {
       c.from('cycle_days').select(cycleDayCols).order('day'),
       c.from('cycle_settings').select(CYCLE_SETTINGS_COLS).maybeSingle(),
       c.from('pill_courses').select(COURSE_COLS).order('starts_on'),
+      // выключенные модули — отдельный патч базы (planner_modules.sql)
+      c.from('user_settings').select('hidden_modules').maybeSingle(),
     ])
     let tasks = tasksRes, recs = recsRes
     for (let i = 0; i < OPTS.length; i++) {
@@ -274,6 +276,8 @@ export const supabaseRepo: Repo = {
       wishesReady: !wishesRes.error,
       wishes: wishesRes.error ? [] : (wishesRes.data as unknown as Wish[]),
       colorsReady: !colorsRes.error,
+      modulesReady: !modulesRes.error,
+      hiddenModules: modulesRes.error ? null : ((modulesRes.data as { hidden_modules: string[] | null } | null)?.hidden_modules ?? null),
       sphereColors: colorsRes.error ? null : ((colorsRes.data as { sphere_colors: string[] | null } | null)?.sphere_colors ?? null),
       // календарь цикла — тоже отдельный патч (planner_cycle.sql)
       cycle: cycleReady ? {
@@ -425,6 +429,11 @@ export const supabaseRepo: Repo = {
     const uid = (await db().auth.getSession()).data.session?.user.id
     if (!uid) throw new Error('Нужно войти')
     ok(await db().from('user_settings').upsert({ user_id: uid, sphere_colors: colors }))
+  },
+  async saveHiddenModules(list) {
+    const uid = (await db().auth.getSession()).data.session?.user.id
+    if (!uid) throw new Error('Нужно войти')
+    ok(await db().from('user_settings').upsert({ user_id: uid, hidden_modules: list }))
   },
   async saveTimeBudget(patch) {
     const uid = (await db().auth.getSession()).data.session?.user.id

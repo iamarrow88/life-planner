@@ -15,6 +15,7 @@ import { isNative } from '../lib/native'
 import NativeNotifications from '../components/NativeNotifications.vue'
 import RestoreData from '../components/RestoreData.vue'
 import { DEFAULT_SPHERE_COLORS, MAX_SPHERE_COLORS, parseColors } from '../lib/colors'
+import { MODULES } from '../lib/modules'
 
 const app = useApp()
 const router = useRouter()
@@ -194,6 +195,20 @@ async function logout() { await app.signOut(); router.push('/login') }
 
 <template>
   <h1 class="mb-4 text-2xl font-bold">Ещё</h1>
+
+  <section class="mb-6" data-test="modules">
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Модули</h2>
+    <div class="card divide-y divide-line">
+      <label v-for="m in MODULES" :key="m.key" class="flex cursor-pointer items-start gap-3 px-4 py-3" :data-test="'module-' + m.key">
+        <input type="checkbox" class="mt-1" :checked="app.modOn(m.key)" @change="app.setModule(m.key, ($event.target as HTMLInputElement).checked)" />
+        <span class="min-w-0 flex-1">
+          <span class="block text-[15px] font-medium">{{ m.label }}</span>
+          <span class="block text-xs text-mute">{{ m.hint }}</span>
+        </span>
+      </label>
+    </div>
+    <p class="mt-2 px-1 text-xs text-mute">Выключенный модуль пропадает из приложения, но его данные остаются: включишь — всё на месте.<template v-if="!app.modulesReady"> Сейчас выбор хранится на этом устройстве; чтобы он был общим для сайта и телефона, выполни <code>planner_modules.sql</code> в Supabase (SQL Editor).</template></p>
+  </section>
 
   <section class="mb-6" data-test="stale-settings">
     <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Отложенные задачи</h2>

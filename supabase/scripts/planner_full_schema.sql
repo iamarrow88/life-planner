@@ -2706,4 +2706,9 @@ alter table public.movies add column if not exists favorite boolean not null def
 -- задача создана из события Google (planner_google_imported.sql)
 alter table public.tasks add column if not exists google_imported boolean not null default false;
 
+-- выключенные модули во «Ещё» (planner_modules.sql)
+alter table public.user_settings add column if not exists hidden_modules text[] not null default '{}';
+alter table public.user_settings drop constraint if exists user_settings_hidden_modules_check;
+alter table public.user_settings add constraint user_settings_hidden_modules_check check (cardinality(hidden_modules) <= 32);
+
 commit;

@@ -94,7 +94,7 @@ async function save() {
         </select>
       </label>
       <label class="text-xs text-mute">План, минут<input v-model.number="estimate" type="number" min="1" class="input mt-1" /></label>
-      <div v-if="app.complexityReady" class="col-span-full text-xs text-mute">
+      <div v-if="app.showComplexity" class="col-span-full text-xs text-mute">
         <div class="mb-1">Сложность</div>
         <ComplexityPicker v-model="complexity" labels />
       </div>

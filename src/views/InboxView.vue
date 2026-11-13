@@ -15,6 +15,8 @@ import { vDragSort } from '../lib/dragSort'
 import TaskMoreMenu from '../components/TaskMoreMenu.vue'
 
 const app = useApp()
+/** «Ещё ▾» у задачи: только если включён хоть один раздел, куда её можно отправить */
+const moreAvailable = computed(() => ([['wishes', app.wishesReady], ['books', app.booksReady], ['movies', app.moviesReady], ['shopping', app.shoppingReady]] as const).some(([k, ready]) => ready && app.modOn(k)))
 const text = ref('')
 const estimate = ref<number | null>(null)
 const complexity = ref<number | null>(null)
@@ -154,7 +156,7 @@ function pickedDate(id: string, e: Event) {
         <button v-if="staleIds.has(t.id)" data-quick type="button" class="chip hover:chip-on" data-test="stale-snooze" :title="'Оставить без даты — снова спрошу через ' + app.staleDays + ' дн.'" @click="app.snoozeTask(t.id)">Ещё отложить</button>
         <button v-else data-quick type="button" class="chip hover:chip-on" data-test="quick-no-date" title="Разобрала, но когда заняться — пока не знаю: в «Отложено без даты»" @click="noDate(t)">Без даты</button>
         <button data-quick type="button" class="chip hover:chip-on" :class="(menu?.id === t.id || t.sphere_id) && 'chip-on'" @click="toggleMenu(t.id)">{{ sphereLabel(t) }} ▾</button>
-        <button data-quick type="button" class="chip hover:chip-on" :class="more === t.id && 'chip-on'" :aria-expanded="more === t.id" data-test="inbox-more" @click="toggleMore(t.id)">Ещё ▾</button>
+        <button v-if="moreAvailable" data-quick type="button" class="chip hover:chip-on" :class="more === t.id && 'chip-on'" :aria-expanded="more === t.id" data-test="inbox-more" @click="toggleMore(t.id)">Ещё ▾</button>
         <button class="ml-auto text-xs text-mute hover:text-red-600" @click="app.removeTask(t.id)">Удалить</button>
       </div>
       <!-- Всплывающее окно: во сколько? -->
@@ -229,7 +231,7 @@ function pickedDate(id: string, e: Event) {
               <button type="button" class="chip hover:chip-on" @click="openPicker">Дата…</button>
               <input type="date" tabindex="-1" aria-hidden="true" class="pointer-events-none absolute inset-0 opacity-0" :min="app.today" @change="e => pickDeferred(t.id, e)" />
             </span>
-            <button data-quick type="button" class="chip hover:chip-on" :class="more === t.id && 'chip-on'" :aria-expanded="more === t.id" data-test="deferred-more" @click="toggleMore(t.id)">Ещё ▾</button>
+            <button v-if="moreAvailable" data-quick type="button" class="chip hover:chip-on" :class="more === t.id && 'chip-on'" :aria-expanded="more === t.id" data-test="deferred-more" @click="toggleMore(t.id)">Ещё ▾</button>
           </div>
           <TaskMoreMenu v-if="more === t.id" :task="t" @close="more = null" />
         </li>

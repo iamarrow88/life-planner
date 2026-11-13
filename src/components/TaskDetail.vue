@@ -311,7 +311,7 @@ async function removeRepeating(all: boolean) {
       <!-- Бюджет и повтор -->
       <div class="space-y-2" data-test="task-repeat">
         <div class="flex flex-wrap items-center gap-2 text-xs text-mute">
-          <label v-if="app.budgetReady" class="flex items-center gap-1.5" data-test="task-budget">Бюджет
+          <label v-if="app.showBudget" class="flex items-center gap-1.5" data-test="task-budget">Бюджет
             <input v-model.number="budget" type="number" min="0" step="0.01" inputmode="decimal" class="input !w-28 !px-2 !py-1.5 text-sm" placeholder="BYN" aria-label="Бюджет задачи, BYN" />
           </label>
           <button type="button" class="chip py-1" :class="repeat && 'chip-on'" :aria-pressed="repeat" data-test="repeat-toggle" @click="toggleRepeat">↻ Повторять</button>
@@ -326,7 +326,7 @@ async function removeRepeating(all: boolean) {
         <p v-if="rule && repeat" class="text-xs text-mute" data-test="repeat-note">Изменения полей задачи применятся и к следующим задачам повтора. Дату можно поменять только у этой.</p>
       </div>
 
-      <div v-if="app.complexityReady" class="flex flex-wrap items-center gap-2 text-xs text-mute">
+      <div v-if="app.showComplexity" class="flex flex-wrap items-center gap-2 text-xs text-mute">
         <span>Сложность</span>
         <ComplexityPicker v-model="complexity" labels />
       </div>

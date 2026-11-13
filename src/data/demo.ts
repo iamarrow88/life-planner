@@ -406,6 +406,7 @@ export const demoRepo: Repo = {
     const s = read(); ids.forEach((id, i) => { const w = s.wishes?.find(x => x.id === id); if (w) w.position = i }); write(s)
   },
   async saveSphereColors(colors) { const s = read(); s.sphereColors = colors; write(s) },
+  async saveHiddenModules(list) { const s = read(); s.hiddenModules = list; write(s) },
   async saveTimeBudget(patch) { const s = read(); s.timeBudget = { ...s.timeBudget!, ...patch }; write(s) },
   async setWeekWork(weekStart, minutes) {
     const s = read(); const list = (s.weekWork ??= []); const w = list.find(x => x.week_start === weekStart)

@@ -30,10 +30,10 @@ onMounted(async () => {
         <button type="button" class="text-lg leading-none text-mute" aria-label="Закрыть" @click="emit('close')">×</button>
       </div>
       <div class="flex flex-col gap-1.5">
-        <button v-if="app.wishesReady && !fromWish" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-wish" @click="convert(app.taskToWish)">Сделать желанием</button>
-        <button v-if="app.booksReady" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-book" @click="convert(app.taskToBook)">Отправить в библиотеку</button>
-        <button v-if="app.moviesReady" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-movie" @click="convert(app.taskToMovie)">Отправить в фильмы</button>
-        <button v-if="app.shoppingReady" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-shopping" @click="convert(app.taskToShopping)">Добавить в список покупок</button>
+        <button v-if="app.wishesReady && app.modOn('wishes') && !fromWish" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-wish" @click="convert(app.taskToWish)">Сделать желанием</button>
+        <button v-if="app.booksReady && app.modOn('books')" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-book" @click="convert(app.taskToBook)">Отправить в библиотеку</button>
+        <button v-if="app.moviesReady && app.modOn('movies')" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-movie" @click="convert(app.taskToMovie)">Отправить в фильмы</button>
+        <button v-if="app.shoppingReady && app.modOn('shopping')" type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" data-test="to-shopping" @click="convert(app.taskToShopping)">Добавить в список покупок</button>
       </div>
     </div>
   </div>

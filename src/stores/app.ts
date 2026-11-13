@@ -8,6 +8,7 @@ import { byPosition } from '../lib/taskOrder'
 import { DEFAULT_CYCLE_SETTINGS, PILL_NAMES, courseFrom, courseOn, cycleDayNo, cycleStarts } from '../lib/cycle'
 import { DEFAULT_SPHERE_COLORS } from '../lib/colors'
 import { dayOverloads } from '../lib/dayLoad'
+import { cleanModules, readLocalModules, writeLocalModules, type ModuleKey } from '../lib/modules'
 import { nextAfter } from '../lib/recurrence'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart, ymd } from '../lib/time'
 
@@ -225,7 +226,7 @@ export const useApp = defineStore('app', () => {
   const complexityReady = computed(() => data.value.complexityReady !== false)
   const overloadByDay = computed(() => dayOverloads(data.value.tasks))
   /** Какие лимиты сложности превышены в этот день; пусто — день не перегружен */
-  const overloadOn = (day: string) => overloadByDay.value.get(day) ?? []
+  const overloadOn = (day: string) => (modOn('complexity') ? overloadByDay.value.get(day) ?? [] : [])
   /** Окно переноса (кнопка «Перенести…» в уведомлении) */
   const postponeSheetId = ref<string | null>(null)
   const openPostponeSheet = (id: string) => { postponeSheetId.value = id }
@@ -896,6 +897,25 @@ export const useApp = defineStore('app', () => {
     return task ? updateWish(id, { task_id: task.id }) : false
   }
 
+  // ---- Модули: что показывать в интерфейсе (выключаются во «Ещё», данные при этом остаются)
+  const modulesReady = computed(() => data.value.modulesReady !== false)
+  const hiddenModules = computed<ModuleKey[]>(() => cleanModules(data.value.hiddenModules ?? (modulesReady.value ? [] : readLocalModules())))
+  const modOn = (k: ModuleKey) => !hiddenModules.value.includes(k)
+  async function setModule(k: ModuleKey, on: boolean) {
+    const list = on ? hiddenModules.value.filter(x => x !== k) : cleanModules([...hiddenModules.value, k])
+    // сразу меняем на экране: несколько быстрых нажатий подряд не должны затирать друг друга
+    const before = data.value.hiddenModules
+    data.value.hiddenModules = list
+    if (!modulesReady.value) { writeLocalModules(list); return true }
+    const ok = await guard(async () => { await repo.saveHiddenModules(list); return true })
+    if (!ok && data.value.hiddenModules === list) data.value.hiddenModules = before
+    return !!ok
+  }
+  /** Показывать ли в интерфейсе: база готова и модуль не выключен */
+  const showBudget = computed(() => budgetReady.value && modOn('budget'))
+  const showComplexity = computed(() => complexityReady.value && modOn('complexity'))
+  const showCycle = computed(() => cycleReady.value && modOn('cycle'))
+
   // ---- Цвета для сфер: свой набор из «Ещё» или набор по умолчанию
   const colorsReady = computed(() => data.value.colorsReady !== false)
   const hasOwnColors = computed(() => !!data.value.sphereColors?.length)
@@ -1403,7 +1423,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, droppedBooks, bookDetailsReady, dropBook, setBookStatus, addBook, updateBook, removeBook, reorderBooks, checklistSyncReady, copySubtasksToNext, setChecklistSync, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, taskToShopping, shoppingReady, shoppingItems, shoppingTag, toBuyItems, boughtItems, shoppingTasks, boughtTasks, addShoppingItem, updateShoppingItem, toggleShoppingItem, removeShoppingItems, reorderShoppingItems, saveShoppingTag, moviesReady, movies, queueMovies, watchedMovies, movieDetailsReady, toggleMovieFavorite, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, droppedBooks, bookDetailsReady, dropBook, setBookStatus, addBook, updateBook, removeBook, reorderBooks, checklistSyncReady, copySubtasksToNext, setChecklistSync, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, taskToShopping, shoppingReady, shoppingItems, shoppingTag, toBuyItems, boughtItems, shoppingTasks, boughtTasks, addShoppingItem, updateShoppingItem, toggleShoppingItem, removeShoppingItems, reorderShoppingItems, saveShoppingTag, moviesReady, movies, queueMovies, watchedMovies, movieDetailsReady, toggleMovieFavorite, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, modulesReady, hiddenModules, modOn, setModule, showBudget, showComplexity, showCycle, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

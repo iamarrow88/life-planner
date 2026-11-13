@@ -108,7 +108,7 @@ const budgetPeriod = computed((): { range: { from: string; to: string } | 'nodat
   if (calMonth.value === t.slice(0, 7)) return { range: { from: t, to: last }, label: `до конца ${MONTHS_GEN[m - 1]} (${shortDate(t)} – ${shortDate(last)})` }
   return { range: { from: calMonth.value + '-01', to: last }, label: `на ${MONTHS_NOM[m - 1]}${y !== Number(t.slice(0, 4)) ? ' ' + y : ''}` }
 })
-const budget = computed(() => app.budgetReady ? budgetSum(fTasks.value, fRecurrences.value, app.today, budgetPeriod.value.range) : null)
+const budget = computed(() => app.showBudget ? budgetSum(fTasks.value, fRecurrences.value, app.today, budgetPeriod.value.range) : null)
 const text = ref('')
 const estimate = ref<number | null>(null)
 const showHabitForm = ref(false)
@@ -272,9 +272,9 @@ async function add() {
     </div>
   </div>
 
-  <div class="mb-4 flex flex-wrap items-center gap-2" data-test="cycle-line">
+  <div v-if="app.modOn('cycle')" class="mb-4 flex flex-wrap items-center gap-2" data-test="cycle-line">
     <RouterLink to="/today/cycle" class="chip py-1.5 text-sm" data-test="cycle-link">{{ cycleLabel }}</RouterLink>
-    <button v-if="app.cycleReady" type="button" class="chip py-1.5 text-sm" :class="todayPeriod && 'chip-on'" data-test="mark-m" @click="toggleM">{{ todayPeriod ? '✓ М' : 'Отметить М' }}</button>
+    <button v-if="app.showCycle" type="button" class="chip py-1.5 text-sm" :class="todayPeriod && 'chip-on'" data-test="mark-m" @click="toggleM">{{ todayPeriod ? '✓ М' : 'Отметить М' }}</button>
     <span v-if="askStart" class="flex items-center gap-2 text-sm" data-test="ask-start">
       Первый день цикла?
       <button type="button" class="chip py-1 text-sm hover:chip-on" data-test="ask-start-yes" @click="confirmStart">Да</button>
@@ -282,7 +282,7 @@ async function add() {
     </span>
   </div>
 
-  <PillCheck v-if="app.cycleReady" />
+  <PillCheck v-if="app.showCycle" />
 
   <RouterLink v-if="isSunday && !reviewDone" to="/review" class="card mb-4 flex items-center gap-3 border-accent bg-accent-soft p-4">
     <span class="text-2xl">📋</span>

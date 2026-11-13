@@ -55,7 +55,7 @@ function closePostpone() { postponeMenu.value = null }
     <div class="min-w-0 flex-1" :class="dense && 'w-full'">
       <button class="flex w-full items-center gap-1.5 text-left hover:text-accent" :class="dense ? 'text-[13px] leading-tight' : 'text-[15px]'" @click="app.openTask(task.id)">
         <span class="min-w-0" :class="[dense || wrapTitle ? '[overflow-wrap:anywhere]' : 'truncate', done && 'text-mute line-through']">{{ task.title }}</span>
-        <ComplexityBall v-if="task.complexity" :level="task.complexity" class="text-mute/70" />
+        <ComplexityBall v-if="task.complexity && app.showComplexity" :level="task.complexity" class="text-mute/70" />
       </button>
       <div v-if="dense" class="mt-0.5 text-xs font-medium text-ink/70">{{ hhmm(task.start_time) }}</div>
       <div v-else class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-mute">
@@ -76,7 +76,7 @@ function closePostpone() { postponeMenu.value = null }
           <span v-if="isRunning || spent > 0" class="font-semibold" :class="[overPlan ? 'text-amber-700' : 'text-success', isRunning && 'tabular-nums']" data-test="task-fact">{{ isRunning ? '⏱ ' + fmtClock(spent) : fmtSec(spent) }}</span>
           <template v-if="task.estimate_minutes"><template v-if="isRunning || spent > 0"> / </template>{{ fmtMinutes(task.estimate_minutes) }}</template>
         </span>
-        <span v-if="Number(task.budget) > 0" class="font-medium text-ink/70" data-test="task-budget">{{ fmtMoney(Number(task.budget)) }}</span>
+        <span v-if="app.showBudget && Number(task.budget) > 0" class="font-medium text-ink/70" data-test="task-budget">{{ fmtMoney(Number(task.budget)) }}</span>
       </div>
     </div>
     <slot />

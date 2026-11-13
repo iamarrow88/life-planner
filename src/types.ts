@@ -165,6 +165,8 @@ export interface Snapshot {
   wishesReady?: boolean          // false — в базе ещё нет желаний (не выполнен planner_wishes.sql)
   sphereColors?: string[] | null  // свой набор цветов для сфер (null — набор по умолчанию)
   colorsReady?: boolean          // false — в базе ещё нет набора цветов (не выполнен planner_sphere_colors.sql)
+  hiddenModules?: string[] | null // выключенные во «Ещё» модули (см. lib/modules.ts)
+  modulesReady?: boolean         // false — в базе ещё нет hidden_modules (не выполнен planner_modules.sql): выбор хранится на устройстве
   priorityReady?: boolean        // false — в базе ещё нет приоритета (не выполнен planner_task_priority.sql)
   complexityReady?: boolean      // false — в базе ещё нет сложности (не выполнен planner_task_complexity.sql)
   postponesReady?: boolean      // false — в базе ещё нет истории переносов (не выполнен planner_task_postpone.sql)
@@ -329,6 +331,7 @@ export interface Repo {
   reorderWishes(ids: string[]): Promise<void>
   /** Свой набор цветов для сфер; null — вернуться к набору по умолчанию */
   saveSphereColors(colors: string[] | null): Promise<void>
+  saveHiddenModules(list: string[]): Promise<void>
   saveTimeBudget(patch: Partial<TimeBudget>): Promise<void>
   setWeekWork(weekStart: string, minutes: number): Promise<void>
   /** Записать день цикла целиком; пустой день (без отметок и заметки) удаляется */
