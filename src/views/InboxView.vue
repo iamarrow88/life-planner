@@ -13,6 +13,7 @@ import TaskFilter from '../components/TaskFilter.vue'
 import { useTaskFilter } from '../lib/taskFilter'
 import { vDragSort } from '../lib/dragSort'
 import TaskMoreMenu from '../components/TaskMoreMenu.vue'
+import SettingsLink from '../components/SettingsLink.vue'
 
 const app = useApp()
 /** «Ещё ▾» у задачи: только если включён хоть один раздел, куда её можно отправить */
@@ -120,8 +121,10 @@ function pickedDate(id: string, e: Event) {
 </script>
 
 <template>
-  <h1 class="mb-1 flex items-center gap-2 text-2xl font-bold">Входящие
-    <button type="button" class="grid h-8 w-8 place-items-center rounded-full text-base font-normal text-mute hover:bg-accent-soft hover:text-accent" aria-label="Поиск задач" title="Поиск по задачам и тегам" data-test="open-search" @click="app.openSearch()">🔍</button>
+  <h1 class="mb-1 flex items-center gap-1 text-2xl font-bold">
+    <span class="mr-auto">Входящие</span>
+    <button type="button" class="grid h-9 w-9 place-items-center rounded-full font-normal text-mute hover:bg-accent-soft hover:text-accent" aria-label="Поиск задач" title="Поиск по задачам и тегам" data-test="open-search" @click="app.openSearch()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg></button>
+    <SettingsLink />
   </h1>
   <p class="mb-4 text-sm text-mute">Всё, что не хочется держать в голове. Разберёшь потом.</p>
 

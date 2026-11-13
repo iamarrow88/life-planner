@@ -1,10 +1,11 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { RULE_KEYS, TEMPLATE_KEYS } from '../types'
-import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish, Book, Movie, ShoppingItem, MonthlyItem, ImportReport } from '../types'
+import type { CycleDay, CycleSettings, PillCourse, PillEntry, TimeBudget, WeekWork, RecurrencePatch, CaptureInfo, GoogleStatus, Project, Repo, Task, Sphere, Habit, HabitDay, HabitEntry, HabitStatus, TimeEntry, User, Recurrence, WeekGoal, WeeklyReview, WeekData, ExportData, Wish, Book, Movie, ShoppingItem, MonthlyItem, ImportReport, JournalEntry } from '../types'
 import { entrySeconds, todayStr, weekStart as weekStartOf } from '../lib/time'
 import { fetchAllPages } from '../lib/paging'
 import { DEFAULT_CYCLE_SETTINGS } from '../lib/cycle'
 
+const JOURNAL_COLS = 'day,text,mood,favorite'
 const env = import.meta.env as Record<string, string | undefined>
 const clean = (v?: string) => v?.trim().replace(/^["']|["']$/g, '') || undefined
 // anon key в новых проектах Supabase называется «publishable key» — принимаем оба названия
@@ -174,7 +175,7 @@ export const supabaseRepo: Repo = {
       const q = c.from('tasks').select(TASK_COLS)
       return (recent ? q.or(recent) : q).order('created_at', { ascending: false }).order('id').range(from, to)
     }))
-    const [taskSecondsBefore, spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, moviesRes, shopRes, shopTagRes, tagCountsRes, monthlyRes, cDays, cSet, cCourses, modulesRes] = await Promise.all([
+    const [taskSecondsBefore, spheres, archivedSpheres, projects, tasksRes, habitsRes, he, te, recsRes, goals, reviews, hs, budget, work, colorsRes, wishesRes, booksRes, moviesRes, shopRes, shopTagRes, tagCountsRes, monthlyRes, cDays, cSet, cCourses, modulesRes, journalRes] = await Promise.all([
       olderTaskSeconds(),
       c.from('spheres').select(SPHERE_COLS).is('archived_at', null).order('position').order('created_at'),
       c.from('spheres').select(SPHERE_COLS).not('archived_at', 'is', null).order('archived_at', { ascending: false }),
@@ -208,6 +209,8 @@ export const supabaseRepo: Repo = {
       c.from('pill_courses').select(COURSE_COLS).order('starts_on'),
       // выключенные модули — отдельный патч базы (planner_modules.sql)
       c.from('user_settings').select('hidden_modules').maybeSingle(),
+      // дневник — отдельный патч базы (planner_journal.sql)
+      c.from('journal_entries').select(JOURNAL_COLS).order('day', { ascending: false }),
     ])
     let tasks = tasksRes, recs = recsRes
     for (let i = 0; i < OPTS.length; i++) {
@@ -277,6 +280,8 @@ export const supabaseRepo: Repo = {
       wishes: wishesRes.error ? [] : (wishesRes.data as unknown as Wish[]),
       colorsReady: !colorsRes.error,
       modulesReady: !modulesRes.error,
+      journalReady: !journalRes.error,
+      journal: journalRes.error ? [] : (journalRes.data as unknown as JournalEntry[]),
       hiddenModules: modulesRes.error ? null : ((modulesRes.data as { hidden_modules: string[] | null } | null)?.hidden_modules ?? null),
       sphereColors: colorsRes.error ? null : ((colorsRes.data as { sphere_colors: string[] | null } | null)?.sphere_colors ?? null),
       // календарь цикла — тоже отдельный патч (planner_cycle.sql)
@@ -429,6 +434,9 @@ export const supabaseRepo: Repo = {
     const uid = (await db().auth.getSession()).data.session?.user.id
     if (!uid) throw new Error('Нужно войти')
     ok(await db().from('user_settings').upsert({ user_id: uid, sphere_colors: colors }))
+  },
+  async saveJournal(day, patch) {
+    return ok(await db().from('journal_entries').upsert({ day, ...patch }, { onConflict: 'user_id,day' }).select(JOURNAL_COLS).single()) as unknown as JournalEntry
   },
   async saveHiddenModules(list) {
     const uid = (await db().auth.getSession()).data.session?.user.id

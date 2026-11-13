@@ -29,12 +29,12 @@ if (!isNative) initWebNotificationCleanup(app, () => !!app.reviewFor(weekStart(a
 const tabs = [
   { to: '/inbox', label: 'Входящие', icon: 'inbox' },
   { to: '/today', label: 'Сегодня', icon: 'today' },
+  { to: '/diary', label: 'Дневник', icon: 'diary' },
   { to: '/spheres', label: 'Сферы', icon: 'spheres' },
-  { to: '/misc', label: 'Разное', icon: 'misc' },
-  { to: '/more', label: 'Ещё', icon: 'more' },
+  { to: '/misc', label: 'Списки', icon: 'misc' },
 ] as const
 /** Разделы без своей вкладки: пока они открыты, подсвечена вкладка, из которой в них приходят */
-const parentTab = computed(() => (route.path === '/review' ? '/spheres' : ['/wishes', '/library', '/movies', '/shopping', '/monthly'].includes(route.path) ? '/misc' : null))
+const parentTab = computed(() => (route.path === '/review' ? '/diary' : ['/wishes', '/library', '/movies', '/shopping', '/monthly'].includes(route.path) ? '/misc' : null))
 const showShell = computed(() => !!app.user && route.path !== '/login')
 const badge = computed(() => app.inbox.length + app.staleDeferred.length)
 /** Прокручиваемая часть экрана: на ней работает «потяни вниз — обновится» */
@@ -60,7 +60,10 @@ async function logout() { await app.signOut(); router.push('/login') }
           <span v-if="t.to === '/inbox' && badge" class="rounded-full bg-accent px-2 text-xs font-semibold text-white">{{ badge }}</span>
         </RouterLink>
       </nav>
-      <div class="mt-auto px-2 text-xs text-mute">
+      <RouterLink to="/more" class="mt-auto flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium text-mute hover:bg-accent-soft" active-class="!bg-accent-soft !text-accent" data-test="side-settings">
+        <NavIcon name="more" /> Настройки
+      </RouterLink>
+      <div class="mt-3 px-2 text-xs text-mute">
         <div v-if="repo.mode === 'demo'" class="mb-2 rounded-lg bg-amber-50 p-2 text-amber-800">Демо-режим: данные хранятся только в этом браузере<template v-if="supabaseProblems.length">. Supabase не подключён: {{ supabaseProblems.join('; ') }}</template></div>
         <div class="truncate">{{ app.user?.email }}</div>
         <button v-if="repo.mode !== 'demo'" class="mt-1 font-semibold text-accent" @click="logout">Выйти</button>

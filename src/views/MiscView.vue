@@ -2,8 +2,9 @@
 import { computed } from 'vue'
 import { useApp } from '../stores/app'
 import NavIcon from '../components/NavIcon.vue'
+import SettingsLink from '../components/SettingsLink.vue'
 
-/** «Разное»: разделы, которым не нужна своя вкладка */
+/** «Списки»: книги, фильмы, покупки, ежемесячное и желания */
 const app = useApp()
 const shoppingLeft = computed(() => app.toBuyItems.length + app.shoppingTasks.length)
 const anyOn = computed(() => (['books', 'movies', 'shopping', 'monthly', 'wishes'] as const).some(k => app.modOn(k)))
@@ -11,7 +12,7 @@ const monthlyLeft = computed(() => app.monthlyItems.filter(i => !app.monthlyDone
 </script>
 
 <template>
-  <h1 class="mb-4 text-2xl font-bold">Разное</h1>
+  <h1 class="mb-4 flex items-center text-2xl font-bold"><span class="mr-auto">Списки</span><SettingsLink /></h1>
   <div class="space-y-3">
     <RouterLink v-if="app.modOn('books')" to="/library" class="card flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-library">
       <NavIcon name="library" class="shrink-0 text-accent" />

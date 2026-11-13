@@ -407,6 +407,12 @@ export const demoRepo: Repo = {
   },
   async saveSphereColors(colors) { const s = read(); s.sphereColors = colors; write(s) },
   async saveHiddenModules(list) { const s = read(); s.hiddenModules = list; write(s) },
+  async saveJournal(day, patch) {
+    const s = read(); const list = (s.journal ??= [])
+    let e = list.find(x => x.day === day)
+    if (!e) { e = { day, text: null, mood: null, favorite: false }; list.push(e); list.sort((a, b) => b.day.localeCompare(a.day)) }
+    Object.assign(e, patch); write(s); return { ...e }
+  },
   async saveTimeBudget(patch) { const s = read(); s.timeBudget = { ...s.timeBudget!, ...patch }; write(s) },
   async setWeekWork(weekStart, minutes) {
     const s = read(); const list = (s.weekWork ??= []); const w = list.find(x => x.week_start === weekStart)

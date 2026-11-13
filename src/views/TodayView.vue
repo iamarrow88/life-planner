@@ -27,6 +27,7 @@ import { dragSort } from '../lib/dragSort'
 import { byPosition } from '../lib/taskOrder'
 import { emptyCollapse, nextCollapse, splitHabits, type CollapseState } from '../lib/habitCollapse'
 import type { Habit, HabitDay, Task } from '../types'
+import SettingsLink from '../components/SettingsLink.vue'
 
 const app = useApp()
 // Отбор по сфере / проекту — свой у «Сегодня»: действует на списки, сетку дня, месяц и сводку
@@ -293,6 +294,7 @@ async function add() {
         :class="dayMode === 'grid' && '!bg-accent-soft !text-accent'" :aria-pressed="dayMode === 'grid'" :title="dayMode === 'grid' ? 'Показать списком' : 'Показать по часам'" data-test="grid-toggle" @click="setDayMode(dayMode === 'grid' ? 'list' : 'grid')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M4 10h16M4 15h16M9 4v16" /></svg>
       </button>
+      <SettingsLink />
     </div>
   </div>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useApp } from '../stores/app'
 import type { HabitDay, WeekData } from '../types'
 import { addDays, fmtMinutes, shortDate, weekStart } from '../lib/time'
@@ -8,7 +9,10 @@ import WeekPlanner from '../components/WeekPlanner.vue'
 import SpherePlan from '../components/SpherePlan.vue'
 
 const app = useApp()
-const ws = ref(weekStart(app.today))
+const route = useRoute()
+/** ?week= из дневника: открыть итог этой недели (не позже текущей) */
+const fromLink = typeof route.query.week === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(route.query.week) ? weekStart(route.query.week) : null
+const ws = ref(fromLink && fromLink <= weekStart(app.today) ? fromLink : weekStart(app.today))
 const nextWs = computed(() => addDays(ws.value, 7))
 const data = ref<WeekData | null>(null)
 const loading = ref(false)

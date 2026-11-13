@@ -24,6 +24,7 @@ export const router = createRouter({
         { path: ':id', component: () => import('./views/SphereView.vue') },
       ],
     },
+    { path: '/diary', component: () => import('./views/DiaryView.vue') },
     { path: '/review', component: () => import('./views/ReviewView.vue') },
     { path: '/misc', component: () => import('./views/MiscView.vue') },
     { path: '/wishes', component: () => import('./views/WishesView.vue') },

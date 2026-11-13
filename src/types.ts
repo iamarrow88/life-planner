@@ -120,6 +120,9 @@ export interface WeekData {
   tasks_done: number; tasks_total: number; habit_days_done: number; habit_days_total: number
   top_time_tasks: { task_id: string; title: string; sphere_id: string | null; estimate_minutes: number | null; spent_minutes: number }[]
 }
+/** Запись дневника за день: текст, настроение 1–5 (null — не отмечено) и ♥ — важный день */
+export interface JournalEntry { day: string; text: string | null; mood: number | null; favorite: boolean }
+export type JournalPatch = Partial<Pick<JournalEntry, 'text' | 'mood' | 'favorite'>>
 export interface WeeklyReview {
   week_start: string; snapshot: Partial<WeekData>
   went_well: string | null; got_in_way: string | null; to_change: string | null
@@ -166,6 +169,8 @@ export interface Snapshot {
   sphereColors?: string[] | null  // свой набор цветов для сфер (null — набор по умолчанию)
   colorsReady?: boolean          // false — в базе ещё нет набора цветов (не выполнен planner_sphere_colors.sql)
   hiddenModules?: string[] | null // выключенные во «Ещё» модули (см. lib/modules.ts)
+  journal?: JournalEntry[]       // дневник, новые дни первыми
+  journalReady?: boolean         // false — в базе ещё нет дневника (не выполнен planner_journal.sql)
   modulesReady?: boolean         // false — в базе ещё нет hidden_modules (не выполнен planner_modules.sql): выбор хранится на устройстве
   priorityReady?: boolean        // false — в базе ещё нет приоритета (не выполнен planner_task_priority.sql)
   complexityReady?: boolean      // false — в базе ещё нет сложности (не выполнен planner_task_complexity.sql)
@@ -332,6 +337,7 @@ export interface Repo {
   /** Свой набор цветов для сфер; null — вернуться к набору по умолчанию */
   saveSphereColors(colors: string[] | null): Promise<void>
   saveHiddenModules(list: string[]): Promise<void>
+  saveJournal(day: string, patch: JournalPatch): Promise<JournalEntry>
   saveTimeBudget(patch: Partial<TimeBudget>): Promise<void>
   setWeekWork(weekStart: string, minutes: number): Promise<void>
   /** Записать день цикла целиком; пустой день (без отметок и заметки) удаляется */

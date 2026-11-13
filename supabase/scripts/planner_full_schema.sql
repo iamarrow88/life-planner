@@ -2711,4 +2711,26 @@ alter table public.user_settings add column if not exists hidden_modules text[] 
 alter table public.user_settings drop constraint if exists user_settings_hidden_modules_check;
 alter table public.user_settings add constraint user_settings_hidden_modules_check check (cardinality(hidden_modules) <= 32);
 
+-- дневник (planner_journal.sql)
+create table if not exists public.journal_entries (
+  user_id    uuid        not null default auth.uid() references auth.users (id) on delete cascade,
+  day        date        not null,
+  text       text        check (text is null or length(text) <= 20000),
+  mood       smallint    check (mood is null or mood between 1 and 5),
+  favorite   boolean     not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, day)
+);
+drop trigger if exists journal_entries_updated_at on public.journal_entries;
+create trigger journal_entries_updated_at before update on public.journal_entries
+  for each row execute function public.set_updated_at();
+alter table public.journal_entries enable row level security;
+drop policy if exists journal_entries_own on public.journal_entries;
+create policy journal_entries_own on public.journal_entries for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+revoke all on public.journal_entries from anon;
+grant select, insert, update, delete on public.journal_entries to authenticated;
+
 commit;

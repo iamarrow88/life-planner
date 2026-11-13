@@ -200,7 +200,7 @@ function removeRule(id: string, title: string) {
 </script>
 
 <template>
-  <h1 class="mb-4 text-2xl font-bold">Ещё</h1>
+  <h1 class="mb-4 text-2xl font-bold">Настройки</h1>
 
   <section class="mb-6" data-test="modules">
     <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Модули</h2>

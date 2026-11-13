@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { repo } from '../data'
-import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch, Book, BookPatch, BookStatus, Movie, MoviePatch, ShoppingItem, ShoppingPatch, MonthlyItem, MonthlyPatch } from '../types'
+import type { Subtask, CycleDay, CycleSettings, PillCourse, TimeBudget, RecurrencePatch, SpherePlan, GoogleSettingsPatch, GoogleStatus, Project, PushSub, ExportData, ReviewInput, WeekData, WeeklyReview, EditorTarget, Habit, HabitDay, HabitEntry, HabitStatus, NewHabit, NewRecurrence, NewTask, Snapshot, Sphere, SpherePatch, Task, TimeEntry, User, WishPatch, Book, BookPatch, BookStatus, Movie, MoviePatch, ShoppingItem, ShoppingPatch, MonthlyItem, MonthlyPatch, JournalEntry, JournalPatch } from '../types'
 import { googleClientId } from '../lib/google'
 import { parseTags, uniqTags } from '../lib/tags'
 import { byPosition } from '../lib/taskOrder'
@@ -923,6 +923,23 @@ export const useApp = defineStore('app', () => {
   const showComplexity = computed(() => complexityReady.value && modOn('complexity'))
   const showCycle = computed(() => cycleReady.value && modOn('cycle'))
 
+  // ---- Дневник: запись за день (текст, настроение, ♥). На экране меняем сразу, при ошибке возвращаем как было
+  const journalReady = computed(() => data.value.journalReady !== false)
+  const journal = computed<JournalEntry[]>(() => data.value.journal ?? [])
+  const journalFor = (day: string) => journal.value.find(e => e.day === day) ?? null
+  async function saveJournal(day: string, patch: JournalPatch) {
+    const list = (data.value.journal ??= [])
+    const i = list.findIndex(e => e.day === day)
+    const before = i >= 0 ? { ...list[i] } : null
+    if (i >= 0) list[i] = { ...list[i], ...patch }
+    else { list.push({ day, text: null, mood: null, favorite: false, ...patch }); list.sort((a, b) => b.day.localeCompare(a.day)) }
+    const saved = await guard(() => repo.saveJournal(day, patch)) as JournalEntry | undefined
+    const j = list.findIndex(e => e.day === day)
+    if (saved) { if (j >= 0) list[j] = { ...list[j], ...saved }; return true }
+    if (j >= 0) { if (before) list[j] = before; else list.splice(j, 1) }
+    return false
+  }
+
   // ---- Цвета для сфер: свой набор из «Ещё» или набор по умолчанию
   const colorsReady = computed(() => data.value.colorsReady !== false)
   const hasOwnColors = computed(() => !!data.value.sphereColors?.length)
@@ -1276,13 +1293,19 @@ export const useApp = defineStore('app', () => {
     if (!d) return d
     const c = data.value.cycle
     return {
-      ...d, wishes: wishes.value, books: books.value, movies: movies.value, shopping_items: shoppingItems.value, monthly_items: monthlyItems.value, week_work: data.value.weekWork ?? [],
+      ...d, wishes: wishes.value, books: books.value, movies: movies.value, shopping_items: shoppingItems.value, monthly_items: monthlyItems.value, week_work: data.value.weekWork ?? [], journal_entries: journal.value,
       ...(withCycle && c ? { cycle_days: c.days, pill_courses: c.courses, cycle_settings: c.settings } : {}),
     }
   }
   /** Восстановление из файла экспорта. После него всё перечитываем: база могла измениться целиком */
   async function importAll(file: ExportData) {
     const report = await guard(() => repo.importAll(file))
+    if (report && journalReady.value && Array.isArray(file.journal_entries)) {
+      for (const e of file.journal_entries as JournalEntry[]) {
+        if (!e || typeof e.day !== 'string') continue
+        await guard(() => repo.saveJournal(e.day, { text: e.text ?? null, mood: e.mood ?? null, favorite: !!e.favorite }))
+      }
+    }
     if (report) await load()
     return report
   }
@@ -1430,7 +1453,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, droppedBooks, bookDetailsReady, dropBook, setBookStatus, addBook, updateBook, removeBook, reorderBooks, checklistSyncReady, copySubtasksToNext, setChecklistSync, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, taskToShopping, shoppingReady, shoppingItems, shoppingTag, toBuyItems, boughtItems, shoppingTasks, boughtTasks, addShoppingItem, updateShoppingItem, toggleShoppingItem, removeShoppingItems, reorderShoppingItems, saveShoppingTag, moviesReady, movies, queueMovies, watchedMovies, movieDetailsReady, toggleMovieFavorite, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, modulesReady, hiddenModules, modOn, setModule, showBudget, showComplexity, showCycle, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, droppedBooks, bookDetailsReady, dropBook, setBookStatus, addBook, updateBook, removeBook, reorderBooks, checklistSyncReady, copySubtasksToNext, setChecklistSync, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, taskToShopping, shoppingReady, shoppingItems, shoppingTag, toBuyItems, boughtItems, shoppingTasks, boughtTasks, addShoppingItem, updateShoppingItem, toggleShoppingItem, removeShoppingItems, reorderShoppingItems, saveShoppingTag, moviesReady, movies, queueMovies, watchedMovies, movieDetailsReady, toggleMovieFavorite, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, journalReady, journal, journalFor, saveJournal, modulesReady, hiddenModules, modOn, setModule, showBudget, showComplexity, showCycle, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

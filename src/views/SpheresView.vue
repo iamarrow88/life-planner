@@ -10,6 +10,7 @@ import { vDragSort } from '../lib/dragSort'
 import SphereWheel from '../components/SphereWheel.vue'
 import SphereMigrate from '../components/SphereMigrate.vue'
 import { LIFE_SPHERES, balanceScore, lifeByName } from '../lib/lifeSpheres'
+import SettingsLink from '../components/SettingsLink.vue'
 
 const app = useApp()
 const COLORS = computed(() => app.sphereColors)
@@ -160,7 +161,10 @@ async function save() {
       <h1 class="text-2xl font-bold">Сферы</h1>
       <p class="text-sm text-mute">{{ period === 'week' ? 'Неделя' : 'Месяц' }}: {{ range }}</p>
     </div>
-    <button class="btn-ghost" @click="toggleAdding">{{ adding ? 'Закрыть' : '+ Сфера' }}</button>
+    <div class="flex items-center gap-1">
+      <button class="btn-ghost" @click="toggleAdding">{{ adding ? 'Закрыть' : '+ Сфера' }}</button>
+      <SettingsLink />
+    </div>
   </div>
 
   <SphereMigrate v-if="migrateOpen" @done="closeMigrate" />
@@ -196,11 +200,6 @@ async function save() {
     <button v-if="!hasAllLife && migrateHidden && !migrateOpen" type="button" class="mt-3 text-xs font-semibold text-accent" @click="migrateOpen = true">Перейти на 7 сфер жизни</button>
   </section>
 
-  <RouterLink to="/review" class="card mb-4 flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-review">
-    <NavIcon name="review" class="shrink-0 text-accent" />
-    <span class="min-w-0 flex-1"><span class="block font-semibold">Итог недели</span><span class="block text-xs text-mute">Цифры, размышление и план на следующую неделю</span></span>
-    <span class="text-mute">›</span>
-  </RouterLink>
 
   <form v-if="adding" class="card mb-4 space-y-3 p-4" @submit.prevent="save">
     <input v-model="name" class="input" placeholder="Название сферы" maxlength="80" required autofocus />
