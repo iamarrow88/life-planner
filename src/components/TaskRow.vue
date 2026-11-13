@@ -44,8 +44,7 @@ function closePostpone() { postponeMenu.value = null }
 </script>
 
 <template>
-  <!-- Цвет приоритета — в style.css; у выполненных задач его нет -->
-  <div :class="task.priority && !done ? ['task-pri', 'task-pri-' + task.priority] : undefined">
+  <div>
   <div class="flex" :class="dense ? 'flex-col items-start gap-1 px-1.5 py-1.5' : 'items-center gap-3 px-3 py-2.5'">
     <span v-if="sortable && app.orderReady" data-drag-handle class="-ml-1 -mr-1.5 shrink-0 cursor-grab touch-none select-none px-1 text-base leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить задачу" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
     <button class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition"

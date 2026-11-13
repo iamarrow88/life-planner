@@ -74,15 +74,8 @@ const scheduleOf = (r: Recurrence): Schedule => ({
 })
 
 /** Состояние формы: с ним сравниваем, есть ли несохранённые изменения */
-/** Приоритет: 1 высокий, 2 средний, 3 низкий, null — нет; повторное нажатие снимает */
-const priority = ref<number | null>(null)
 const complexity = ref<number | null>(null)
-const priorities = [
-  { v: 1, label: 'Высокий', cls: 'bg-red-300' },
-  { v: 2, label: 'Средний', cls: 'bg-orange-300' },
-  { v: 3, label: 'Низкий', cls: 'bg-yellow-300' },
-]
-const formState = () => JSON.stringify([priority.value, complexity.value, title.value, note.value, tags.value, budget.value, date.value, time.value, estimate.value, noDate.value, sphereId.value, projectId.value,
+const formState = () => JSON.stringify([complexity.value, title.value, note.value, tags.value, budget.value, date.value, time.value, estimate.value, noDate.value, sphereId.value, projectId.value,
   remind.value, repeat.value, schedule.value, newProject.value])
 let saved = ''
 /** × и подложка: правки сохраняются, карточка закрывается. Сохранить нельзя — спрашиваем, закрыть ли без них */
@@ -101,7 +94,6 @@ watch(() => task.value?.id, () => {
   const t = task.value
   if (!t) return
   askDelete.value = false; askDeleteSame.value = false
-  priority.value = t.priority ?? null
   complexity.value = t.complexity ?? null
   title.value = t.title; note.value = t.note ?? ''; tags.value = [...(t.tags ?? [])]; date.value = t.due_date ?? ''; time.value = t.start_time?.slice(0, 5) ?? ''
   // у задачи по повтору длительность берётся из правила — 15 по умолчанию не подставляем, чтобы не менять правило
@@ -185,7 +177,7 @@ async function save(markDone = false) {
   const changed = changedFields(t, tpl), wantRepeat = repeat.value, fields = { ...ruleFields.value }
   const r = rule.value
   if (markDone && isRunning.value) await app.stopTimer()
-  await app.updateTask(t.id, { ...tpl, ...(app.priorityReady ? { priority: priority.value } : {}), due_date: due, status: markDone || t.status === 'done' ? 'done' : due || keepsOutOfInbox.value ? 'planned' : 'inbox' })
+  await app.updateTask(t.id, { ...tpl, due_date: due, status: markDone || t.status === 'done' ? 'done' : due || keepsOutOfInbox.value ? 'planned' : 'inbox' })
   if (!app.error) {
     if (wantRepeat && !r) await app.attachRecurrence(t.id, { ...tpl, ...fields, ...(app.subtasksReady ? { subtasks: freshSubtasks() } : {}) })
     else if (!wantRepeat && r) await app.detachRecurrence(r.id, t.id)
@@ -242,11 +234,6 @@ async function removeRepeating(all: boolean) {
     <form class="flex max-h-[92vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-t-3xl bg-bg p-5 md:rounded-3xl" @submit.prevent="save()">
       <div class="flex items-start justify-between gap-3">
         <h2 class="text-lg font-bold">Задача</h2>
-        <div v-if="app.priorityReady" class="ml-auto flex items-center gap-1.5 self-center" role="group" aria-label="Приоритет" data-test="task-priority">
-          <span class="text-xs text-mute">приоритет</span>
-          <button v-for="p in priorities" :key="p.v" type="button" class="h-6 w-6 rounded-full ring-offset-2 ring-offset-bg" :class="[p.cls, priority === p.v && 'ring-2 ring-ink']"
-            :aria-label="'Приоритет: ' + p.label.toLowerCase()" :aria-pressed="priority === p.v" :title="p.label" @click="priority = priority === p.v ? null : p.v"></button>
-        </div>
         <button type="button" class="text-2xl leading-none text-mute" aria-label="Закрыть" @click="bd.close">×</button>
       </div>
       <p v-if="app.error" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert" data-test="card-error">{{ app.error }}</p>
