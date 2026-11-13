@@ -8,7 +8,7 @@ import { byPosition } from '../lib/taskOrder'
 import { DEFAULT_CYCLE_SETTINGS, PILL_NAMES, courseFrom, courseOn, cycleDayNo, cycleStarts } from '../lib/cycle'
 import { DEFAULT_SPHERE_COLORS } from '../lib/colors'
 import { dayOverloads } from '../lib/dayLoad'
-import { cleanModules, readLocalModules, writeLocalModules, type ModuleKey } from '../lib/modules'
+import { cleanModules, isDefaultOff, moduleOn, readLocalModules, writeLocalModules, type ModuleFlag, type ModuleKey } from '../lib/modules'
 import { nextAfter } from '../lib/recurrence'
 import { addDays, dayOf, entrySeconds, monthStart, todayStr, weekStart, ymd } from '../lib/time'
 
@@ -906,10 +906,12 @@ export const useApp = defineStore('app', () => {
 
   // ---- Модули: что показывать в интерфейсе (выключаются во «Ещё», данные при этом остаются)
   const modulesReady = computed(() => data.value.modulesReady !== false)
-  const hiddenModules = computed<ModuleKey[]>(() => cleanModules(data.value.hiddenModules ?? (modulesReady.value ? [] : readLocalModules())))
-  const modOn = (k: ModuleKey) => !hiddenModules.value.includes(k)
+  const hiddenModules = computed<ModuleFlag[]>(() => cleanModules(data.value.hiddenModules ?? (modulesReady.value ? [] : readLocalModules())))
+  const modOn = (k: ModuleKey) => moduleOn(hiddenModules.value, k)
   async function setModule(k: ModuleKey, on: boolean) {
-    const list = on ? hiddenModules.value.filter(x => x !== k) : cleanModules([...hiddenModules.value, k])
+    // обычный модуль: в списке, когда выключен; выключенный по умолчанию — «+key», когда включён
+    const rest = hiddenModules.value.filter(x => x !== k && x !== '+' + k)
+    const list = cleanModules(isDefaultOff(k) ? (on ? [...rest, '+' + k] : rest) : (on ? rest : [...rest, k]))
     // сразу меняем на экране: несколько быстрых нажатий подряд не должны затирать друг друга
     const before = data.value.hiddenModules
     data.value.hiddenModules = list
@@ -922,6 +924,7 @@ export const useApp = defineStore('app', () => {
   const showBudget = computed(() => budgetReady.value && modOn('budget'))
   const showComplexity = computed(() => complexityReady.value && modOn('complexity'))
   const showCycle = computed(() => cycleReady.value && modOn('cycle'))
+  const showPriority = computed(() => priorityReady.value && modOn('priority'))
 
   // ---- Дневник: запись за день (текст, настроение, ♥). На экране меняем сразу, при ошибке возвращаем как было
   const journalReady = computed(() => data.value.journalReady !== false)
@@ -1453,7 +1456,7 @@ export const useApp = defineStore('app', () => {
 
   return {
     user, ready, loading, error, data, now, today, spheres, inbox, running, runningSeconds, runningTitle,
-    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, droppedBooks, bookDetailsReady, dropBook, setBookStatus, addBook, updateBook, removeBook, reorderBooks, checklistSyncReady, copySubtasksToNext, setChecklistSync, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, taskToShopping, shoppingReady, shoppingItems, shoppingTag, toBuyItems, boughtItems, shoppingTasks, boughtTasks, addShoppingItem, updateShoppingItem, toggleShoppingItem, removeShoppingItems, reorderShoppingItems, saveShoppingTag, moviesReady, movies, queueMovies, watchedMovies, movieDetailsReady, toggleMovieFavorite, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, journalReady, journal, journalFor, saveJournal, modulesReady, hiddenModules, modOn, setModule, showBudget, showComplexity, showCycle, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
+    nudgeActive, forgotten, weekMinutes, monthMinutes, otherWeekMinutes, otherMonthMinutes, taskSeconds, sphereById, archivedSpheres, archiveSphere, restoreSphere, projectById, projectsOf, archivedProjectsOf, archiveProject, restoreProject, monthlyReady, thisMonth, monthlyItems, monthlyDone, monthlyTask, addMonthlyItem, updateMonthlyItem, removeMonthlyItem, reorderMonthlyItems, toggleMonthlyItem, monthlyToTask, booksReady, books, readingBooks, queueBooks, doneBooks, droppedBooks, bookDetailsReady, dropBook, setBookStatus, addBook, updateBook, removeBook, reorderBooks, checklistSyncReady, copySubtasksToNext, setChecklistSync, nextAfterRemoving, removeOccurrence, removeOccurrenceAndRule, taskToWish, taskToBook, taskToMovie, taskToShopping, shoppingReady, shoppingItems, shoppingTag, toBuyItems, boughtItems, shoppingTasks, boughtTasks, addShoppingItem, updateShoppingItem, toggleShoppingItem, removeShoppingItems, reorderShoppingItems, saveShoppingTag, moviesReady, movies, queueMovies, watchedMovies, movieDetailsReady, toggleMovieFavorite, addMovie, updateMovie, removeMovie, reorderMovies, watchMovie, requeueMovie, addMovieNote, removeMovieNote, startBook, finishBook, requeueBook, addBookNote, removeBookNote, wishesReady, wishes, activeWishes, fulfilledWishes, wishCategories, addWish, updateWish, removeWish, reorderWishes, wishToTask, journalReady, journal, journalFor, saveJournal, modulesReady, hiddenModules, modOn, setModule, showBudget, showComplexity, showCycle, showPriority, colorsReady, hasOwnColors, sphereColors, saveSphereColors, recolorSpheres, moveProject, sphereToProject, addProject, renameProject, removeProject, setTaskSphere, setTaskNoDate, setTaskProject, habitValue, habitIsDone, reorderHabits, reorderSpheres, reorderProjects, addDays,
     staleDays, setStaleDays, deferred, staleDeferred, freshDeferred, snoozeTask,
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,

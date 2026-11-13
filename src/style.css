@@ -67,3 +67,17 @@ button { @apply cursor-pointer; }
   body.print-cycle .print-area .card { background: #fff; }
 }
 
+/* Приоритет задачи: весь блок в пастельном цвете. Родитель подсвечивается, если строка занимает в нём только часть
+   (рядом ручка ⋮⋮ или выбор дня) или у блока есть ещё ряд кнопок, как во «Входящих» */
+.task-pri-1, :has(> .task-pri-1.flex-1), li.card:has(> .task-pri-1) { background-color: #fee2e2; }
+.task-pri-2, :has(> .task-pri-2.flex-1), li.card:has(> .task-pri-2) { background-color: #ffedd5; }
+.task-pri-3, :has(> .task-pri-3.flex-1), li.card:has(> .task-pri-3) { background-color: #fef9c3; }
+/* цвет не должен вылезать за скруглённые углы карточки со списком */
+.card > .task-pri:first-child, .card > :first-child .task-pri, .card > :first-child:has(> .task-pri.flex-1), .card > :first-child :has(> .task-pri.flex-1) {
+  border-top-left-radius: calc(1.25rem - 1px); border-top-right-radius: calc(1.25rem - 1px);
+}
+.card > .task-pri:last-child, .card > :last-child .task-pri, .card > :last-child:has(> .task-pri.flex-1), .card > :last-child :has(> .task-pri.flex-1) {
+  border-bottom-left-radius: calc(1.25rem - 1px); border-bottom-right-radius: calc(1.25rem - 1px);
+}
+/* во «Входящих» под строкой есть ряд кнопок, низ блока скругляет сама карточка */
+li.card > .task-pri { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
