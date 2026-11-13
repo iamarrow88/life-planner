@@ -7,6 +7,9 @@ import NavIcon from '../components/NavIcon.vue'
 import { fmtMinutes, shortDate, weekStart, addDays, monthStart } from '../lib/time'
 import { factRing, planRing, type Arc } from '../lib/timeBudget'
 import { vDragSort } from '../lib/dragSort'
+import SphereWheel from '../components/SphereWheel.vue'
+import SphereMigrate from '../components/SphereMigrate.vue'
+import { LIFE_SPHERES, balanceScore, lifeByName } from '../lib/lifeSpheres'
 
 const app = useApp()
 const COLORS = computed(() => app.sphereColors)
@@ -104,6 +107,46 @@ async function saveGoal(id: string) {
 }
 const pct = (id: string, goal: number) => (goal ? Math.min(100, Math.round(((app.weekMinutes[id] ?? 0) / goal) * 100)) : 0)
 
+// ---- Колесо баланса: доли времени сфер за неделю или месяц
+const wheelRows = computed(() => app.spheres.map(x => ({ id: x.id, name: x.name, color: x.color, minutes: minutesBy.value[x.id] ?? 0 })))
+const wheelTotal = computed(() => wheelRows.value.reduce((sum, x) => sum + x.minutes, 0))
+const score = computed(() => balanceScore(wheelRows.value.map(x => x.minutes)))
+const sharePct = (m: number) => (wheelTotal.value > 0 ? Math.round((m / wheelTotal.value) * 100) : 0)
+/** Последняя активность в сфере: выполненная задача, учтённое время или отметка привычки (из того, что загружено) */
+const lastActive = computed(() => {
+  const last = new Map<string, string>()
+  const bump = (id: string | null | undefined, day: string | null | undefined) => { if (id && day && day > (last.get(id) ?? '')) last.set(id, day) }
+  for (const t of app.data.tasks) if (t.status === 'done' && t.done_at) bump(t.sphere_id, t.done_at.slice(0, 10))
+  for (const e of app.data.timeEntries) bump(e.sphere_id, e.started_at.slice(0, 10))
+  const habitSphere = new Map(app.data.habits.map(h => [h.id, h.sphere_id]))
+  for (const e of app.data.habitEntries) if (e.value > 0) bump(habitSphere.get(e.habit_id), e.entry_date)
+  return last
+})
+const daysWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'день' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'дня' : 'дней')
+function lastText(id: string) {
+  const d = lastActive.value.get(id)
+  if (!d) return 'Давно не было активности'
+  const days = Math.round((new Date(app.today + 'T00:00:00Z').getTime() - new Date(d + 'T00:00:00Z').getTime()) / 86400000)
+  return days <= 0 ? 'Сегодня' : days === 1 ? 'Вчера' : 'Последний раз ' + days + ' ' + daysWord(days) + ' назад'
+}
+// ---- Переход на семь сфер жизни: предлагаем, пока какой-то из семи нет или есть сферы вне семи
+const MIGRATE_KEY = 'planner-life-migrate-hidden'
+const hasAllLife = computed(() => LIFE_SPHERES.every(l => app.spheres.some(x => lifeByName(x.name)?.name === l.name)) && app.spheres.every(x => !!lifeByName(x.name)))
+const migrateOpen = ref(false)
+const migrateHidden = ref((() => { try { return localStorage.getItem(MIGRATE_KEY) === '1' } catch { return false } })())
+function closeMigrate() {
+  migrateOpen.value = false
+  if (!hasAllLife.value) { migrateHidden.value = true; try { localStorage.setItem(MIGRATE_KEY, '1') } catch { /* не страшно */ } }
+}
+// ---- Подробности (план, бюджет времени, цели и таймеры) свёрнуты; открытое запоминаем на устройстве
+const DETAILS_KEY = 'planner-spheres-details'
+const openDetails = ref<string[]>((() => { try { return JSON.parse(localStorage.getItem(DETAILS_KEY) ?? '[]') as string[] } catch { return [] } })())
+function onToggle(key: string, e: Event) {
+  const open = (e.target as HTMLDetailsElement).open
+  openDetails.value = open ? [...new Set([...openDetails.value, key])] : openDetails.value.filter(k => k !== key)
+  try { localStorage.setItem(DETAILS_KEY, JSON.stringify(openDetails.value)) } catch { /* не страшно */ }
+}
+
 async function save() {
   if (!name.value.trim()) return
   const ok = await app.addSphere(name.value.trim(), color.value, Math.round(goalHours.value * 60), description.value)
@@ -119,6 +162,39 @@ async function save() {
     </div>
     <button class="btn-ghost" @click="toggleAdding">{{ adding ? 'Закрыть' : '+ Сфера' }}</button>
   </div>
+
+  <SphereMigrate v-if="migrateOpen" @done="closeMigrate" />
+  <button v-else-if="!hasAllLife && !migrateHidden && app.spheres.length" type="button" class="card mb-4 flex w-full items-center gap-3 border-accent bg-accent-soft px-4 py-3 text-left" data-test="migrate-offer" @click="migrateOpen = true">
+    <span class="min-w-0 flex-1"><span class="block font-semibold text-accent">Перейти на 7 сфер жизни</span><span class="block text-xs text-mute">Здоровье, отношения, карьера, развитие, увлечения, смысл и быт — твои сферы станут ими или проектами внутри них</span></span>
+    <span class="text-accent">›</span>
+  </button>
+
+  <!-- Колесо баланса: равные секторы, заливка — доля времени сферы; ниже — сферы с процентом и последней активностью -->
+  <section class="card mb-4 p-4" data-test="balance">
+    <div class="mb-1 flex items-center justify-between gap-2">
+      <h2 class="font-semibold">Баланс</h2>
+      <div class="inline-flex rounded-xl border border-line bg-white/70 p-0.5 text-xs font-medium">
+        <button class="rounded-lg px-3 py-1" :class="period === 'week' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'week'">Неделя</button>
+        <button class="rounded-lg px-3 py-1" :class="period === 'month' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'month'">Месяц</button>
+      </div>
+    </div>
+    <SphereWheel v-if="app.spheres.length" :rows="wheelRows" :score="score" @open="openSphere" />
+    <p class="mb-3 text-center text-xs text-mute">{{ wheelTotal > 0 ? 'Баланс — насколько ровно время распределено между сферами: 10 — поровну во все.' : 'Запусти таймер на задаче, привычке или сфере — колесо начнёт заполняться.' }}</p>
+    <ul class="space-y-2" data-test="balance-list">
+      <li v-for="x in wheelRows" :key="x.id">
+        <RouterLink :to="'/spheres/' + x.id" class="flex items-center gap-3 rounded-2xl bg-white/60 px-3 py-2.5 hover:bg-accent-soft" data-test="balance-row">
+          <span class="h-3 w-3 shrink-0 rounded-full" :style="{ background: x.color }"></span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-[15px] font-medium">{{ x.name }}</span>
+            <span class="block text-xs text-mute">{{ lastText(x.id) }}</span>
+          </span>
+          <span class="shrink-0 text-sm font-semibold" :class="x.minutes ? 'text-ink' : 'text-mute'">{{ sharePct(x.minutes) }}%</span>
+          <span class="text-mute">›</span>
+        </RouterLink>
+      </li>
+    </ul>
+    <button v-if="!hasAllLife && migrateHidden && !migrateOpen" type="button" class="mt-3 text-xs font-semibold text-accent" @click="migrateOpen = true">Перейти на 7 сфер жизни</button>
+  </section>
 
   <RouterLink to="/review" class="card mb-4 flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-review">
     <NavIcon name="review" class="shrink-0 text-accent" />
@@ -139,8 +215,10 @@ async function save() {
     <button class="btn-primary w-full">Создать</button>
   </form>
 
-  <!-- Учёт времени: кольцо плана или факта, под ним плитки бюджета и список сфер -->
-  <div class="card mb-4 p-5" data-test="time-budget">
+  <!-- Подробности: кольцо плана или факта, плитки бюджета времени -->
+  <details class="mb-4" :open="openDetails.includes('plan')" data-test="details-plan" @toggle="onToggle('plan', $event)">
+  <summary class="mb-2 cursor-pointer select-none text-sm font-semibold uppercase tracking-wide text-mute">План и бюджет времени</summary>
+  <div class="card p-5" data-test="time-budget">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs font-medium">
       <div class="inline-flex rounded-xl border border-line bg-white/70 p-0.5" data-test="ring-view">
         <button class="rounded-lg px-3 py-1" :class="ringView === 'plan' ? 'bg-accent text-white' : 'text-mute'" data-test="ring-plan" @click="setRingView('plan')">План</button>
@@ -216,7 +294,10 @@ async function save() {
       <p v-if="!app.timeBudgetReady" class="mt-2 rounded-lg bg-amber-50 p-2 text-amber-900">Сон, текучка и часы работы пока не сохраняются: выполни <code>planner_time_budget.sql</code> в Supabase (SQL Editor). Сейчас расчёт идёт по значениям по умолчанию.</p>
     </div>
   </div>
+  </details>
 
+  <details class="mb-4" :open="openDetails.includes('goals')" data-test="details-goals" @toggle="onToggle('goals', $event)">
+  <summary class="mb-2 cursor-pointer select-none text-sm font-semibold uppercase tracking-wide text-mute">Цели и таймеры сфер</summary>
   <!-- Порядок сфер меняется перетаскиванием за ⋮⋮ — он же везде: в итоге недели, планировании, выборе сферы -->
   <ul v-drag-sort="(ids: string[]) => app.reorderSpheres(ids)" class="space-y-3" data-test="sphere-list">
     <li v-for="s in app.spheres" :key="s.id" :data-id="s.id" class="card p-4">
@@ -263,5 +344,6 @@ async function save() {
       </RouterLink>
     </li>
   </ul>
+  </details>
   <p v-if="!app.spheres.length" class="card p-8 text-center text-mute">Создай первую сферу: здоровье, хобби, семья…</p>
 </template>
