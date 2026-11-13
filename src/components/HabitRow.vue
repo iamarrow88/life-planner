@@ -71,7 +71,7 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
       <button class="grid h-8 w-8 place-items-center rounded-full bg-[#DCD8EE] text-lg text-accent-deep hover:bg-[#D2CDE9] disabled:opacity-40" :disabled="done" aria-label="Отметить ещё раз" @click="app.bumpHabit(habit, 1)">+</button>
     </div>
     <button v-else-if="habit.kind === 'timer'" class="grid h-9 w-9 shrink-0 place-items-center rounded-full transition"
-      :class="isRunning ? 'bg-accent text-white' : 'bg-accent-soft text-accent'"
+      :class="isRunning ? 'bg-[#CFC9E8] text-accent-deep ring-1 ring-accent/30' : 'bg-accent-soft text-accent'"
       @click="isRunning ? app.stopTimer() : app.startTimer({ habit_id: habit.id })">
       <svg v-if="isRunning" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2" /></svg>
       <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z" /></svg>

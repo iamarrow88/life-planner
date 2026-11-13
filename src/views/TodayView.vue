@@ -300,7 +300,7 @@ async function add() {
   </div>
 
   <!-- Полоса недели: главная навигация по дням -->
-  <div v-if="mode !== 'month'" class="glass sticky top-0 z-10 -mx-2 mb-3 flex items-center gap-0.5 rounded-2xl px-1 py-1" data-test="week-strip">
+  <div v-if="mode !== 'month'" class="glass sticky top-[var(--timer-h,0px)] z-10 -mx-2 mb-3 flex items-center gap-0.5 rounded-2xl px-1 py-1" data-test="week-strip">
     <button type="button" class="shrink-0 rounded-full px-1.5 py-3 text-mute hover:text-accent" aria-label="Предыдущая неделя" @click="selDay = addDays(selDay, -7)">‹</button>
     <button v-for="d in weekDays" :key="d" type="button" class="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-2xl py-1.5 transition"
       :class="d === selDay && isDay ? 'bg-accent-soft text-accent-deep ring-1 ring-accent/30' : d === app.today ? 'text-accent' : 'text-ink/80 hover:bg-accent-soft'"

@@ -170,7 +170,7 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
         <span class="h-3.5 w-3.5 shrink-0 rounded-full" :style="{ background: sphere.color }"></span>
         <h1 class="min-w-0 flex-1 truncate text-2xl font-bold">{{ sphere.name }}</h1>
         <button type="button" class="text-sm text-mute hover:text-accent" aria-label="Редактировать сферу" title="Редактировать сферу" @click="editing ? saveEdit() : startEdit()"><Icon name="edit" :size="14" /></button>
-        <button class="rounded-full px-3 py-1 text-xs font-semibold transition" :class="timerOn ? 'bg-accent text-white' : 'bg-accent-soft text-accent'"
+        <button class="rounded-full px-3 py-1 text-xs font-semibold transition" :class="timerOn ? 'bg-[#CFC9E8] text-accent-deep ring-1 ring-accent/30' : 'bg-accent-soft text-accent'"
           @click="timerOn ? app.stopTimer() : app.startTimer({ sphere_id: sphere.id })"><Icon :name="timerOn ? 'stop' : 'play'" :size="11" /> {{ timerOn ? 'Стоп' : 'Таймер' }}</button>
       </div>
       <p v-if="sphere.description && !editing" class="mt-2 whitespace-pre-line break-words text-sm text-mute">{{ sphere.description }}</p>

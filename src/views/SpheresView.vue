@@ -307,7 +307,7 @@ async function save() {
         <RouterLink :to="'/spheres/' + s.id" class="min-w-0 flex-1 truncate font-semibold hover:text-accent" :title="'Открыть сферу ' + s.name">{{ s.name }} <span class="text-mute">›</span></RouterLink>
         <button class="text-xs font-semibold text-mute hover:text-accent" @click="app.openEditor({ sphere_id: s.id }, s.name)">Править время</button>
         <button class="rounded-full px-3 py-1 text-xs font-semibold transition"
-          :class="app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? 'bg-accent text-white' : 'bg-accent-soft text-accent'"
+          :class="app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? 'bg-[#CFC9E8] text-accent-deep ring-1 ring-accent/30' : 'bg-accent-soft text-accent'"
           @click="app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? app.stopTimer() : app.startTimer({ sphere_id: s.id })">
           <Icon :name="app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? 'stop' : 'play'" :size="11" /> {{ app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? 'Стоп' : 'Таймер' }}
         </button>

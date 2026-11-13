@@ -84,7 +84,7 @@ function closePostpone() { postponeMenu.value = null }
     <button v-if="canPostpone" type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-lg text-mute transition hover:bg-accent-soft hover:text-accent"
       :class="postponeMenu && 'bg-accent-soft text-accent'" aria-label="Перенести задачу" title="Перенести: завтра, на выходные, на следующую неделю" data-test="postpone" @click="openPostpone"><Icon name="postpone" :size="18" /></button>
     <button v-if="showTimer" class="grid h-9 w-9 shrink-0 place-items-center rounded-full transition"
-      :class="isRunning ? 'bg-accent text-white' : 'bg-accent-soft text-accent hover:brightness-95'"
+      :class="isRunning ? 'bg-[#CFC9E8] text-accent-deep ring-1 ring-accent/30' : 'bg-accent-soft text-accent hover:brightness-95'"
       :aria-label="isRunning ? 'Остановить таймер' : 'Запустить таймер'"
       @click="isRunning ? app.stopTimer() : app.startTimer({ task_id: task.id })">
       <svg v-if="isRunning" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2" /></svg>
