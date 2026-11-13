@@ -209,6 +209,27 @@ const vDragSort: Directive<HTMLElement & { _ds?: () => void; _cb?: (ids: string[
   updated(el, b) { el._cb = b.value },
   unmounted(el) { el._ds?.() },
 }
+/** v-drag-sort-day: то же, но задачу можно отпустить над днём полосы недели — она переедет на этот день */
+const vDragSortDay: Directive<HTMLElement & { _ds?: () => void; _cb?: (ids: string[]) => void }, (ids: string[]) => void> = {
+  mounted(el, b) { el._cb = b.value; el._ds = dragSort(el, () => el._cb, () => dropOnDay) },
+  updated(el, b) { el._cb = b.value },
+  unmounted(el) { el._ds?.() },
+}
+/** Задачу отпустили над днём полосы. На более поздний день — это перенос (попадает в историю переносов), на более ранний или из «без даты» — просто новая дата */
+async function dropOnDay(id: string, day: string) {
+  const t = app.data.tasks.find(x => x.id === id)
+  if (!t || t.due_date === day) return
+  const ok = t.due_date && day > t.due_date
+    ? await app.postponeTask(id, { date: day, time: t.start_time ? hhmm(t.start_time) : '' })
+    : await (async () => {
+      if (t.recurrence_id && app.data.tasks.some(x => x.id !== id && x.recurrence_id === t.recurrence_id && x.due_date === day)) {
+        app.showNotice(`В этот день уже есть «${t.title}» по тому же повтору`); return null
+      }
+      await app.updateTask(id, { due_date: day, ...(t.status === 'inbox' ? { status: 'planned' as const } : {}) })
+      return app.error ? null : day
+    })()
+  if (ok) app.showNotice(`«${t.title}» → ${shortDate(day)}`)
+}
 
 // ---- Привычки другого дня (листая полосу недели, можно смотреть прошлые дни и отмечать их)
 const dayHabits = ref<HabitDay[]>([])
@@ -276,7 +297,7 @@ async function add() {
   </div>
 
   <!-- Полоса недели: главная навигация по дням -->
-  <div v-if="mode !== 'month'" class="mb-3 flex items-center gap-0.5" data-test="week-strip">
+  <div v-if="mode !== 'month'" class="glass sticky top-0 z-10 -mx-2 mb-3 flex items-center gap-0.5 rounded-2xl px-1 py-1" data-test="week-strip">
     <button type="button" class="shrink-0 rounded-full px-1.5 py-3 text-mute hover:text-accent" aria-label="Предыдущая неделя" @click="selDay = addDays(selDay, -7)">‹</button>
     <button v-for="d in weekDays" :key="d" type="button" class="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-2xl py-1.5 transition"
       :class="d === selDay && isDay ? 'bg-accent text-white' : d === app.today ? 'text-accent' : 'text-ink/80 hover:bg-accent-soft'"
@@ -406,7 +427,7 @@ async function add() {
     </form>
     <TagBar v-model="taskFilter.tags" :scope="taskFilter" />
     <RecurrenceForm v-if="showRecForm" class="mb-3" v-bind="recurrenceDefaults()" @done="showRecForm = false" />
-    <div v-if="list.length" v-drag-sort="onTaskSort" class="card divide-y divide-line" data-test="task-list">
+    <div v-if="list.length" v-drag-sort-day="onTaskSort" class="card divide-y divide-line" data-test="task-list">
       <div v-for="t in list" :key="t.id" :data-id="t.id">
         <TaskRow :task="t" sortable>
           <span v-if="t.due_date && t.due_date < selDay" class="shrink-0 text-xs text-amber-700">{{ shortDate(t.due_date) }}</span>
@@ -491,7 +512,7 @@ async function add() {
     <DayTaskForm :day="selDay" :new-task-fields="newTaskFields" />
     <div v-if="untimedOnDay.length" class="mb-3">
       <div class="mb-1 text-xs font-semibold uppercase tracking-wide text-mute">Без времени</div>
-      <div v-drag-sort="onTaskSort" class="card divide-y divide-line">
+      <div v-drag-sort-day="onTaskSort" class="card divide-y divide-line">
         <TaskRow v-for="t in untimedOnDay" :key="t.id" :data-id="t.id" :task="t" sortable />
       </div>
     </div>
