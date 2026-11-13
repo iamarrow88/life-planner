@@ -2,7 +2,7 @@
 -- KolaApp: модули, которые можно выключить во «Ещё» (дополнение к planner_schema.sql)
 -- Выполнить один раз в Supabase → SQL Editor. Безопасно повторять.
 -- Что делает:
---   * user_settings.hidden_modules — список ВЫКЛЮЧЕННЫХ модулей (budget, complexity, cycle, books,
+--   * user_settings.hidden_modules — список ВЫКЛЮЧЕННЫХ модулей (diary, budget, complexity, cycle, books,
 --     movies, wishes, shopping, monthly). Пусто — включено всё. Выбор общий для сайта и телефона.
 --     Данные выключенных модулей не удаляются.
 -- =====================================================================

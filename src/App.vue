@@ -26,15 +26,17 @@ const router = useRouter()
 void initNative(app, router)
 // сайт: убирать из шторки push-уведомления о том, что уже сделано
 if (!isNative) initWebNotificationCleanup(app, () => !!app.reviewFor(weekStart(app.today))?.completed_at)
-const tabs = [
+const allTabs = [
   { to: '/inbox', label: 'Входящие', icon: 'inbox' },
   { to: '/today', label: 'Сегодня', icon: 'today' },
   { to: '/diary', label: 'Дневник', icon: 'diary' },
   { to: '/spheres', label: 'Сферы', icon: 'spheres' },
   { to: '/misc', label: 'Списки', icon: 'misc' },
 ] as const
+/** Вкладка «Дневник» — только если модуль включён */
+const tabs = computed(() => allTabs.filter(t => t.to !== '/diary' || app.modOn('diary')))
 /** Разделы без своей вкладки: пока они открыты, подсвечена вкладка, из которой в них приходят */
-const parentTab = computed(() => (route.path === '/review' ? '/diary' : ['/wishes', '/library', '/movies', '/shopping', '/monthly'].includes(route.path) ? '/misc' : null))
+const parentTab = computed(() => (route.path === '/review' ? (app.modOn('diary') ? '/diary' : '/spheres') : ['/wishes', '/library', '/movies', '/shopping', '/monthly'].includes(route.path) ? '/misc' : null))
 const showShell = computed(() => !!app.user && route.path !== '/login')
 const badge = computed(() => app.inbox.length + app.staleDeferred.length)
 /** Прокручиваемая часть экрана: на ней работает «потяни вниз — обновится» */

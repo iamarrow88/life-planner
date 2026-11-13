@@ -43,5 +43,5 @@ router.beforeEach(async to => {
   if (to.path === '/login' && app.user) return '/inbox'
   // раздел выключенного модуля: возвращаем туда, откуда в него приходят
   const mod = MODULE_ROUTES[to.path.replace(/\/$/, '')]
-  if (mod && !app.modOn(mod)) return mod === 'cycle' ? '/today' : '/misc'
+  if (mod && !app.modOn(mod)) return mod === 'cycle' || mod === 'diary' ? '/today' : '/misc'
 })

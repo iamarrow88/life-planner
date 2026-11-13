@@ -215,6 +215,13 @@ async function save() {
     <button class="btn-primary w-full">Создать</button>
   </form>
 
+  <!-- Дневник выключен — итог недели открывается отсюда -->
+  <RouterLink v-if="!app.modOn('diary')" to="/review" class="card mb-4 flex items-center gap-3 px-4 py-3 hover:border-accent" data-test="open-review">
+    <NavIcon name="review" class="shrink-0 text-accent" />
+    <span class="min-w-0 flex-1"><span class="block font-semibold">Итог недели</span><span class="block text-xs text-mute">Цифры, размышление и план на следующую неделю</span></span>
+    <span class="text-mute">›</span>
+  </RouterLink>
+
   <!-- Подробности: кольцо плана или факта, плитки бюджета времени -->
   <details class="mb-4" :open="openDetails.includes('plan')" data-test="details-plan" @toggle="onToggle('plan', $event)">
   <summary class="mb-2 cursor-pointer select-none text-sm font-semibold uppercase tracking-wide text-mute">План и бюджет времени</summary>
