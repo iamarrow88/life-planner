@@ -16,6 +16,7 @@ import NativeNotifications from '../components/NativeNotifications.vue'
 import RestoreData from '../components/RestoreData.vue'
 import { DEFAULT_SPHERE_COLORS, MAX_SPHERE_COLORS, parseColors } from '../lib/colors'
 import { MODULES } from '../lib/modules'
+import { describe } from '../lib/recurrence'
 
 const app = useApp()
 const router = useRouter()
@@ -191,6 +192,11 @@ async function recolor() {
 }
 
 async function logout() { await app.signOut(); router.push('/login') }
+/** Повторы: список правил (раньше был внизу «Сегодня») */
+const showRules = ref(false)
+function removeRule(id: string, title: string) {
+  if (window.confirm(`Удалить повтор «${title}»? Будущие задачи удалятся. Выполненные и задачи с записанным временем останутся.`)) void app.removeRecurrence(id)
+}
 </script>
 
 <template>
@@ -208,6 +214,17 @@ async function logout() { await app.signOut(); router.push('/login') }
       </label>
     </div>
     <p class="mt-2 px-1 text-xs text-mute">Выключенный модуль пропадает из приложения, но его данные остаются: включишь — всё на месте.<template v-if="!app.modulesReady"> Сейчас выбор хранится на этом устройстве; чтобы он был общим для сайта и телефона, выполни <code>planner_modules.sql</code> в Supabase (SQL Editor).</template></p>
+  </section>
+
+  <section v-if="app.data.recurrences.length" class="mb-6" data-test="rules">
+    <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Повторы</h2>
+    <button type="button" class="text-sm font-semibold text-accent" :aria-expanded="showRules" @click="showRules = !showRules">↻ Все повторы ({{ app.data.recurrences.length }}) {{ showRules ? '▴' : '▾' }}</button>
+    <ul v-if="showRules" class="card mt-2 divide-y divide-line">
+      <li v-for="r in app.data.recurrences" :key="r.id" class="flex items-center gap-3 px-3 py-2.5">
+        <div class="min-w-0 flex-1"><div class="truncate text-[15px]">{{ r.title }}</div><div class="text-xs text-mute">{{ describe(r) }}</div></div>
+        <button type="button" class="text-xs text-mute hover:text-red-600" data-test="rule-remove" @click="removeRule(r.id, r.title)">Удалить</button>
+      </li>
+    </ul>
   </section>
 
   <section class="mb-6" data-test="stale-settings">

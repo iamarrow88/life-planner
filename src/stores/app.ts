@@ -182,6 +182,13 @@ export const useApp = defineStore('app', () => {
     for (const h of dueHabits.value) if (h.kind === 'timer') sum += Math.max(0, (h.target_value ?? 0) - habitTodayMinutes(h))
     return sum
   })
+  /** Свободно сегодня: меньшее из «до полуночи» и дневного запаса (сутки без сна, текучки и доли работы) */
+  const freeTodayMinutes = computed(() => {
+    const d = new Date(now.value)
+    const toMidnight = 1440 - d.getHours() * 60 - d.getMinutes()
+    const dayBudget = 1440 - timeBudget.value.sleep_minutes_per_day - timeBudget.value.routine_minutes_per_day - workFor(weekStart(today.value)) / 7
+    return Math.max(0, Math.min(toMidnight, dayBudget))
+  })
   /** Новый порядок привычек. ids — привычки, показанные в новом порядке (могут быть не все): остальные остаются на своих местах */
   async function reorderHabits(ids: string[]) {
     const all = data.value.habits.map(h => h.id)
@@ -1428,7 +1435,7 @@ export const useApp = defineStore('app', () => {
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
-    plannedTodayMinutes, init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
+    plannedTodayMinutes, freeTodayMinutes, init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     timeBudget, timeBudgetReady, workFor, hasOwnWork, saveTimeBudget, setWeekWork,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, importAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,

@@ -62,13 +62,7 @@ const planDone = computed(() => ringSpheres.value.reduce((sum, x) => sum + Math.
 const sumGoals = computed(() => app.spheres.reduce((sum, x) => sum + planOf(x.id), 0))
 /** Сколько времени не занято целями; меньше нуля — целей больше, чем времени */
 const notInGoals = computed(() => Math.max(0, capacity.value) - sumGoals.value)
-/** Свободно сегодня: меньшее из «до полуночи» и дневного запаса (сутки без сна, текучки и доли работы) */
-const freeToday = computed(() => {
-  const d = new Date(app.now)
-  const toMidnight = 1440 - d.getHours() * 60 - d.getMinutes()
-  const dayBudget = 1440 - app.timeBudget.sleep_minutes_per_day - app.timeBudget.routine_minutes_per_day - app.workFor(weekStart(app.today)) / 7
-  return Math.max(0, Math.min(toMidnight, dayBudget))
-})
+const freeToday = computed(() => app.freeTodayMinutes)
 /** Часы для центра кольца: от часа и больше — без минут */
 const hrsShort = (m: number) => (m < 60 ? hrs(m) : Math.round(m / 60) + ' ч')
 const R = 70, C = 2 * Math.PI * R
