@@ -68,7 +68,7 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
 
     <div v-if="habit.kind === 'counter'" class="flex items-center gap-1">
       <button class="grid h-8 w-8 place-items-center rounded-full bg-accent-soft text-lg text-accent disabled:opacity-40" :disabled="value <= 0" @click="app.bumpHabit(habit, -1)">−</button>
-      <button class="grid h-8 w-8 place-items-center rounded-full bg-accent text-lg text-white disabled:opacity-40" :disabled="done" @click="app.bumpHabit(habit, 1)">+</button>
+      <button class="grid h-8 w-8 place-items-center rounded-full bg-[#DCD8EE] text-lg text-accent-deep hover:bg-[#D2CDE9] disabled:opacity-40" :disabled="done" aria-label="Отметить ещё раз" @click="app.bumpHabit(habit, 1)">+</button>
     </div>
     <button v-else-if="habit.kind === 'timer'" class="grid h-9 w-9 shrink-0 place-items-center rounded-full transition"
       :class="isRunning ? 'bg-accent text-white' : 'bg-accent-soft text-accent'"

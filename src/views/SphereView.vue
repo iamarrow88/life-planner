@@ -229,7 +229,7 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
           <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
         <EstimateInput v-model="estimate" />
-        <button class="btn-primary shrink-0" :disabled="!text.trim()">+</button>
+        <button class="btn-soft shrink-0" :disabled="!text.trim()" aria-label="Добавить задачу">+</button>
         <QuickTags v-model="text" />
       </form>
       <p class="-mt-1 mb-3 text-xs text-mute">Новые задачи без даты лежат во «Входящих» — дату можно поставить в карточке задачи.</p>

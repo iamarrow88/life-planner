@@ -25,6 +25,6 @@ async function add() {
     <AutoTextarea v-model="text" single-line :maxlength="500" class="!w-auto min-w-[10rem] flex-1" placeholder="Новое дело на этот день…" @submit="add" />
     <EstimateInput v-model="estimate" />
     <ComplexityPicker v-model="complexity" />
-    <button class="btn-primary shrink-0" :disabled="!text.trim()" aria-label="Добавить задачу">+</button>
+    <button class="btn-soft shrink-0" :disabled="!text.trim()" aria-label="Добавить задачу">+</button>
   </form>
 </template>

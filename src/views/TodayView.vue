@@ -303,12 +303,12 @@ async function add() {
   <div v-if="mode !== 'month'" class="glass sticky top-0 z-10 -mx-2 mb-3 flex items-center gap-0.5 rounded-2xl px-1 py-1" data-test="week-strip">
     <button type="button" class="shrink-0 rounded-full px-1.5 py-3 text-mute hover:text-accent" aria-label="Предыдущая неделя" @click="selDay = addDays(selDay, -7)">‹</button>
     <button v-for="d in weekDays" :key="d" type="button" class="flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-2xl py-1.5 transition"
-      :class="d === selDay && isDay ? 'bg-accent text-white' : d === app.today ? 'text-accent' : 'text-ink/80 hover:bg-accent-soft'"
+      :class="d === selDay && isDay ? 'bg-accent-soft text-accent-deep ring-1 ring-accent/30' : d === app.today ? 'text-accent' : 'text-ink/80 hover:bg-accent-soft'"
       :aria-pressed="d === selDay && isDay" :aria-label="longDate(d) + (d === app.today ? ', сегодня' : '') + (app.overloadOn(d).length ? ', день перегружен' : '')" :data-day="d" @click="pickStripDay(d)">
-      <span class="text-[11px] leading-none" :class="d === selDay && isDay ? 'text-white/80' : 'text-mute'">{{ wdOf(d) }}</span>
+      <span class="text-[11px] leading-none" :class="d === selDay && isDay ? 'text-accent-deep/70' : 'text-mute'">{{ wdOf(d) }}</span>
       <span class="text-base font-semibold leading-tight" :class="d === app.today && 'underline decoration-2 underline-offset-4'">{{ Number(d.slice(8)) }}</span>
       <span class="flex h-1.5 gap-0.5">
-        <span v-if="hasPending(d)" class="h-1.5 w-1.5 rounded-full" :class="d === selDay && isDay ? 'bg-white/80' : 'bg-accent/50'"></span>
+        <span v-if="hasPending(d)" class="h-1.5 w-1.5 rounded-full" :class="d === selDay && isDay ? 'bg-accent/70' : 'bg-accent/50'"></span>
         <span v-if="app.overloadOn(d).length" class="h-1.5 w-1.5 rounded-full bg-amber-500" data-test="overload-mark"></span>
       </span>
     </button>
@@ -420,7 +420,7 @@ async function add() {
       <AutoTextarea v-model="text" single-line :maxlength="500" class="!w-auto min-w-[10rem] flex-1" :placeholder="mode === 'nodate' ? 'Новое дело без даты…' : selDay === app.today ? 'Новое дело…' : 'Новое дело на ' + shortDate(selDay) + '…'" @submit="add" />
       <EstimateInput v-model="estimate" />
       <ComplexityPicker v-model="complexity" />
-      <button class="btn-primary shrink-0" :disabled="!text.trim()">+</button>
+      <button class="btn-soft shrink-0" :disabled="!text.trim()" aria-label="Добавить задачу">+</button>
       <button type="button" class="btn-ghost shrink-0" title="Повторяющаяся задача" aria-label="Повторяющаяся задача" @click="showRecForm = !showRecForm"><Icon name="repeat" :size="16" /></button>
       <!-- Отбор по сфере / проекту, за ним 🏷 — одной строкой; если места нет, теги переносятся ниже -->
       <div class="flex w-full flex-wrap items-start gap-2">

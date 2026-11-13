@@ -207,7 +207,7 @@ function pickedDate(id: string, e: Event) {
               <button type="button" class="chip w-full justify-start py-1.5 text-sm hover:chip-on" @click="pickProject(t.id, menu?.sphereId!, null)">Без проекта</button>
               <form class="mt-1 flex gap-1.5" @submit.prevent="createProject(t.id, menu?.sphereId!)">
                 <input v-model="newProjectName" class="input min-w-0 flex-1 !py-1 text-sm" maxlength="80" placeholder="Новый проект" aria-label="Новый проект" />
-                <button class="btn-primary !px-3 !py-1" :disabled="!newProjectName.trim()" aria-label="Добавить проект">+</button>
+                <button class="btn-soft !px-3 !py-1" :disabled="!newProjectName.trim()" aria-label="Добавить проект">+</button>
               </form>
             </div>
           </template>
