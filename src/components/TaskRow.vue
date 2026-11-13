@@ -18,7 +18,6 @@ import ComplexityBall from './ComplexityBall.vue'
 const props = defineProps<{ task: Task; sortable?: boolean; noTimer?: boolean; wrapTitle?: boolean; dense?: boolean }>()
 const app = useApp()
 const sphere = computed(() => app.sphereById(props.task.sphere_id))
-const project = computed(() => app.projectById(props.task.project_id))
 const isRunning = computed(() => app.running?.task_id === props.task.id)
 const done = computed(() => props.task.status === 'done')
 const spent = computed(() => app.taskSeconds(props.task.id))
@@ -30,8 +29,11 @@ const showSubs = ref(false)
 const onTagClick = inject<((tag: string) => void) | null>(TAG_CLICK, null)
 const clickTag = (g: string) => (onTagClick ? onTagClick(g) : app.openSearch('#' + g + ' '))
 
-// ---- «↷ Перенести»: у задач с датой — завтра, на выходные, на следующую неделю (время начала сохраняется)
-const canPostpone = computed(() => !done.value && !!props.task.due_date && !props.noTimer && !props.dense)
+// ---- «↷ Перенести»: завтра, на выходные, на следующую неделю (время начала сохраняется)
+// в строке — только у просроченных: остальные переносятся из карточки, чтобы перенос не был первым движением
+const canPostpone = computed(() => !done.value && !!props.task.due_date && props.task.due_date < app.today && !props.noTimer && !props.dense)
+/** Кнопка таймера в строке: у задачи с оценкой времени или с идущим таймером; запустить любой можно из карточки */
+const showTimer = computed(() => !done.value && !props.noTimer && !props.dense && (isRunning.value || !!props.task.estimate_minutes))
 const postponeMenu = ref<{ top: number; left: number } | null>(null)
 function openPostpone(e: MouseEvent) {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -59,17 +61,15 @@ function closePostpone() { postponeMenu.value = null }
       </button>
       <div v-if="dense" class="mt-0.5 text-xs font-medium text-ink/70">{{ hhmm(task.start_time) }}</div>
       <div v-else class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-mute">
-        <span v-if="task.recurrence_id" title="Повторяющаяся" class="font-semibold text-accent">↻</span>
         <button v-if="subs.length" type="button" class="font-medium hover:text-accent" :class="subs.every(s => s.done) && 'text-accent'" :aria-expanded="showSubs"
           :title="showSubs ? 'Скрыть подзадачи' : 'Показать подзадачи'" data-test="subtask-progress" @click="showSubs = !showSubs">☑ {{ subs.filter(s => s.done).length }}/{{ subs.length }}</button>
-        <span v-if="task.note" title="Есть описание" class="font-semibold">≡</span>
-        <span v-if="task.start_time" class="font-medium text-ink/70">{{ hhmm(task.start_time) }}<span v-if="task.remind_before_minutes != null" title="Напомнит"> 🔔</span></span>
+        <span v-if="task.start_time" class="font-medium text-ink/70">{{ hhmm(task.start_time) }}</span>
         <span v-if="sphere" class="inline-flex items-center gap-1">
-          <span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}<template v-if="project"> › {{ project.name }}</template>
+          <span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}
         </span>
         <template v-if="task.tags?.length">
-          <button v-for="g in task.tags.slice(0, 2)" :key="g" type="button" class="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent hover:brightness-95" :title="'Задачи с тегом #' + g" data-test="task-tag" @click="clickTag(g)">#{{ g }}</button>
-          <span v-if="task.tags.length > 2" class="text-[11px]" :title="task.tags.slice(2).map(g => '#' + g).join(' ')">+{{ task.tags.length - 2 }}</span>
+          <button v-for="g in task.tags.slice(0, 1)" :key="g" type="button" class="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent hover:brightness-95" :title="'Задачи с тегом #' + g" data-test="task-tag" @click="clickTag(g)">#{{ g }}</button>
+          <span v-if="task.tags.length > 1" class="text-[11px]" :title="task.tags.slice(1).map(g => '#' + g).join(' ')">+{{ task.tags.length - 1 }}</span>
         </template>
         <!-- Потрачено / запланировано: факт зелёный и жирный (за планом — янтарный), план серый; нуля не пишем -->
         <span v-if="isRunning || spent > 0 || task.estimate_minutes" :title="task.estimate_minutes ? 'Потрачено / запланировано' : 'Потрачено'" data-test="task-time">
@@ -82,7 +82,7 @@ function closePostpone() { postponeMenu.value = null }
     <slot />
     <button v-if="canPostpone" type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-lg text-mute transition hover:bg-accent-soft hover:text-accent"
       :class="postponeMenu && 'bg-accent-soft text-accent'" aria-label="Перенести задачу" title="Перенести: завтра, на выходные, на следующую неделю" data-test="postpone" @click="openPostpone">↷</button>
-    <button v-if="!done && !noTimer && !dense" class="grid h-9 w-9 shrink-0 place-items-center rounded-full transition"
+    <button v-if="showTimer" class="grid h-9 w-9 shrink-0 place-items-center rounded-full transition"
       :class="isRunning ? 'bg-accent text-white' : 'bg-accent-soft text-accent hover:brightness-95'"
       :aria-label="isRunning ? 'Остановить таймер' : 'Запустить таймер'"
       @click="isRunning ? app.stopTimer() : app.startTimer({ task_id: task.id })">

@@ -88,6 +88,13 @@ function closeCard() {
   if (window.confirm(`Изменения не сохранить: ${problem}. Закрыть без них?`)) app.closeTask()
 }
 app.setCardCloser('task', closeCard)
+/** «↷ Перенести» из карточки: сначала сохраняем правки и закрываем карточку, иначе она перезапишет новую дату старой */
+async function postponeFromCard() {
+  const id = task.value?.id
+  if (!id || busy.value) return
+  if (formState() !== saved) { await save(); if (app.detailId) return } else app.closeTask()
+  app.openPostponeSheet(id)
+}
 const bd = useBackdrop(closeCard)
 // Форму заполняем, только когда открыли другую задачу: фоновое обновление данных не должно стирать набранный текст
 watch(() => task.value?.id, () => {
@@ -337,6 +344,7 @@ async function removeRepeating(all: boolean) {
           {{ isRunning ? '■ Стоп' : '▶ Таймер' }}
         </button>
         <button type="button" class="chip py-1" @click="app.openEditor({ task_id: task.id }, task.title)">⏱ Время</button>
+        <button v-if="task.status !== 'done' && task.due_date" type="button" class="chip py-1" data-test="card-postpone" @click="postponeFromCard">↷ Перенести</button>
         <span v-if="spent > 0" data-test="task-spent">потрачено {{ fmtSec(spent) }}</span>
       </div>
 
