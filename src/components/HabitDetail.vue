@@ -6,6 +6,7 @@ import HabitSchedule from './HabitSchedule.vue'
 import { ALL_DAYS, defaultSchedule } from '../lib/habitSchedule'
 import { dayOf, shortDate } from '../lib/time'
 import { useBackdrop } from '../lib/backdrop'
+import Icon from './Icon.vue'
 
 const app = useApp()
 const habit = computed(() => app.data.habits.find(h => h.id === app.habitDetailId) ?? null)
@@ -115,9 +116,9 @@ async function remove() {
       </label>
 
       <HabitSchedule v-if="!pill" v-model="schedule" start-open />
-      <button v-if="!pill" type="button" class="btn-ghost" :disabled="busy" data-test="habit-to-task" title="Привычка станет повторяющейся задачей с тем же расписанием" @click="toTask">↻ Сделать задачей</button>
+      <button v-if="!pill" type="button" class="btn-ghost" :disabled="busy" data-test="habit-to-task" title="Привычка станет повторяющейся задачей с тем же расписанием" @click="toTask"><Icon name="repeat" :size="15" /> Сделать задачей</button>
 
-      <button v-if="habit.kind === 'timer'" type="button" class="btn-ghost" data-test="habit-time" @click="app.openEditor({ habit_id: habit.id }, habit.name)">⏱ Затраченное время</button>
+      <button v-if="habit.kind === 'timer'" type="button" class="btn-ghost" data-test="habit-time" @click="app.openEditor({ habit_id: habit.id }, habit.name)"><Icon name="timer" :size="15" /> Затраченное время</button>
 
       <div class="flex gap-2">
         <button class="btn-primary flex-1" :disabled="busy || !name.trim() || !sphereId || (needDays && !schedule.weekdays.length)">Сохранить</button>

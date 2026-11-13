@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useApp } from '../stores/app'
 import { insertTag, parseTags, typingTag } from '../lib/tags'
+import Icon from './Icon.vue'
 
 /**
  * Теги под строкой быстрого ввода: подсказки, пока набирают «#…», кнопка 🏷 со списком всех тегов
@@ -28,7 +29,7 @@ function pick(tag: string) { text.value = insertTag(text.value, tag); open.value
   <!-- large: кнопка встаёт в строку родителя (display: contents), а список тегов — всегда отдельной строкой ниже,
        поэтому кнопка не прыгает, когда список открывают -->
   <div v-if="app.tagsReady" :class="large ? 'contents' : 'flex w-full flex-wrap items-center gap-1.5 text-xs'" data-test="quick-tags">
-    <button type="button" class="chip" :class="[large ? 'h-[34px] !rounded-xl px-3 text-sm' : 'py-0.5', open && 'chip-on']" :aria-expanded="open" title="Теги" aria-label="Выбрать тег" data-test="quick-tags-toggle" @click="open = !open">🏷</button>
+    <button type="button" class="chip" :class="[large ? 'h-[34px] !rounded-xl px-3 text-sm' : 'py-0.5', open && 'chip-on']" :aria-expanded="open" title="Теги" aria-label="Выбрать тег" data-test="quick-tags-toggle" @click="open = !open"><Icon name="tag" :size="16" /></button>
     <div v-if="found.length || options.length || (open && !app.allTags.length)" :class="large ? 'flex basis-full flex-wrap items-center gap-1.5 text-xs' : 'contents'" data-test="quick-tags-list">
       <span v-for="t in found" :key="'f' + t" class="text-accent">#{{ t }}</span>
       <template v-if="options.length">

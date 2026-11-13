@@ -10,6 +10,7 @@ import { matches } from '../lib/recurrence'
 import type { NewTask, Task } from '../types'
 import TaskRow from './TaskRow.vue'
 import DayTaskForm from './DayTaskForm.vue'
+import Icon from './Icon.vue'
 
 /**
  * Неделя: полоска из 7 дней (всегда видна при прокрутке — на неё можно бросать задачи),
@@ -88,7 +89,7 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
       <button type="button" class="mb-1 flex w-full items-center justify-between gap-2 text-left text-sm font-semibold uppercase tracking-wide text-mute" :aria-expanded="open" data-test="plan-toggle" @click="open = !open">
         <span>Планирование недели · {{ shortDate(days[0]) }} – {{ shortDate(days[6]) }}</span><span>{{ open ? '▴' : '▾' }}</span>
       </button>
-      <p v-if="open" class="mb-2 text-xs text-mute">Разбери входящие и отложенное, загляни в проекты. День выбирается в списке 📅 у задачи или перетаскиванием за ⋮⋮ на день в полоске.</p>
+      <p v-if="open" class="mb-2 text-xs text-mute">Разбери входящие и отложенное, загляни в проекты. День выбирается в списке «день» у задачи или перетаскиванием за ⋮⋮ на день в полоске.</p>
     </template>
 
     <template v-if="open">
@@ -125,7 +126,7 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
           <span data-drag-handle class="shrink-0 cursor-grab touch-none select-none py-3 pl-2 text-base leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить задачу на другой день">⋮⋮</span>
           <TaskRow :task="t" class="min-w-0 flex-1" no-timer>
             <select class="input !w-12 shrink-0 !px-1.5 !py-1 !text-sm" aria-label="Перенести на другой день" @change="onPick(t.id, $event)">
-              <option value="-">📅</option>
+              <option value="-">день</option>
               <option v-for="(d, i) in days" :key="d" :value="d" :disabled="d === sel">{{ WD[i] }} {{ shortDate(d) }}</option>
               <option value="">Без даты</option>
             </select>
@@ -134,7 +135,7 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
       </div>
       <p v-else-if="!selDone.length && !selVirtual.length" class="text-sm text-mute">На этот день задач пока нет.</p>
       <ul v-if="selVirtual.length" class="mt-1.5 space-y-1 text-sm text-mute" data-test="week-virtual">
-        <li v-for="r in selVirtual" :key="r.id">↻ {{ r.title }} <span class="text-xs">— по повтору, задача появится ближе к дате</span></li>
+        <li v-for="r in selVirtual" :key="r.id"><Icon name="repeat" :size="12" /> {{ r.title }} <span class="text-xs">— по повтору, задача появится ближе к дате</span></li>
       </ul>
       <div v-if="selDone.length" class="card mt-2 divide-y divide-line" data-test="week-done">
         <TaskRow v-for="t in selDone" :key="t.id" :task="t" />
@@ -152,14 +153,14 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
             <span data-drag-handle class="shrink-0 cursor-grab touch-none select-none py-3 pl-2 text-base leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить задачу на день">⋮⋮</span>
             <TaskRow :task="t" class="min-w-0 flex-1" no-timer>
               <select class="input !w-12 shrink-0 !px-1.5 !py-1 !text-sm" aria-label="Запланировать на день" data-test="plan-pick" @change="onPick(t.id, $event)">
-                <option value="-">📅</option>
+                <option value="-">день</option>
                 <option v-for="(d, i) in days" :key="d" :value="d">{{ WD[i] }} {{ shortDate(d) }}</option>
                 <option value="">Без даты</option>
               </select>
             </TaskRow>
           </div>
         </div>
-        <p v-else class="text-sm text-mute">Во «Входящих» пусто ✨</p>
+        <p v-else class="text-sm text-mute">Во «Входящих» пусто</p>
       </template>
     </div>
 
@@ -174,7 +175,7 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
           <span data-drag-handle class="shrink-0 cursor-grab touch-none select-none py-3 pl-2 text-base leading-none text-mute/70 hover:text-accent" role="button" aria-label="Перетащить задачу на день">⋮⋮</span>
           <TaskRow :task="t" class="min-w-0 flex-1" no-timer>
             <select class="input !w-12 shrink-0 !px-1.5 !py-1 !text-sm" aria-label="Запланировать на день" @change="onPick(t.id, $event)">
-              <option value="-">📅</option>
+              <option value="-">день</option>
               <option v-for="(d, i) in days" :key="d" :value="d">{{ WD[i] }} {{ shortDate(d) }}</option>
             </select>
           </TaskRow>
@@ -206,7 +207,7 @@ const vDragToDay: Directive<HTMLElement & { _dd?: () => void }> = {
                   <TaskRow :task="t" class="min-w-0 flex-1" no-timer>
                     <span class="shrink-0 text-xs text-mute">{{ dateNote(t) }}</span>
                     <select class="input !w-12 shrink-0 !px-1.5 !py-1 !text-sm" aria-label="Запланировать на день" @change="onPick(t.id, $event)">
-                      <option value="-">📅</option>
+                      <option value="-">день</option>
                       <option v-for="(d, i) in days" :key="d" :value="d">{{ WD[i] }} {{ shortDate(d) }}</option>
                     </select>
                   </TaskRow>

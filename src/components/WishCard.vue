@@ -5,6 +5,7 @@ import type { Wish, WishPatch } from '../types'
 import { fmtMoney } from '../lib/budget'
 import { shortDate, ymd } from '../lib/time'
 import AutoTextarea from './AutoTextarea.vue'
+import Icon from './Icon.vue'
 
 /** Желание: в строке — главное, по нажатию строка сменяется полями (название и категория не дублируются). Правки сохраняются сами, когда уходишь из поля */
 const props = defineProps<{ wish: Wish; sortable?: boolean }>()
@@ -72,11 +73,11 @@ const when = (iso: string) => shortDate(ymd(new Date(iso)))
         <span class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-mute">
           <span v-if="wish.category" class="rounded-full bg-accent-soft px-1.5 text-[11px] font-medium text-accent">{{ wish.category }}</span>
           <span v-if="wish.price != null" class="font-medium text-ink/70">{{ fmtMoney(Number(wish.price)) }}</span>
-          <span v-if="wish.note" title="Есть заметка" class="font-semibold">≡</span>
-          <span v-if="wish.fulfilled_at">✨ {{ when(wish.fulfilled_at) }}</span>
+          <span v-if="wish.note" title="Есть заметка"><Icon name="lines" :size="12" /></span>
+          <span v-if="wish.fulfilled_at"><Icon name="sparkle" :size="12" /> {{ when(wish.fulfilled_at) }}</span>
         </span>
       </button>
-      <a v-if="wish.url" :href="wish.url" target="_blank" rel="noopener noreferrer" class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-sm" title="Открыть ссылку" aria-label="Открыть ссылку" data-test="wish-link">🔗</a>
+      <a v-if="wish.url" :href="wish.url" target="_blank" rel="noopener noreferrer" class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-sm" title="Открыть ссылку" aria-label="Открыть ссылку" data-test="wish-link"><Icon name="link" :size="15" /></a>
     </div>
 
     <div v-else class="space-y-2 p-3" data-test="wish-edit" @focusout="save">
@@ -88,7 +89,7 @@ const when = (iso: string) => shortDate(ymd(new Date(iso)))
       <AutoTextarea v-model="note" :min-rows="2" :maxlength="4000" placeholder="Заметка: размер, цвет, почему хочется" />
       <div class="flex items-center gap-1.5">
         <input v-model="url" type="url" inputmode="url" class="input min-w-0 flex-1 !py-2 !text-sm" maxlength="2000" placeholder="Ссылка" aria-label="Ссылка" data-test="wish-url" />
-        <a v-if="wish.url" :href="wish.url" target="_blank" rel="noopener noreferrer" class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-sm" title="Открыть ссылку" aria-label="Открыть ссылку" data-test="wish-link">🔗</a>
+        <a v-if="wish.url" :href="wish.url" target="_blank" rel="noopener noreferrer" class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent-soft text-sm" title="Открыть ссылку" aria-label="Открыть ссылку" data-test="wish-link"><Icon name="link" :size="15" /></a>
       </div>
       <p v-if="urlBad" class="text-xs text-red-700">Такую ссылку сохранить нельзя: нужен адрес вида https://…</p>
       <div class="grid grid-cols-2 gap-2">
@@ -109,9 +110,9 @@ const when = (iso: string) => shortDate(ymd(new Date(iso)))
         <button type="button" class="shrink-0 px-1 text-mute" aria-label="Не добавлять категорию" @click="addingCategory = false; newCategory = ''">×</button>
       </form>
       <div class="flex flex-wrap items-center gap-2 pt-1">
-        <button v-if="!wish.fulfilled_at" type="button" class="btn-primary !px-3 !py-1.5 !text-sm" data-test="wish-fulfill" @click="fulfill">✨ Исполнилось</button>
+        <button v-if="!wish.fulfilled_at" type="button" class="btn-primary !px-3 !py-1.5 !text-sm" data-test="wish-fulfill" @click="fulfill"><Icon name="sparkle" :size="15" /> Исполнилось</button>
         <button v-else type="button" class="btn-ghost !px-3 !py-1.5 !text-sm" data-test="wish-restore" @click="restore">Вернуть в желания</button>
-        <span v-if="wish.fulfilled_at" class="text-xs text-mute">✨ {{ when(wish.fulfilled_at) }}</span>
+        <span v-if="wish.fulfilled_at" class="text-xs text-mute"><Icon name="sparkle" :size="12" /> {{ when(wish.fulfilled_at) }}</span>
         <button v-if="taskOf()" type="button" class="btn-ghost !px-3 !py-1.5 !text-sm" data-test="wish-open-task" @click="app.openTask(wish.task_id!)">Открыть задачу</button>
         <button v-else type="button" class="btn-ghost !px-3 !py-1.5 !text-sm" title="Создать задачу во «Входящих»; желание останется в списке" data-test="wish-to-task" @click="app.wishToTask(wish.id)">Сделать задачей</button>
         <button type="button" class="ml-auto text-xs text-mute hover:text-red-600" data-test="wish-remove" @click="remove">Удалить</button>

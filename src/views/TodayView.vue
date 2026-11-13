@@ -28,6 +28,7 @@ import { byPosition } from '../lib/taskOrder'
 import { emptyCollapse, nextCollapse, splitHabits, type CollapseState } from '../lib/habitCollapse'
 import type { Habit, HabitDay, Task } from '../types'
 import SettingsLink from '../components/SettingsLink.vue'
+import Icon from '../components/Icon.vue'
 
 const app = useApp()
 // Отбор по сфере / проекту — свой у «Сегодня»: действует на списки, сетку дня, месяц и сводку
@@ -399,7 +400,7 @@ async function add() {
         <button v-if="x.h.kind === 'plain' && selDay < app.today" type="button" class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 text-xs font-bold transition"
           :class="x.d.done ? 'border-success bg-success text-white' : 'border-line hover:border-accent'" :aria-label="(x.d.done ? 'Снять отметку: ' : 'Отметить: ') + x.h.name"
           data-test="day-habit-toggle" @click="toggleDayHabit(x.h, x.d)">{{ x.d.done ? '✓' : '' }}</button>
-        <span v-else class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold" :class="x.d.done ? 'bg-success text-white' : 'bg-accent-soft text-accent'">{{ x.d.done ? '✓' : x.h.kind === 'timer' ? '⏱' : '#' }}</span>
+        <span v-else class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold" :class="x.d.done ? 'bg-success text-white' : 'bg-accent-soft text-accent'"><template v-if="x.d.done">✓</template><Icon v-else-if="x.h.kind === 'timer'" name="timer" :size="13" /><template v-else>#</template></span>
         <div class="min-w-0 flex-1">
           <div class="truncate text-[15px]">{{ x.h.name }}</div>
           <div class="text-xs text-mute"><span v-if="app.sphereById(x.h.sphere_id)" class="mr-1.5 inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full" :style="{ background: app.sphereById(x.h.sphere_id)?.color }"></span>{{ app.sphereById(x.h.sphere_id)?.name }}</span>{{ habitValueText(x.h, x.d) }}</div>
@@ -420,7 +421,7 @@ async function add() {
       <EstimateInput v-model="estimate" />
       <ComplexityPicker v-model="complexity" />
       <button class="btn-primary shrink-0" :disabled="!text.trim()">+</button>
-      <button type="button" class="btn-ghost shrink-0" title="Повторяющаяся задача" @click="showRecForm = !showRecForm">↻</button>
+      <button type="button" class="btn-ghost shrink-0" title="Повторяющаяся задача" aria-label="Повторяющаяся задача" @click="showRecForm = !showRecForm"><Icon name="repeat" :size="16" /></button>
       <!-- Отбор по сфере / проекту, за ним 🏷 — одной строкой; если места нет, теги переносятся ниже -->
       <div class="flex w-full flex-wrap items-start gap-2">
         <TaskFilter v-model="taskFilter" class="!mb-0 min-w-0" />
@@ -502,7 +503,7 @@ async function add() {
       </div>
       <p v-else-if="!selVirtual.length" class="text-sm text-mute">На этот день задач нет.</p>
       <ul v-if="selVirtual.length" class="mt-1.5 space-y-1 text-sm text-mute" data-test="month-day-virtual">
-        <li v-for="r in selVirtual" :key="r.id">↻ {{ r.title }} <span class="text-xs">— по повтору, задача появится ближе к дате</span></li>
+        <li v-for="r in selVirtual" :key="r.id"><Icon name="repeat" :size="12" /> {{ r.title }} <span class="text-xs">— по повтору, задача появится ближе к дате</span></li>
       </ul>
       <p v-if="selTasks.length" class="mt-1.5 text-xs text-mute">Перетащи задачу за ⋮⋮ на другой день. Чтобы перейти в другой месяц, подержи её над стрелкой ‹ или ›.</p>
     </section>

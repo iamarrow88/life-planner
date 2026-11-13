@@ -11,6 +11,7 @@ import SphereWheel from '../components/SphereWheel.vue'
 import SphereMigrate from '../components/SphereMigrate.vue'
 import { LIFE_SPHERES, balanceScore, lifeByName } from '../lib/lifeSpheres'
 import SettingsLink from '../components/SettingsLink.vue'
+import Icon from '../components/Icon.vue'
 
 const app = useApp()
 const COLORS = computed(() => app.sphereColors)
@@ -281,7 +282,7 @@ async function save() {
       Из {{ hrs(periodDays.length * 1440) }} вычтено: сон {{ perDayH(app.timeBudget.sleep_minutes_per_day) }}/день · текучка {{ perDayH(app.timeBudget.routine_minutes_per_day) }}/день
       (<RouterLink to="/more" class="font-semibold text-accent">изменить</RouterLink>) ·
       работа {{ hrs(workTotal) }}<template v-if="period === 'week'">
-        <button v-if="!workEditing" type="button" class="ml-1 font-semibold text-accent" data-test="work-edit" @click="editWork">✎</button></template>
+        <button v-if="!workEditing" type="button" class="ml-1 font-semibold text-accent" data-test="work-edit" aria-label="Изменить часы работы" @click="editWork"><Icon name="edit" :size="13" /></button></template>
       <form v-if="workEditing" class="mt-2 flex items-center gap-2" @submit.prevent="saveWork">
         <label class="flex items-center gap-2">Работа на этой неделе, часов
           <input v-model.number="workHours" type="number" min="0" max="168" step="0.5" class="input !w-24 !py-1.5" aria-label="Часы работы на этой неделе" />
@@ -308,7 +309,7 @@ async function save() {
         <button class="rounded-full px-3 py-1 text-xs font-semibold transition"
           :class="app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? 'bg-accent text-white' : 'bg-accent-soft text-accent'"
           @click="app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? app.stopTimer() : app.startTimer({ sphere_id: s.id })">
-          {{ app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? 'Стоп' : '▶ Таймер' }}
+          <Icon :name="app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? 'stop' : 'play'" :size="11" /> {{ app.running?.sphere_id === s.id && !app.running?.task_id && !app.running?.habit_id ? 'Стоп' : 'Таймер' }}
         </button>
       </div>
       <p v-if="s.description" class="mt-2 whitespace-pre-line break-words text-sm text-mute" data-test="sphere-desc">{{ s.description }}</p>
@@ -318,7 +319,7 @@ async function save() {
       <div class="mt-1.5 flex justify-between text-xs text-mute">
         <span>неделя {{ fmtMinutes(Math.round(app.weekMinutes[s.id] ?? 0)) }} · месяц {{ fmtMinutes(Math.round(app.monthMinutes[s.id] ?? 0)) }}</span>
         <button class="font-medium text-accent" @click="editGoal(s.id)">
-          <template v-if="app.goalFor(s.id)">цель {{ fmtMinutes(app.goalFor(s.id)) }} · {{ pct(s.id, app.goalFor(s.id)) }}%<span v-if="hasWeekOwnGoal(s.id)" title="Цель только для этой недели"> ✎</span></template>
+          <template v-if="app.goalFor(s.id)">цель {{ fmtMinutes(app.goalFor(s.id)) }} · {{ pct(s.id, app.goalFor(s.id)) }}%<span v-if="hasWeekOwnGoal(s.id)" title="Цель только для этой недели"> <Icon name="edit" :size="11" /></span></template>
           <template v-else>задать цель</template>
         </button>
       </div>

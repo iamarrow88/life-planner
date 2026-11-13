@@ -4,6 +4,7 @@ import { useApp } from '../stores/app'
 import type { Wish } from '../types'
 import { vDragSort } from '../lib/dragSort'
 import WishCard from '../components/WishCard.vue'
+import Icon from '../components/Icon.vue'
 
 /** «Мои желания»: всё, что хочется, в одном месте — без дат и сроков */
 const app = useApp()
@@ -69,7 +70,7 @@ async function add() {
 
     <!-- при поиске найденное среди исполнившихся показываем сразу: блок ниже раскрыт -->
     <div v-if="!active.length && !(q && done.length)" class="card p-8 text-center text-mute" data-test="wishes-empty">
-      {{ q ? 'Ничего не нашлось' : app.wishes.length ? 'Здесь пока пусто' : 'Запиши первое желание — просто чтобы не забыть ✨' }}
+      {{ q ? 'Ничего не нашлось' : app.wishes.length ? 'Здесь пока пусто' : 'Запиши первое желание — просто чтобы не забыть' }}
     </div>
     <!-- при поиске порядок не меняем: видна только часть списка -->
     <div v-else-if="active.length" v-drag-sort="(ids: string[]) => app.reorderWishes(ids)" class="card divide-y divide-line" data-test="wish-list">
@@ -77,7 +78,7 @@ async function add() {
     </div>
 
     <section v-if="done.length" class="mt-5" data-test="wishes-done">
-      <button type="button" class="mb-2 text-sm font-semibold text-mute hover:text-accent" :aria-expanded="doneOpen" :disabled="!!q" @click="showDone = !showDone">✨ Исполнилось · {{ done.length }}<template v-if="!q"> {{ showDone ? '▴' : '▾' }}</template></button>
+      <button type="button" class="mb-2 text-sm font-semibold text-mute hover:text-accent" :aria-expanded="doneOpen" :disabled="!!q" @click="showDone = !showDone"><Icon name="sparkle" :size="13" /> Исполнилось · {{ done.length }}<template v-if="!q"> {{ showDone ? '▴' : '▾' }}</template></button>
       <div v-if="doneOpen" class="card divide-y divide-line">
         <WishCard v-for="w in done" :key="w.id" :wish="w" />
       </div>

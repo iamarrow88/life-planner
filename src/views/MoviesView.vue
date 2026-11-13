@@ -72,7 +72,7 @@ const moviesWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'фильм'
     <input v-if="app.movies.length" v-model="search" type="search" class="input mb-2 !py-2 !text-sm" placeholder="Поиск по названию, режиссёру, стране и заметкам" aria-label="Поиск по фильмам" data-test="movie-search" />
     <MovieFilters v-if="app.movies.length" v-model="filter" v-model:favorites="favoritesOnly" />
 
-    <div v-if="!app.movies.length" class="card p-8 text-center text-mute" data-test="movies-empty">Добавь первый фильм, который хочется посмотреть 🎬</div>
+    <div v-if="!app.movies.length" class="card p-8 text-center text-mute" data-test="movies-empty">Добавь первый фильм, который хочется посмотреть</div>
 
     <section v-if="queue.length" class="mb-5" data-test="movies-queue">
       <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Хочу посмотреть · {{ queue.length }}</h2>

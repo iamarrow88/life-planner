@@ -4,6 +4,7 @@ import { useApp } from '../stores/app'
 import { shortDate } from '../lib/time'
 import { cycleHistory, dayRanges, daysBetween, type MissedDose, type PillMark } from '../lib/cycle'
 import AutoTextarea from './AutoTextarea.vue'
+import Icon from './Icon.vue'
 
 const app = useApp()
 const marks = ref<PillMark[]>([])
@@ -73,7 +74,7 @@ function print() {
   <section class="print-area mt-6" data-test="cycle-history">
     <div class="mb-2 flex items-center justify-between gap-3">
       <h2 class="text-sm font-semibold uppercase tracking-wide text-mute print:text-base print:text-black">История циклов</h2>
-      <button v-if="hist.cycles.length || hist.loose.length" type="button" class="btn-ghost !py-1.5 print:hidden" data-test="cycle-print" @click="print">🖨 Печать</button>
+      <button v-if="hist.cycles.length || hist.loose.length" type="button" class="btn-ghost !py-1.5 print:hidden" data-test="cycle-print" @click="print"><Icon name="print" :size="15" /> Печать</button>
     </div>
     <p class="mb-3 hidden text-xs print:block">Напечатано {{ withYear(app.today) }}</p>
 

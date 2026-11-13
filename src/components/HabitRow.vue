@@ -4,6 +4,7 @@ import { useApp } from '../stores/app'
 import type { Habit } from '../types'
 import { entrySeconds, hhmm, shortDate } from '../lib/time'
 import { describeHabit } from '../lib/habitSchedule'
+import Icon from './Icon.vue'
 
 const props = defineProps<{ habit: Habit; sortable?: boolean }>()
 const app = useApp()
@@ -48,14 +49,14 @@ const pct = computed(() => Math.min(100, Math.round((value.value / target.value)
       <svg v-if="done" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10" /></svg>
     </button>
     <span v-else class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold"
-      :class="done ? 'bg-success text-white' : 'bg-accent-soft text-accent'">{{ done ? '✓' : habit.kind === 'timer' ? '⏱' : '#' }}</span>
+      :class="done ? 'bg-success text-white' : 'bg-accent-soft text-accent'"><template v-if="done">✓</template><Icon v-else-if="habit.kind === 'timer'" name="timer" :size="13" /><template v-else>#</template></span>
 
     <div class="min-w-0 flex-1">
       <button type="button" class="block max-w-full truncate text-left text-[15px] hover:text-accent" :class="done && 'text-mute line-through'" title="Редактировать привычку" :aria-label="'Редактировать привычку: ' + habit.name" @click="app.openHabit(habit.id)">{{ habit.name }}</button>
       <div class="mt-0.5 flex items-center gap-2 text-xs text-mute">
         <span v-if="sphere" class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}</span>
         <span v-if="habit.remind_at" data-test="habit-time">{{ hhmm(habit.remind_at) }}</span>
-        <span v-if="custom" data-test="habit-repeat">↻ {{ describeHabit(habit) }}</span>
+        <span v-if="custom" data-test="habit-repeat"><Icon name="repeat" :size="12" /> {{ describeHabit(habit) }}</span>
         <span v-if="note" :class="late && 'text-amber-700'" data-test="habit-note">{{ note }}</span>
         <span v-if="habit.kind === 'counter'">{{ value }} / {{ target }}</span>
         <span v-else-if="habit.kind === 'timer'">{{ value }} / {{ target }} мин</span>

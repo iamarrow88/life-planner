@@ -75,7 +75,7 @@ async function add() {
           <TaskRow :task="p.t" no-timer>
             <span class="hidden shrink-0 text-[11px] text-mute sm:inline">{{ p.from }}</span>
             <select class="input !w-12 shrink-0 !px-1.5 !py-1 !text-sm" :aria-label="'Поставить на день: ' + p.t.title" title="Поставить на день недели" @change="onPick(p.t, $event)">
-              <option value="-">📅</option>
+              <option value="-">день</option>
               <option v-for="d in days" :key="d" :value="d">{{ dayLabel(d) }}</option>
             </select>
           </TaskRow>

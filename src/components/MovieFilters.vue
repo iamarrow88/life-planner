@@ -4,6 +4,7 @@ import { useApp } from '../stores/app'
 import type { MovieStatus } from '../types'
 import { EMPTY_MOVIE_FILTER, MOVIE_GENRES, MOVIE_STATUSES, NO_VALUE, movieFilterCount, type MovieFilter } from '../lib/movies'
 import { RATING_CHOICES as ratings } from '../lib/rangeFilter'
+import Icon from './Icon.vue'
 
 /** Фильтры фильмов и переключатель «Только избранное». Панель свёрнута, на кнопке — сколько условий задано */
 const model = defineModel<MovieFilter>({ required: true })
@@ -31,7 +32,7 @@ const value = (e: Event) => (e.target as HTMLInputElement | HTMLSelectElement).v
         Фильтры<template v-if="count"> · {{ count }}</template> {{ open ? '▴' : '▾' }}
       </button>
       <button v-if="app.movieDetailsReady" type="button" role="switch" class="chip py-1.5 text-sm" :class="{ 'chip-on': favorites }" :aria-checked="favorites" data-test="movie-favorites-only" @click="favorites = !favorites">
-        <span class="mr-1" :class="favorites ? 'text-white' : 'text-rose-500'">♥</span>Только избранное
+        <Icon name="heart" :size="14" filled class="mr-1" :class="favorites ? 'text-white' : 'text-rose-500'" />Только избранное
       </button>
       <button v-if="count || favorites" type="button" class="text-xs font-semibold text-accent" data-test="movie-filters-reset" @click="model = { ...EMPTY_MOVIE_FILTER, statuses: [] }; favorites = false">Сбросить</button>
     </div>

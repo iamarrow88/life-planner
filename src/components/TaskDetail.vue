@@ -13,6 +13,7 @@ import HabitSchedule from './HabitSchedule.vue'
 import { ALL_DAYS, defaultSchedule } from '../lib/habitSchedule'
 import { matches } from '../lib/recurrence'
 import { RULE_KEYS, TEMPLATE_KEYS, type HabitSchedule as Schedule, type NewRecurrence, type Recurrence, type RecurrencePatch, type Task } from '../types'
+import Icon from './Icon.vue'
 
 const app = useApp()
 const task = computed(() => app.data.tasks.find(t => t.id === app.detailId) ?? null)
@@ -275,7 +276,7 @@ async function removeRepeating(all: boolean) {
         <!-- История переносов (кнопка ↷ в строке задачи) -->
         <div v-if="postpones.length" class="mt-1.5 text-xs" data-test="postpones">
           <button type="button" class="font-semibold" :class="postpones.length > POSTPONE_ALERT ? 'text-red-600' : 'text-mute hover:text-accent'" :aria-expanded="showPostpones" @click="showPostpones = !showPostpones">
-            ↷ Переносили {{ postpones.length }} {{ timesWord(postpones.length) }} {{ showPostpones ? '▴' : '▾' }}
+            <Icon name="postpone" :size="13" /> Переносили {{ postpones.length }} {{ timesWord(postpones.length) }} {{ showPostpones ? '▴' : '▾' }}
           </button>
           <ul v-if="showPostpones" class="mt-1 space-y-0.5 text-mute">
             <li v-for="(x, i) in postpones" :key="i">{{ x.from ? shortDate(x.from) : 'без даты' }} → {{ shortDate(x.to) }} <span class="opacity-70">· перенесено {{ atDay(x.at) }}</span></li>
@@ -321,7 +322,7 @@ async function removeRepeating(all: boolean) {
           <label v-if="app.showBudget" class="flex items-center gap-1.5" data-test="task-budget">Бюджет
             <input v-model.number="budget" type="number" min="0" step="0.01" inputmode="decimal" class="input !w-28 !px-2 !py-1.5 text-sm" placeholder="BYN" aria-label="Бюджет задачи, BYN" />
           </label>
-          <button type="button" class="chip py-1" :class="repeat && 'chip-on'" :aria-pressed="repeat" data-test="repeat-toggle" @click="toggleRepeat">↻ Повторять</button>
+          <button type="button" class="chip py-1" :class="repeat && 'chip-on'" :aria-pressed="repeat" data-test="repeat-toggle" @click="toggleRepeat"><Icon name="repeat" :size="13" /> Повторять</button>
           <span v-if="repeat && !rule && !date">Дата задачи — первый день по расписанию.</span>
           <span v-if="!repeat && rule">Повтор отключится: будущие задачи по нему удалятся, эта останется.</span>
         </div>
@@ -341,10 +342,10 @@ async function removeRepeating(all: boolean) {
       <!-- Таймер и потраченное время — одной строкой -->
       <div class="flex flex-wrap items-center gap-2 text-xs text-mute">
         <button v-if="task.status !== 'done'" type="button" class="chip py-1" :class="isRunning && 'chip-on'" @click="isRunning ? app.stopTimer() : app.startTimer({ task_id: task.id })">
-          {{ isRunning ? '■ Стоп' : '▶ Таймер' }}
+          <Icon :name="isRunning ? 'stop' : 'play'" :size="12" /> {{ isRunning ? 'Стоп' : 'Таймер' }}
         </button>
-        <button type="button" class="chip py-1" @click="app.openEditor({ task_id: task.id }, task.title)">⏱ Время</button>
-        <button v-if="task.status !== 'done' && task.due_date" type="button" class="chip py-1" data-test="card-postpone" @click="postponeFromCard">↷ Перенести</button>
+        <button type="button" class="chip py-1" @click="app.openEditor({ task_id: task.id }, task.title)"><Icon name="timer" :size="13" /> Время</button>
+        <button v-if="task.status !== 'done' && task.due_date" type="button" class="chip py-1" data-test="card-postpone" @click="postponeFromCard"><Icon name="postpone" :size="13" /> Перенести</button>
         <span v-if="spent > 0" data-test="task-spent">потрачено {{ fmtSec(spent) }}</span>
       </div>
 

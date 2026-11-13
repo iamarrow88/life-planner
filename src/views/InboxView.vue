@@ -142,7 +142,7 @@ function pickedDate(id: string, e: Event) {
   <TagBar v-model="filter.tags" :scope="filter" />
 
   <div v-if="!rows.length && !app.loading" class="card p-8 text-center text-mute">
-    {{ filterOn ? 'С таким отбором во «Входящих» пусто' : 'Пусто — отличное состояние ✨' }}
+    {{ filterOn ? 'С таким отбором во «Входящих» пусто' : 'Пусто — отличное состояние' }}
   </div>
   <ul v-else v-drag-sort="(ids: string[]) => app.reorderTasks(ids)" class="space-y-3" data-test="inbox-list">
     <li v-for="t in rows" :key="t.id" :data-id="t.id" class="card" :class="staleIds.has(t.id) && 'border-amber-300'" :data-stale="staleIds.has(t.id) || undefined">

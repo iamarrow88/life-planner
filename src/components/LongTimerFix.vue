@@ -33,7 +33,7 @@ async function fix() {
           <input v-model.number="minutes" type="number" min="1" :max="Math.round(app.longStop.seconds / 60)" class="input !w-24" aria-label="Минут" data-test="fix-minutes" /> мин
         </label>
       </div>
-      <p class="text-xs text-mute">Время будет записано с начала таймера, в тот день, когда он был запущен. Позже его можно поправить в «⏱ время».</p>
+      <p class="text-xs text-mute">Время будет записано с начала таймера, в тот день, когда он был запущен. Позже его можно поправить в «Время».</p>
       <div class="flex gap-2">
         <button class="btn-primary flex-1" :disabled="busy || !(minutes > 0)" data-test="fix-save">Записать {{ minutes > 0 ? fmtMinutes(Math.round(minutes)) : '' }}</button>
         <button type="button" class="btn-ghost" data-test="fix-keep" @click="app.dismissLongStop()">Оставить как есть</button>

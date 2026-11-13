@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Icon from '../components/Icon.vue'
 // Карточка сферы: подробности, задачи по проектам, привычки и повторы этой сферы — всё можно править прямо здесь
 import { computed, ref } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
@@ -168,9 +169,9 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
       <div class="flex items-center gap-3">
         <span class="h-3.5 w-3.5 shrink-0 rounded-full" :style="{ background: sphere.color }"></span>
         <h1 class="min-w-0 flex-1 truncate text-2xl font-bold">{{ sphere.name }}</h1>
-        <button type="button" class="text-sm text-mute hover:text-accent" aria-label="Редактировать сферу" title="Редактировать сферу" @click="editing ? saveEdit() : startEdit()">✎</button>
+        <button type="button" class="text-sm text-mute hover:text-accent" aria-label="Редактировать сферу" title="Редактировать сферу" @click="editing ? saveEdit() : startEdit()"><Icon name="edit" :size="14" /></button>
         <button class="rounded-full px-3 py-1 text-xs font-semibold transition" :class="timerOn ? 'bg-accent text-white' : 'bg-accent-soft text-accent'"
-          @click="timerOn ? app.stopTimer() : app.startTimer({ sphere_id: sphere.id })">{{ timerOn ? 'Стоп' : '▶ Таймер' }}</button>
+          @click="timerOn ? app.stopTimer() : app.startTimer({ sphere_id: sphere.id })"><Icon :name="timerOn ? 'stop' : 'play'" :size="11" /> {{ timerOn ? 'Стоп' : 'Таймер' }}</button>
       </div>
       <p v-if="sphere.description && !editing" class="mt-2 whitespace-pre-line break-words text-sm text-mute">{{ sphere.description }}</p>
 
@@ -258,11 +259,11 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
           </form>
           <template v-else>
             <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left font-semibold" @click="collapsed[p.id] = !collapsed[p.id]">
-              <span class="truncate">📁 {{ p.name }}</span>
+              <span class="truncate"><Icon name="folder" :size="14" class="mr-1 text-mute" />{{ p.name }}</span>
               <span class="shrink-0 font-normal text-mute">· {{ tasksOf(p.id).length }}</span>
               <span class="shrink-0 text-mute">{{ collapsed[p.id] ? '▾' : '▴' }}</span>
             </button>
-            <button type="button" class="shrink-0 text-xs text-mute hover:text-accent" aria-label="Переименовать проект" @click="startRename(p.id, p.name)">✎</button>
+            <button type="button" class="shrink-0 text-xs text-mute hover:text-accent" aria-label="Переименовать проект" @click="startRename(p.id, p.name)"><Icon name="edit" :size="14" /></button>
             <button v-if="app.spheres.length > 1" type="button" class="shrink-0 text-xs text-mute hover:text-accent" :class="moving === p.id && 'text-accent'" :title="'Перенести проект ' + p.name + ' в другую сферу'" @click="moving = moving === p.id ? null : p.id">Перенести</button>
             <button type="button" class="shrink-0 text-xs text-mute hover:text-accent" :title="'Архивировать проект ' + p.name" @click="archiving = p.id">В архив</button>
           </template>
@@ -329,7 +330,7 @@ const hasWeekOwnGoal = computed(() => app.data.weekGoals.some(g => g.sphere_id =
       <RecurrenceForm v-if="showRecForm" class="mb-3" :sphere-id="id" @done="showRecForm = false" />
       <ul v-if="recurrences.length" class="card divide-y divide-line">
         <li v-for="r in recurrences" :key="r.id" class="flex items-center gap-3 px-3 py-2.5">
-          <div class="min-w-0 flex-1"><div class="truncate text-[15px]">↻ {{ r.title }}</div><div class="text-xs text-mute">{{ describe(r) }}</div></div>
+          <div class="min-w-0 flex-1"><div class="truncate text-[15px]"><Icon name="repeat" :size="13" class="mr-1 text-mute" />{{ r.title }}</div><div class="text-xs text-mute">{{ describe(r) }}</div></div>
           <button class="text-xs text-mute hover:text-red-600" @click="removeRecurrence(r.id, r.title)">Удалить</button>
         </li>
       </ul>

@@ -10,6 +10,7 @@ import { ref } from 'vue'
 import SubtaskList from './SubtaskList.vue'
 import PostponeOptions from './PostponeOptions.vue'
 import ComplexityBall from './ComplexityBall.vue'
+import Icon from './Icon.vue'
 
 /** sortable — показать ручку ⋮⋮ для перетаскивания (список с v-drag-sort) */
 // затраченное время правится в карточке задачи (⏱ Время), отдельной кнопки в строке нет
@@ -62,7 +63,7 @@ function closePostpone() { postponeMenu.value = null }
       <div v-if="dense" class="mt-0.5 text-xs font-medium text-ink/70">{{ hhmm(task.start_time) }}</div>
       <div v-else class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-mute">
         <button v-if="subs.length" type="button" class="font-medium hover:text-accent" :class="subs.every(s => s.done) && 'text-accent'" :aria-expanded="showSubs"
-          :title="showSubs ? 'Скрыть подзадачи' : 'Показать подзадачи'" data-test="subtask-progress" @click="showSubs = !showSubs">☑ {{ subs.filter(s => s.done).length }}/{{ subs.length }}</button>
+          :title="showSubs ? 'Скрыть подзадачи' : 'Показать подзадачи'" data-test="subtask-progress" @click="showSubs = !showSubs"><Icon name="checklist" :size="12" /> {{ subs.filter(s => s.done).length }}/{{ subs.length }}</button>
         <span v-if="task.start_time" class="font-medium text-ink/70">{{ hhmm(task.start_time) }}</span>
         <span v-if="sphere" class="inline-flex items-center gap-1">
           <span class="h-2 w-2 rounded-full" :style="{ background: sphere.color }"></span>{{ sphere.name }}
@@ -73,7 +74,7 @@ function closePostpone() { postponeMenu.value = null }
         </template>
         <!-- Потрачено / запланировано: факт зелёный и жирный (за планом — янтарный), план серый; нуля не пишем -->
         <span v-if="isRunning || spent > 0 || task.estimate_minutes" :title="task.estimate_minutes ? 'Потрачено / запланировано' : 'Потрачено'" data-test="task-time">
-          <span v-if="isRunning || spent > 0" class="font-semibold" :class="[overPlan ? 'text-amber-700' : 'text-success', isRunning && 'tabular-nums']" data-test="task-fact">{{ isRunning ? '⏱ ' + fmtClock(spent) : fmtSec(spent) }}</span>
+          <span v-if="isRunning || spent > 0" class="font-semibold" :class="[overPlan ? 'text-amber-700' : 'text-success', isRunning && 'tabular-nums']" data-test="task-fact"><Icon v-if="isRunning" name="timer" :size="12" /> {{ isRunning ? fmtClock(spent) : fmtSec(spent) }}</span>
           <template v-if="task.estimate_minutes"><template v-if="isRunning || spent > 0"> / </template>{{ fmtMinutes(task.estimate_minutes) }}</template>
         </span>
         <span v-if="app.showBudget && Number(task.budget) > 0" class="font-medium text-ink/70" data-test="task-budget">{{ fmtMoney(Number(task.budget)) }}</span>
@@ -81,7 +82,7 @@ function closePostpone() { postponeMenu.value = null }
     </div>
     <slot />
     <button v-if="canPostpone" type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-lg text-mute transition hover:bg-accent-soft hover:text-accent"
-      :class="postponeMenu && 'bg-accent-soft text-accent'" aria-label="Перенести задачу" title="Перенести: завтра, на выходные, на следующую неделю" data-test="postpone" @click="openPostpone">↷</button>
+      :class="postponeMenu && 'bg-accent-soft text-accent'" aria-label="Перенести задачу" title="Перенести: завтра, на выходные, на следующую неделю" data-test="postpone" @click="openPostpone"><Icon name="postpone" :size="18" /></button>
     <button v-if="showTimer" class="grid h-9 w-9 shrink-0 place-items-center rounded-full transition"
       :class="isRunning ? 'bg-accent text-white' : 'bg-accent-soft text-accent hover:brightness-95'"
       :aria-label="isRunning ? 'Остановить таймер' : 'Запустить таймер'"

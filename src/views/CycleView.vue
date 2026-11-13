@@ -7,6 +7,7 @@ import { useBackdrop } from '../lib/backdrop'
 import AutoTextarea from '../components/AutoTextarea.vue'
 import CycleHistory from '../components/CycleHistory.vue'
 import MonthGrid from '../components/MonthGrid.vue'
+import Icon from '../components/Icon.vue'
 
 const app = useApp()
 // ---- Месяц
@@ -99,7 +100,7 @@ const linkPreview = computed(() => `${form.value.link_label.trim() || 'День 
   <template v-else>
     <div class="card mb-4 p-4 text-sm" data-test="course-summary">
       <template v-if="course">
-        <div class="font-semibold">💊 Приём таблеток: день {{ courseDayNo(app.today) }} из {{ courseLen(course) }}</div>
+        <div class="font-semibold"><Icon name="pill" :size="13" /> Приём таблеток: день {{ courseDayNo(app.today) }} из {{ courseLen(course) }}</div>
         <div class="text-mute">{{ shortDate(course.starts_on) }} – {{ shortDate(course.ends_on) }}</div>
       </template>
       <div v-else-if="nextCourse" class="text-mute">Следующий курс таблеток: {{ shortDate(nextCourse.starts_on) }} – {{ shortDate(nextCourse.ends_on) }}</div>
@@ -119,7 +120,7 @@ const linkPreview = computed(() => `${form.value.link_label.trim() || 'День 
           ]"
           :aria-label="longDate(d)" @click="sel = d">
           {{ Number(d.slice(8)) }}
-          <span v-if="app.pillCourseOn(d)" class="absolute right-0.5 top-0 text-[9px] leading-none" data-test="pill-mark">💊</span>
+          <span v-if="app.pillCourseOn(d)" class="absolute right-0.5 top-0 text-[9px] leading-none" data-test="pill-mark"><Icon name="pill" :size="9" /></span>
           <span v-if="app.cycleDayOf(d).note" class="absolute bottom-1 h-1.5 w-1.5 rounded-full" :class="app.cycleDayOf(d).period ? 'bg-white' : 'bg-accent'" data-test="note-mark"></span>
         </button>
       </template>
@@ -127,7 +128,7 @@ const linkPreview = computed(() => `${form.value.link_label.trim() || 'День 
     <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-mute">
       <span class="inline-flex items-center gap-1"><span class="h-3 w-3 rounded bg-rose-400"></span>менструация</span>
       <span class="inline-flex items-center gap-1"><span class="h-3 w-3 rounded ring-2 ring-rose-700"></span>первый день цикла</span>
-      <span class="inline-flex items-center gap-1">💊 приём таблеток</span>
+      <span class="inline-flex items-center gap-1"><Icon name="pill" :size="13" /> приём таблеток</span>
       <span class="inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-accent"></span>заметка</span>
     </div>
 
@@ -172,7 +173,7 @@ const linkPreview = computed(() => `${form.value.link_label.trim() || 'День 
           <h2 class="text-lg font-bold first-letter:uppercase">{{ longDate(sel) }}</h2>
           <p class="text-sm text-mute">
             <span v-if="app.cycleNo(sel)">День цикла {{ app.cycleNo(sel) }}</span>
-            <span v-if="courseDayNo(sel)"> · 💊 день курса {{ courseDayNo(sel) }} из {{ courseLen(app.pillCourseOn(sel)!) }}</span>
+            <span v-if="courseDayNo(sel)"> · <Icon name="pill" :size="13" /> день курса {{ courseDayNo(sel) }} из {{ courseLen(app.pillCourseOn(sel)!) }}</span>
           </p>
         </div>
         <button type="button" class="text-2xl leading-none text-mute" aria-label="Закрыть" @click="bd.close">×</button>

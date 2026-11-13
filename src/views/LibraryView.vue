@@ -74,7 +74,7 @@ const booksWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'книга' 
     <input v-if="app.books.length" v-model="search" type="search" class="input mb-2 !py-2 !text-sm" placeholder="Поиск по названию, автору и заметкам" aria-label="Поиск по книгам" data-test="book-search" />
     <BookFilters v-if="app.books.length" v-model="filter" />
 
-    <div v-if="!app.books.length" class="card p-8 text-center text-mute" data-test="books-empty">Добавь первую книгу — она встанет в очередь 📚</div>
+    <div v-if="!app.books.length" class="card p-8 text-center text-mute" data-test="books-empty">Добавь первую книгу — она встанет в очередь</div>
 
     <section v-if="reading.length" class="mb-5" data-test="books-reading">
       <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Читаю сейчас</h2>

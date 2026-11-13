@@ -5,6 +5,7 @@ import type { Book, BookPatch, BookStatus } from '../types'
 import { shortDate, ymd } from '../lib/time'
 import { BOOK_GENRES, BOOK_STATUSES, openBookId } from '../lib/books'
 import AutoTextarea from './AutoTextarea.vue'
+import Icon from './Icon.vue'
 
 /** Книга: в строке — главное, по нажатию строка сменяется полями. Правки сохраняются сами, когда уходишь из поля */
 const props = defineProps<{ book: Book; sortable?: boolean }>()
@@ -112,7 +113,7 @@ function remove() { if (window.confirm(`Удалить книгу «${props.book
           </template>
           <span v-if="book.status === 'dropped' && book.finished_on">бросила {{ dayLabel(book.finished_on) }}</span>
           <span v-if="book.rating" class="text-amber-600" :aria-label="'Оценка ' + book.rating + ' из 5'">{{ '★'.repeat(book.rating) }}</span>
-          <span v-if="book.notes?.length" title="Заметки">📝 {{ book.notes.length }}</span>
+          <span v-if="book.notes?.length" title="Заметки"><Icon name="note" :size="12" /> {{ book.notes.length }}</span>
         </span>
       </button>
       <button v-if="book.status === 'queue'" type="button" class="chip shrink-0 py-1 hover:chip-on" data-test="book-start" @click="app.startBook(book)">Начать</button>

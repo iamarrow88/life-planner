@@ -39,7 +39,7 @@ async function saveTag() { if (await app.saveShoppingTag(tagText.value)) editTag
       <button class="btn-primary shrink-0" :disabled="!text.trim()">Добавить</button>
     </form>
 
-    <div v-if="!left && !bought" class="card mb-5 p-8 text-center text-mute" data-test="shopping-empty">Список пуст. Добавь, что нужно купить 🛒</div>
+    <div v-if="!left && !bought" class="card mb-5 p-8 text-center text-mute" data-test="shopping-empty">Список пуст. Добавь, что нужно купить</div>
 
     <section v-if="left" class="mb-5" data-test="shopping-to-buy">
       <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-mute">Купить · {{ left }}</h2>

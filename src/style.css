@@ -29,7 +29,7 @@ button { @apply cursor-pointer; }
   .btn-primary { @apply btn bg-gradient-to-b from-[#7466C6] to-accent text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_4px_14px_rgba(100,86,182,0.35)] hover:brightness-110; }
   .btn-ghost { @apply btn border border-white/80 bg-white/60 text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] hover:bg-white/80; }
   .input { @apply w-full rounded-2xl border border-white/80 bg-white/75 px-3.5 py-2.5 text-[15px] outline-none focus:border-accent focus:bg-white focus:ring-2 focus:ring-accent/20; }
-  .chip { @apply inline-flex items-center rounded-full border border-white/80 bg-white/65 px-3 py-1 text-xs font-medium text-mute transition; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full border border-white/80 bg-white/65 px-3 py-1 text-xs font-medium text-mute transition; }
   .chip-on { @apply border-accent bg-accent text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]; }
   /* Пастельные плитки с показателями */
   .tile { @apply rounded-2xl border border-white/70 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]; }

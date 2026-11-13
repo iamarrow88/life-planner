@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useApp } from '../stores/app'
 import type { MonthlyItem, MonthlyPatch } from '../types'
 import AutoTextarea from './AutoTextarea.vue'
+import Icon from './Icon.vue'
 
 /** Пункт ежемесячного чек-листа: в строке — отметка и название, по нажатию строка сменяется полями. Правки сохраняются сами */
 const props = defineProps<{ item: MonthlyItem }>()
@@ -39,7 +40,7 @@ const Handle = 'shrink-0 cursor-grab touch-none select-none px-1 text-base leadi
       <button type="button" class="min-w-0 flex-1 text-left" aria-expanded="false" data-test="monthly-open" @click="show">
         <span class="block break-words text-[15px]" :class="done && 'text-mute line-through'">{{ item.title }}</span>
         <span v-if="item.note || task" class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-mute">
-          <span v-if="item.note" title="Есть заметка" class="font-semibold">≡</span>
+          <span v-if="item.note" title="Есть заметка"><Icon name="lines" :size="12" /></span>
           <span v-if="task" class="font-medium text-accent">есть задача</span>
         </span>
       </button>

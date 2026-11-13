@@ -5,6 +5,7 @@ import type { Movie, MoviePatch } from '../types'
 import { shortDate, ymd } from '../lib/time'
 import { MOVIE_COUNTRIES, MOVIE_GENRES, openMovieId } from '../lib/movies'
 import AutoTextarea from './AutoTextarea.vue'
+import Icon from './Icon.vue'
 
 /** Фильм: в строке — главное, по нажатию строка сменяется полями. Правки сохраняются сами, когда уходишь из поля */
 const props = defineProps<{ movie: Movie; sortable?: boolean }>()
@@ -75,7 +76,7 @@ const Handle = 'shrink-0 cursor-grab touch-none select-none px-1 text-base leadi
     <div v-if="!open" class="flex items-start gap-2 px-3 py-2.5">
       <span v-if="sortable" data-drag-handle class="-ml-1 mt-0.5" :class="Handle" role="button" aria-label="Перетащить фильм" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
       <button type="button" class="min-w-0 flex-1 text-left" aria-expanded="false" data-test="movie-open" @click="show">
-        <span class="block break-words text-[15px] font-medium">{{ movie.title }}<span v-if="movie.favorite" class="ml-1 text-rose-500" title="В избранном">♥</span></span>
+        <span class="block break-words text-[15px] font-medium">{{ movie.title }}<span v-if="movie.favorite" class="ml-1 text-rose-500" title="В избранном"><Icon name="heart" :size="14" filled /></span></span>
         <span class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-mute">
           <span v-if="movie.director">{{ movie.director }}</span>
           <span v-if="movie.year">{{ movie.year }}</span>
@@ -83,7 +84,7 @@ const Handle = 'shrink-0 cursor-grab touch-none select-none px-1 text-base leadi
           <span v-if="movie.country">{{ movie.country }}</span>
           <span v-if="movie.status === 'watched' && movie.watched_on">посмотрела {{ dayLabel(movie.watched_on) }}</span>
           <span v-if="movie.rating" class="text-amber-600" :aria-label="'Оценка ' + movie.rating + ' из 5'">{{ '★'.repeat(movie.rating) }}</span>
-          <span v-if="movie.notes?.length" title="Заметки">📝 {{ movie.notes.length }}</span>
+          <span v-if="movie.notes?.length" title="Заметки"><Icon name="note" :size="12" /> {{ movie.notes.length }}</span>
         </span>
       </button>
       <button v-if="movie.status === 'queue'" type="button" class="chip shrink-0 py-1 hover:chip-on" data-test="movie-watch" @click="app.watchMovie(movie)">Посмотрела</button>
@@ -94,7 +95,7 @@ const Handle = 'shrink-0 cursor-grab touch-none select-none px-1 text-base leadi
         <span v-if="sortable" data-drag-handle class="-ml-1 mt-3" :class="Handle" role="button" aria-label="Перетащить фильм" title="Перетащи, чтобы изменить порядок">⋮⋮</span>
         <AutoTextarea v-model="title" class="min-w-0 flex-1" single-line :maxlength="300" required placeholder="Название фильма" />
         <button v-if="app.movieDetailsReady" type="button" class="grid h-9 w-8 shrink-0 place-items-center text-xl leading-none transition" :class="movie.favorite ? 'text-rose-500' : 'text-mute/60 hover:text-rose-400'"
-          :aria-pressed="!!movie.favorite" :aria-label="movie.favorite ? 'Убрать из избранного' : 'Добавить в избранное'" :title="movie.favorite ? 'Убрать из избранного' : 'Добавить в избранное'" data-test="movie-favorite" @click="app.toggleMovieFavorite(movie)">{{ movie.favorite ? '♥' : '♡' }}</button>
+          :aria-pressed="!!movie.favorite" :aria-label="movie.favorite ? 'Убрать из избранного' : 'Добавить в избранное'" :title="movie.favorite ? 'Убрать из избранного' : 'Добавить в избранное'" data-test="movie-favorite" @click="app.toggleMovieFavorite(movie)"><Icon name="heart" :size="20" :filled="!!movie.favorite" /></button>
         <button type="button" class="grid h-9 w-8 shrink-0 place-items-center text-xl leading-none text-mute hover:text-accent" aria-label="Свернуть" title="Свернуть" data-test="movie-close" @click="hide">×</button>
       </div>
       <div class="grid grid-cols-[1fr_6rem] gap-2">
