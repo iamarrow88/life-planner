@@ -173,7 +173,7 @@ const timeRange = (t: Task) => {
 }
 /** Раскладка сетки дня: короткие задачи — в ячейке часа по порядку времени, от часа — растянуты на свои часы */
 const dayLayout = computed(() => layoutDay(timedOnDay.value, hours[0], hours[hours.length - 1]))
-const blockColor = (t: Task) => ({ borderColor: app.sphereById(t.sphere_id)?.color ?? '#6456B6' })
+const blockColor = (t: Task) => ({ borderColor: app.sphereById(t.sphere_id)?.color ?? '#6B63A3' })
 
 const habits = computed(() => app.dueHabits)
 
@@ -318,7 +318,7 @@ async function add() {
   <!-- Что показывать: всё / задачи / привычки; «Без даты» — отдельный список -->
   <div v-if="mode !== 'month'" class="mb-3 flex flex-wrap items-center gap-2">
     <div v-if="isDay" class="flex rounded-xl border border-line bg-white/70 p-0.5 text-sm font-medium" role="group" aria-label="Что показывать" data-test="show-switch">
-      <button v-for="s in shows" :key="s.v" type="button" class="rounded-lg px-3 py-1.5" :class="show === s.v ? 'bg-accent text-white' : 'text-mute'" :aria-pressed="show === s.v" @click="show = s.v">{{ s.label }}</button>
+      <button v-for="s in shows" :key="s.v" type="button" class="rounded-lg px-3 py-1.5" :class="show === s.v ? 'bg-white text-accent-deep shadow-[0_1px_4px_rgba(63,56,114,0.15)]' : 'text-mute'" :aria-pressed="show === s.v" @click="show = s.v">{{ s.label }}</button>
     </div>
     <button type="button" class="chip ml-auto py-1.5 text-sm" :class="mode === 'nodate' && 'chip-on'" :aria-pressed="mode === 'nodate'" data-test="nodate-toggle" @click="mode = mode === 'nodate' ? dayMode : 'nodate'">Без даты</button>
   </div>

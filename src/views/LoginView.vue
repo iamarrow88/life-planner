@@ -34,8 +34,8 @@ async function submit() {
         <h1 class="text-xl font-bold text-accent-deep">KolaApp</h1>
       </div>
       <div class="flex rounded-xl border border-line bg-bg p-0.5 text-sm font-semibold">
-        <button type="button" class="flex-1 rounded-lg py-2 transition" :class="mode === 'in' ? 'bg-accent text-white' : 'text-mute'" @click="mode = 'in'">Войти</button>
-        <button type="button" class="flex-1 rounded-lg py-2 transition" :class="mode === 'up' ? 'bg-accent text-white' : 'text-mute'" @click="mode = 'up'">Регистрация</button>
+        <button type="button" class="flex-1 rounded-lg py-2 transition" :class="mode === 'in' ? 'bg-white text-accent-deep shadow-[0_1px_4px_rgba(63,56,114,0.15)]' : 'text-mute'" @click="mode = 'in'">Войти</button>
+        <button type="button" class="flex-1 rounded-lg py-2 transition" :class="mode === 'up' ? 'bg-white text-accent-deep shadow-[0_1px_4px_rgba(63,56,114,0.15)]' : 'text-mute'" @click="mode = 'up'">Регистрация</button>
       </div>
       <input v-model="email" class="input" type="email" placeholder="Почта" autocomplete="email" required />
       <input v-model="password" class="input" type="password" placeholder="Пароль (от 6 символов)" minlength="6"

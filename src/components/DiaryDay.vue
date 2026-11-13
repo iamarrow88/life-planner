@@ -35,7 +35,7 @@ function toggleFav() { void app.saveJournal(props.day, { favorite: !entry.value?
 <template>
   <article class="card p-3" :class="day === app.today && 'border-accent'" :data-day-entry="day" data-test="diary-day">
     <div class="mb-2 flex items-center gap-2">
-      <span class="rounded-full px-3 py-1 text-sm font-semibold" :class="day === app.today ? 'bg-accent text-white' : 'bg-accent-soft text-accent'" :title="longDate(day)">{{ label }}</span>
+      <span class="rounded-full px-3 py-1 text-sm font-semibold" :class="day === app.today ? 'bg-accent-soft text-accent-deep ring-1 ring-accent/30' : 'bg-accent-soft text-accent'" :title="longDate(day)">{{ label }}</span>
       <button type="button" class="grid h-8 w-8 place-items-center rounded-full transition hover:bg-accent-soft" :class="entry?.favorite ? 'text-rose-500' : 'text-mute/60'"
         :aria-pressed="!!entry?.favorite" :aria-label="entry?.favorite ? 'Убрать отметку «важный день»' : 'Отметить как важный день'" data-test="diary-fav" @click="toggleFav">
         <svg width="18" height="18" viewBox="0 0 24 24" :fill="entry?.favorite ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.2-9A4.9 4.9 0 0 1 12 6.2 4.9 4.9 0 0 1 21.2 11C19 15.6 12 20 12 20z" /></svg>

@@ -179,8 +179,8 @@ async function save() {
     <div class="mb-1 flex items-center justify-between gap-2">
       <h2 class="font-semibold">Баланс</h2>
       <div class="inline-flex rounded-xl border border-line bg-white/70 p-0.5 text-xs font-medium">
-        <button class="rounded-lg px-3 py-1" :class="period === 'week' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'week'">Неделя</button>
-        <button class="rounded-lg px-3 py-1" :class="period === 'month' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'month'">Месяц</button>
+        <button class="rounded-lg px-3 py-1" :class="period === 'week' ? 'bg-white text-accent-deep shadow-[0_1px_4px_rgba(63,56,114,0.15)]' : 'text-mute'" @click="period = 'week'">Неделя</button>
+        <button class="rounded-lg px-3 py-1" :class="period === 'month' ? 'bg-white text-accent-deep shadow-[0_1px_4px_rgba(63,56,114,0.15)]' : 'text-mute'" @click="period = 'month'">Месяц</button>
       </div>
     </div>
     <SphereWheel v-if="app.spheres.length" :rows="wheelRows" :score="score" @open="openSphere" />
@@ -221,12 +221,12 @@ async function save() {
   <div class="card p-5" data-test="time-budget">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs font-medium">
       <div class="inline-flex rounded-xl border border-line bg-white/70 p-0.5" data-test="ring-view">
-        <button class="rounded-lg px-3 py-1" :class="ringView === 'plan' ? 'bg-accent text-white' : 'text-mute'" data-test="ring-plan" @click="setRingView('plan')">План</button>
-        <button class="rounded-lg px-3 py-1" :class="ringView === 'fact' ? 'bg-accent text-white' : 'text-mute'" data-test="ring-fact" @click="setRingView('fact')">Факт</button>
+        <button class="rounded-lg px-3 py-1" :class="ringView === 'plan' ? 'bg-white text-accent-deep shadow-[0_1px_4px_rgba(63,56,114,0.15)]' : 'text-mute'" data-test="ring-plan" @click="setRingView('plan')">План</button>
+        <button class="rounded-lg px-3 py-1" :class="ringView === 'fact' ? 'bg-white text-accent-deep shadow-[0_1px_4px_rgba(63,56,114,0.15)]' : 'text-mute'" data-test="ring-fact" @click="setRingView('fact')">Факт</button>
       </div>
       <div class="inline-flex rounded-xl border border-line bg-white/70 p-0.5">
-        <button class="rounded-lg px-3 py-1" :class="period === 'week' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'week'">Неделя</button>
-        <button class="rounded-lg px-3 py-1" :class="period === 'month' ? 'bg-accent text-white' : 'text-mute'" @click="period = 'month'">Месяц</button>
+        <button class="rounded-lg px-3 py-1" :class="period === 'week' ? 'bg-white text-accent-deep shadow-[0_1px_4px_rgba(63,56,114,0.15)]' : 'text-mute'" @click="period = 'week'">Неделя</button>
+        <button class="rounded-lg px-3 py-1" :class="period === 'month' ? 'bg-white text-accent-deep shadow-[0_1px_4px_rgba(63,56,114,0.15)]' : 'text-mute'" @click="period = 'month'">Месяц</button>
       </div>
     </div>
     <div class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-8">

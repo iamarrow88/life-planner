@@ -57,7 +57,7 @@ async function logout() { await app.signOut(); router.push('/login') }
           :class="t.to === parentTab && '!bg-accent-soft !text-accent'" active-class="!bg-accent-soft !text-accent">
           <NavIcon :name="t.icon" />
           <span class="flex-1">{{ t.label }}</span>
-          <span v-if="t.to === '/inbox' && badge" class="rounded-full bg-accent px-2 text-xs font-semibold text-white">{{ badge }}</span>
+          <span v-if="t.to === '/inbox' && badge" class="rounded-full bg-white/90 px-2 text-xs font-semibold text-accent-deep ring-1 ring-accent/25">{{ badge }}</span>
         </RouterLink>
       </nav>
       <RouterLink to="/more" class="mt-auto flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium text-mute hover:bg-accent-soft" active-class="!bg-accent-soft !text-accent" data-test="side-settings">
@@ -99,7 +99,7 @@ async function logout() { await app.signOut(); router.push('/login') }
         :class="t.to === parentTab && '!bg-accent-soft !text-accent'" active-class="!bg-accent-soft !text-accent">
         <NavIcon :name="t.icon" />
         {{ t.label }}
-        <span v-if="t.to === '/inbox' && badge" class="absolute right-[22%] top-0.5 rounded-full bg-accent px-1.5 text-[10px] font-semibold text-white">{{ badge }}</span>
+        <span v-if="t.to === '/inbox' && badge" class="absolute right-[22%] top-0.5 rounded-full bg-white px-1.5 text-[10px] font-semibold text-accent-deep ring-1 ring-accent/30">{{ badge }}</span>
       </RouterLink>
     </nav>
   </div>
