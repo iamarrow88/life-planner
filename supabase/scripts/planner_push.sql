@@ -72,8 +72,7 @@ begin
   select u.user_id, 'task'::text, u.title,
          case when u.starts_at <= p_now
               then 'Пора начинать · ' || to_char(u.start_time, 'HH24:MI')
-              else 'Через ' || greatest(1, ceil(extract(epoch from (u.starts_at - p_now)) / 60))::int
-                   || ' мин · ' || to_char(u.start_time, 'HH24:MI') end,
+              else 'Начало в ' || to_char(u.start_time, 'HH24:MI') end,
          '/today'::text, ('task-' || u.id::text)
     from upd u
    where u.starts_at > p_now - v_cutoff;      -- слишком старые помечены отправленными, но молча
