@@ -470,6 +470,20 @@ export const useApp = defineStore('app', () => {
   function clearCache() { try { localStorage.removeItem(CACHE_KEY) } catch { /* нечего удалять */ } }
   // приложение свернули — сохранить то, что изменилось после последней загрузки
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && user.value) saveCache() })
+  // ---- Возврат после простоя: приложение было в фоне IDLE_RESET_MS и дольше — экраны сбрасывают выбранный день на сегодня
+  const IDLE_RESET_MS = 20 * 60_000
+  let hiddenAt: number | null = null
+  /** Растёт на каждом возврате после простоя: экраны следят за ним через watch */
+  const resumedAfterIdle = ref(0)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return }
+    if (hiddenAt !== null && Date.now() - hiddenAt >= IDLE_RESET_MS) {
+      // день мог смениться, пока приложение спало: часы обновятся только на следующем тике
+      const t = todayStr(); if (t !== today.value) { today.value = t; void load() }
+      resumedAfterIdle.value++
+    }
+    hiddenAt = null
+  })
 
   async function init() {
     user.value = await guard(() => repo.session()) ?? null
@@ -1461,7 +1475,7 @@ export const useApp = defineStore('app', () => {
     tagsReady, budgetReady, orderReady, reorderTasks, subtasksReady, priorityReady, complexityReady, overloadOn, setCardCloser, requestCloseTask, requestCloseHabit, postponesReady, postponeTarget, postponeTask, postponeSheetId, openPostponeSheet, closePostponeSheet, notice, showNotice, syncing, holdReloads, setSubtasks, allTags, renameTag, searchQuery, openSearch, closeSearch,
     cycleReady, cycleSettings, cycleCourses, cycleStartList, currentCycleStart, cycleDayOf, cycleNo, pillCourseOn, setPeriod, setCycleNote, setCycleSummary,
     markCycleStart, moveCycleStart, unmarkCycleStart, recalcCurrentCourse, saveCycleSettings, syncPillHabits, pillMarks, isPillHabit, habitActiveOn, inactiveHabits,
-    plannedTodayMinutes, freeTodayMinutes, init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
+    plannedTodayMinutes, freeTodayMinutes, resumedAfterIdle, init, load, refresh, refreshTick, signIn, signUp, signOut, addTask, updateTask, toggleDone, removeTask, addSphere, updateSphere, sphereNameTaken, addHabit, updateHabit, removeHabit, habitDays, habitStatusOf, dueHabits, laterHabits, habitDetailId, openHabit, closeHabit,
     timeBudget, timeBudgetReady, workFor, hasOwnWork, saveTimeBudget, setWeekWork,
     goalFor, reviewFor, currentReview, setWeekGoal, weekData, saveReview, exportAll, importAll, savePush, removePush,
     google, googleBusy, googleError, refreshGoogle, syncGoogle, connectGoogle, disconnectGoogle, setGoogleImport, setGoogleSettings, toggleImportCalendar, setExportCalendar,

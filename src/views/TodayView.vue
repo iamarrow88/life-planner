@@ -47,6 +47,15 @@ function setDayMode(m: 'list' | 'grid') {
   dayMode.value = m; mode.value = m
   try { localStorage.setItem(DAY_MODE_KEY, m) } catch { /* не страшно */ }
 }
+/** Вернулись в приложение после простоя (20 минут и больше) — выбираем сегодняшний день; вид (список, по часам, месяц) остаётся */
+watch(() => app.resumedAfterIdle, () => {
+  selDay.value = app.today; monthSel.value = app.today; calMonth.value = app.today.slice(0, 7); moveMsg.value = ''
+})
+/** Наступила полночь, а выбран был «сегодня» — выбор переезжает на новый день */
+watch(() => app.today, (now, before) => {
+  if (selDay.value === before) selDay.value = now
+  if (monthSel.value === before) { monthSel.value = now; calMonth.value = now.slice(0, 7) }
+})
 /** Что показывать в дне: всё, только задачи или только привычки */
 const show = ref<'all' | 'tasks' | 'habits'>('all')
 const shows = [{ v: 'all', label: 'Все' }, { v: 'tasks', label: 'Задачи' }, { v: 'habits', label: 'Привычки' }] as const
